@@ -277,12 +277,17 @@ const peFiltroAvaliacaoTopo = document.getElementById('peFiltroAvaliacaoTopo');
 // Referências da seção "Arte-finalização e Envio" (mesmo padrão estrutural da seção Processo
 // Editorial — cards + tabela + filtro "Filtrar por avaliação" + filtro rápido de Módulo +
 // popover de filtros gerais)
+const afeCardsGrid = document.getElementById('afeCardsGrid');
+const afeCardAssinadas = document.getElementById('afeCardAssinadas');
 const afeCardAndamento = document.getElementById('afeCardAndamento');
 const afeCardEnviadas = document.getElementById('afeCardEnviadas');
 const afeTableBody = document.getElementById('afeTableBody');
 const afeEmptyMessage = document.getElementById('afeEmptyMessage');
 const afeTableWrapper = document.getElementById('afeTableWrapper');
 const afeFiltroAvaliacaoTopo = document.getElementById('afeFiltroAvaliacaoTopo');
+const afeFiltroCardChipWrapper = document.getElementById('afeFiltroCardChipWrapper');
+const afeFiltroCardChipTexto = document.getElementById('afeFiltroCardChipTexto');
+const btnFecharFiltroCardAFE = document.getElementById('btnFecharFiltroCardAFE');
 
 // Filtro rápido de Módulo + popover de filtros gerais (Ano/Tipo de AV/Status/busca) da seção
 // Arte-finalização e Envio — mesmo padrão de peSelectFilters/peModuloRapidoWrapper
@@ -328,6 +333,11 @@ let anoExpandidoArteFinalizacaoEnvio = null;
 // Filtro rápido (clique em card) da seção Processo Editorial: 'total' | 'concluido' |
 // 'andamento' | 'pendente' | null
 let filtroRapidoProcessoEditorial = null;
+
+// Filtro rápido (clique em card) da seção Arte-finalização e Envio: 'assinadas' |
+// 'em_andamento' | 'enviadas_grafica' | null — mesmo padrão de filtroRapidoProcessoEditorial,
+// isolado nesta seção
+let filtroCardArteFinalizacao = null;
 
 // Ano (chave normalizada, ex.: '6º') atualmente expandido na tabela principal do Processo
 // Editorial, mostrando o detalhamento por registro logo abaixo; null = nenhum expandido
@@ -4701,7 +4711,7 @@ function identificarStatusCoordenador(record) {
   const prazoStr = safe(record.prazo_coord);
 
   if (!envio) {
-    return safe(record.devolutiva_encomenda) ? 'Não enviado para validação' : 'Aguardando elaborador';
+    return safe(record.devolutiva_encomenda) ? 'Não enviado para validação do coordenador' : 'Aguardando elaborador';
   }
 
   if (!devolutiva) {
@@ -4719,13 +4729,13 @@ function identificarStatusCoordenador(record) {
 // Texto de apoio (title) explicando o motivo de cada um dos dois status de "não enviado"
 const DICA_STATUS_COORDENADOR = {
   'Aguardando elaborador': 'A avaliação ainda não teve devolutiva do elaborador.',
-  'Não enviado para validação': 'A avaliação já voltou do elaborador, mas ainda não foi enviada ao coordenador.'
+  'Não enviado para validação do coordenador': 'A avaliação já voltou do elaborador, mas ainda não foi enviada ao coordenador.'
 };
 
 function badgeClassForStatusCoordenador(status) {
   const map = {
     'Aguardando elaborador': 'badge-coord-nao-enviado',
-    'Não enviado para validação': 'badge-coord-nao-enviado-validacao',
+    'Não enviado para validação do coordenador': 'badge-coord-nao-enviado-validacao',
     'Aguardando análise': 'badge-coord-aguardando',
     'Prazo atrasado': 'badge-coord-atrasado',
     'Devolvida no prazo': 'badge-coord-no-prazo',
@@ -4742,7 +4752,7 @@ function badgeClassForStatusCoordenador(status) {
 // mesmas <option> estáticas que existiam antes (valores retornados por identificarStatusCoordenador)
 const OPCOES_COORD_STATUS_GERAL = [
   'Aguardando elaborador',
-  'Não enviado para validação',
+  'Não enviado para validação do coordenador',
   'Aguardando análise',
   'Prazo atrasado',
   'Devolvida no prazo',
@@ -4754,7 +4764,7 @@ const OPCOES_COORD_SITUACAO_PRAZO = [
   'Devolvida no prazo',
   'Devolvida com atraso',
   'Aguardando elaborador',
-  'Não enviado para validação'
+  'Não enviado para validação do coordenador'
 ].map((v) => ({ value: v, label: v }));
 
 function populateCoordFilterOptions(records) {
@@ -5077,7 +5087,7 @@ function calcularResumoPorCoordenador(records) {
       if (!envio) {
         naoEnviadas += 1;
         if (status === 'Aguardando elaborador') aguardandoElaborador += 1;
-        if (status === 'Não enviado para validação') naoEnviadoParaValidacao += 1;
+        if (status === 'Não enviado para validação do coordenador') naoEnviadoParaValidacao += 1;
       }
       if (envio && !devolutiva) emValidacao += 1;
       if (devolutiva) devolvidas += 1;
@@ -5097,7 +5107,7 @@ function calcularResumoPorCoordenador(records) {
     } else if (aguardandoElaborador > 0) {
       status = 'Aguardando elaborador';
     } else if (naoEnviadoParaValidacao > 0) {
-      status = 'Não enviado para validação';
+      status = 'Não enviado para validação do coordenador';
     } else if (devolvidas === quantidade) {
       status = 'Concluído';
     } else {
@@ -5123,7 +5133,7 @@ function badgeClassForStatusGeralCoordenador(status) {
     'Com atrasos': 'badge-coord-atrasado',
     'Em validação': 'badge-coord-aguardando',
     'Aguardando elaborador': 'badge-coord-nao-enviado',
-    'Não enviado para validação': 'badge-coord-nao-enviado-validacao',
+    'Não enviado para validação do coordenador': 'badge-coord-nao-enviado-validacao',
     Concluído: 'badge-coord-no-prazo',
     'Em andamento': 'badge-coord-andamento'
   };
@@ -5141,7 +5151,7 @@ const PRIORIDADE_STATUS_DETALHE_COORDENADOR = {
   'Devolvida com atraso': 2,
   'Aguardando análise': 3,
   'Devolvida no prazo': 4,
-  'Não enviado para validação': 5,
+  'Não enviado para validação do coordenador': 5,
   'Aguardando elaborador': 6
 };
 
@@ -7266,17 +7276,24 @@ function atualizarCardsProcessoEditorial(dados) {
   const grupos = agruparTodosOsRegistrosProcessoEditorial(dados);
   let concluidas = 0;
   let andamento = 0;
+  let validadas = 0;
 
   grupos.forEach((grupo) => {
     const status = calcularStatusConsolidado(grupo.registros);
     if (status === 'Concluído') concluidas += 1;
     else if (status === 'Em andamento') andamento += 1;
+
+    if (grupo.registros.every((record) => Boolean(safe(record.devolutiva_coord)))) {
+      validadas += 1;
+    }
   });
 
   document.getElementById('peCardAndamento').textContent = andamento;
   document.getElementById('peCardConcluidas').textContent = concluidas;
+  document.getElementById('peCardValidada').textContent = validadas;
 
   renderizarTooltipConcluidasProcessoEditorial(dados);
+  renderizarTooltipValidadaProcessoEditorial(dados);
   atualizarDestaqueCardsProcessoEditorial();
 }
 
@@ -7327,6 +7344,46 @@ function calcularProgressoConclusaoPorAnoETipoAv(ano, registrosDoAno, filtroTipo
     agruparRegistrosProcessoEditorialPorAno(ano, registrosDoAno),
     filtroTipoAv
   );
+}
+
+// Calcula, por tipo de AV normalizado, o progresso de VALIDAÇÃO (devolutiva_coord preenchida em
+// TODOS os componentes do bloco/bloquinho) a partir de uma lista já pronta de grupos consolidados
+// (bloco/bloquinho — ver agruparTodosOsRegistrosProcessoEditorial/agruparRegistrosProcessoEditorialPorAno)
+// — mesmo padrão de calcularProgressoConclusaoPorGrupos, mas usando a regra de validação do card
+// "Total de Prova Validada" em vez do status consolidado. Por padrão mantém a ordem fixa
+// AV1/AV2/2º CHAMADA/REC-SEM/REC-FIM, inclusive tipos sem nenhum grupo (total 0); quando
+// `filtroTipoAv` é informado (filtro "Filtrar por avaliação:" ativo), restringe o resultado a
+// apenas esse tipo. Base da tooltip do card "Total de Prova Validada".
+function calcularProgressoValidacaoPorGrupos(grupos, filtroTipoAv = null) {
+  const tiposConsiderados = filtroTipoAv ? [filtroTipoAv] : ORDEM_TIPO_AV_PERFORMANCE;
+
+  const totais = new Map(tiposConsiderados.map((tipo) => [tipo, { total: 0, validadas: 0 }]));
+  grupos.forEach((grupo) => {
+    const tipo = normalizarTipoAvPerformance(grupo.registros[0].tipo_av);
+    if (!totais.has(tipo)) return;
+    const grupoTotais = totais.get(tipo);
+    grupoTotais.total += 1;
+    if (grupo.registros.every((record) => Boolean(safe(record.devolutiva_coord)))) {
+      grupoTotais.validadas += 1;
+    }
+  });
+
+  return tiposConsiderados.map((tipo) => {
+    const { total, validadas } = totais.get(tipo);
+    return {
+      tipoAv: tipo,
+      total,
+      validadas,
+      percentual: total > 0 ? (validadas / total) * 100 : 0
+    };
+  });
+}
+
+// Progresso de validação por tipo de AV no recorte inteiro (todos os anos) — usado pela tooltip
+// do card "Total de Prova Validada". `filtroTipoAv` restringe às linhas de um único tipo quando
+// o filtro global "Filtrar por avaliação:" da seção está ativo.
+function calcularProgressoValidacaoPorTipoAv(dados, filtroTipoAv = null) {
+  return calcularProgressoValidacaoPorGrupos(agruparTodosOsRegistrosProcessoEditorial(dados), filtroTipoAv);
 }
 
 // Preenche um container de tooltip analítica com 1 linha por tipo de AV (label + barra de
@@ -7392,6 +7449,70 @@ function renderizarTooltipConcluidasProcessoEditorial(dados) {
 
   const grupos = calcularProgressoConclusaoPorTipoAv(dados);
   renderizarLinhasTooltipProgressoConclusao(container, grupos, 'Não há provas no recorte atual.');
+}
+
+// Preenche um container de tooltip analítica com 1 linha por tipo de AV (label + barra de
+// progresso + "validadas de total · percentual") — mesma estrutura de
+// renderizarLinhasTooltipProgressoConclusao, trocando apenas o dado exibido (validadas em vez de
+// concluídas). Clicar numa linha aplica o filtro global "Filtrar por avaliação:" da seção.
+function renderizarLinhasTooltipProgressoValidacao(container, grupos, mensagemVazia) {
+  container.innerHTML = '';
+
+  const totalGeral = grupos.reduce((soma, g) => soma + g.total, 0);
+
+  if (totalGeral === 0 && grupos.length > 1) {
+    const vazio = document.createElement('p');
+    vazio.className = 'coord-tooltip-empty';
+    vazio.textContent = mensagemVazia;
+    container.appendChild(vazio);
+    return;
+  }
+
+  grupos.forEach((grupo) => {
+    const row = document.createElement('div');
+    row.className = 'coord-tooltip-row coord-tooltip-row--clicavel';
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '-1');
+    row.title =
+      `${grupo.tipoAv}: ${grupo.validadas} de ${grupo.total} validadas ` +
+      `(${formatarPercentualComVirgula(grupo.percentual)}%)`;
+
+    const label = document.createElement('span');
+    label.className = 'coord-tooltip-label';
+    label.textContent = grupo.tipoAv;
+
+    const track = document.createElement('div');
+    track.className = 'coord-tooltip-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'coord-tooltip-bar-fill';
+    fill.style.width = `${grupo.percentual}%`;
+    track.appendChild(fill);
+
+    const valor = document.createElement('span');
+    valor.className = 'coord-tooltip-value';
+    valor.textContent = `${grupo.validadas} de ${grupo.total} · ${formatarPercentualComVirgula(grupo.percentual)}%`;
+
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(valor);
+
+    row.addEventListener('click', () => selecionarFiltroTipoAvGlobalProcessoEditorial(grupo.tipoAv));
+
+    container.appendChild(row);
+  });
+}
+
+// Renderiza a dica de ferramenta analítica (tooltip) do card "Total de Prova Validada": barras
+// compactas por tipo de AV mostrando o percentual de validação (devolutiva_coord preenchida em
+// todos os componentes do bloco) — mesmo padrão visual/funcional da tooltip do card "Concluídas".
+// Respeita o filtro global "Filtrar por avaliação:" da seção: quando ativo, mostra só aquele
+// tipo em vez das 5 avaliações fixas.
+function renderizarTooltipValidadaProcessoEditorial(dados) {
+  const container = document.getElementById('peValidadaTooltipChart');
+  if (!container) return;
+
+  const grupos = calcularProgressoValidacaoPorTipoAv(dados, peFiltroTipoAvGlobal);
+  renderizarLinhasTooltipProgressoValidacao(container, grupos, 'Não há provas no recorte atual.');
 }
 
 // Ordena os registros da tabela detalhada (expansão do ano): 1) avaliação/tipo de AV (ordem
@@ -8885,11 +9006,21 @@ function formatarDataArteFinalizacao(item) {
   return '-';
 }
 
-// Status da etapa de Arte-finalização (coluna da tabela): Concluído (fim_arte_final ou
-// arte_final preenchidos) > Em andamento (só início preenchido) > Pendente (nada preenchido)
+// Status da etapa de Arte-finalização (coluna da tabela): Concluído só quando
+// fim_cotejo_arte_final está preenchido — arte_final (e os demais campos intermediários) só
+// indicam que a etapa começou/está em andamento, nunca que ela terminou. Em andamento quando
+// qualquer um dos campos da etapa está preenchido mas fim_cotejo_arte_final ainda não. Pendente
+// quando nenhum campo da etapa está preenchido.
 function calcularStatusArteFinalizacao(item) {
-  if (temDataOuValor(item.fim_arte_final) || temDataOuValor(item.arte_final)) return 'completed';
-  if (temDataOuValor(item.inicio_arte_final)) return 'in-progress';
+  if (temDataOuValor(item.fim_cotejo_arte_final)) return 'completed';
+  if (
+    temDataOuValor(item.arte_final) ||
+    temDataOuValor(item.inicio_arte_final) ||
+    temDataOuValor(item.fim_arte_final) ||
+    temDataOuValor(item.inicio_cotejo_arte_final)
+  ) {
+    return 'in-progress';
+  }
   return 'pending';
 }
 
@@ -8935,6 +9066,35 @@ function badgeClassForStatusArteFinalizacaoGeral(status) {
 // foram enviadas para a gráfica: um bloco só conta como enviado quando TODOS os registros que o
 // compõem têm data_envio_grafica preenchida (fallback para envio_grafica só quando
 // data_envio_grafica está vazia), nunca quando só parte das disciplinas do bloco foi enviada.
+// Total de provas consolidadas (mesmo agrupamento por bloco/bloquinho usado em
+// contarProvasEnviadasGraficaConsolidado) que já passaram pela assinatura do coordenador: um
+// bloco só conta como assinado quando TODOS os registros que o compõem têm
+// devolutiva_assinatura_coord preenchida, nunca quando só parte das disciplinas do bloco foi
+// assinada.
+function contarProvasAssinadasConsolidado(dados) {
+  const porAno = new Map(ORDEM_ANO_ESCOLAR_COORD.map((ano) => [ano, []]));
+
+  dados.forEach((record) => {
+    const numero = normalizarAnoSegmento(record.ano);
+    if (numero === null) return;
+    const chave = `${numero}º`;
+    if (!porAno.has(chave)) return;
+    porAno.get(chave).push(record);
+  });
+
+  let total = 0;
+  porAno.forEach((registros, ano) => {
+    if (registros.length === 0) return;
+    const grupos = agruparRegistrosProcessoEditorialPorAno(ano, registros);
+    grupos.forEach((grupo) => {
+      const assinado = grupo.registros.every((record) => temDataOuValor(record.devolutiva_assinatura_coord));
+      if (assinado) total += 1;
+    });
+  });
+
+  return total;
+}
+
 function contarProvasEnviadasGraficaConsolidado(dados) {
   const porAno = new Map(ORDEM_ANO_ESCOLAR_COORD.map((ano) => [ano, []]));
 
@@ -8961,16 +9121,122 @@ function contarProvasEnviadasGraficaConsolidado(dados) {
   return total;
 }
 
-// Calcula os 3 cards do topo a partir do recorte já filtrado (popover inexistente nesta seção
-// + pill "Filtrar por avaliação"). "Enviadas" usa a contagem consolidada por bloco (ver
-// contarProvasEnviadasGraficaConsolidado); "Assinadas"/"Em andamento" continuam por registro.
+// Alterna o filtro rápido (clique em card) da seção Arte-finalização e Envio: se já estava
+// ativo, desliga; senão, assume o novo — mesmo padrão de alternarFiltroRapidoProcessoEditorial
+function alternarFiltroCardArteFinalizacao(tipo) {
+  filtroCardArteFinalizacao = filtroCardArteFinalizacao === tipo ? null : tipo;
+  renderizarArteFinalizacaoEnvio();
+}
+
+// Regras de bloco usadas pelo filtro dos cards (mesmos critérios já usados pelos cálculos dos
+// cards, ver contarProvasAssinadasConsolidado/contarProvasEnviadasGraficaConsolidado/
+// calcularCardsArteFinalizacaoEnvio): um bloco só é considerado "assinado"/"enviado para
+// gráfica" quando TODOS os registros que o compõem têm o campo preenchido.
+function estaAssinada(registrosDoBloco) {
+  return registrosDoBloco.every((record) => temDataOuValor(record.devolutiva_assinatura_coord));
+}
+
+function estaEnviadaParaGrafica(registrosDoBloco) {
+  return registrosDoBloco.every(
+    (record) => temDataOuValor(record.data_envio_grafica) || temDataOuValor(record.envio_grafica)
+  );
+}
+
+// Um bloco está "em andamento" quando ainda não foi totalmente enviado para gráfica e pelo menos
+// um dos registros que o compõem satisfaz a mesma condição de "andamento" já usada pelo card (ver
+// calcularCardsArteFinalizacaoEnvio: assinada, ainda não enviada para gráfica individualmente e
+// com alguma etapa de arte-finalização/checklist já iniciada).
+function estaEmAndamentoArteFinalizacao(registrosDoBloco) {
+  if (estaEnviadaParaGrafica(registrosDoBloco)) return false;
+  return registrosDoBloco.some((record) => {
+    const assinada = temDataOuValor(record.devolutiva_assinatura_coord);
+    const enviadaParaGrafica = temDataOuValor(record.data_envio_grafica) || temDataOuValor(record.envio_grafica);
+    const etapaIniciada =
+      temDataOuValor(record.arte_final) ||
+      temDataOuValor(record.inicio_arte_final) ||
+      temDataOuValor(record.fim_arte_final) ||
+      temDataOuValor(record.checklist) ||
+      temDataOuValor(record.data_checklist);
+    return assinada && !enviadaParaGrafica && etapaIniciada;
+  });
+}
+
+// Aplica o filtro do card ativo (clique em "Total de provas assinadas"/"Em Andamento"/"Provas
+// Enviadas para Gráfica") sobre o recorte já filtrado por Módulo/Tipo de AV/busca — usado só pela
+// tabela e pelos detalhes expandidos (os cards continuam mostrando o total do recorte completo,
+// sem o filtro do próprio card, mesmo padrão de filtroRapidoProcessoEditorial). Respeita o mesmo
+// padrão de consolidação por bloco/bloquinho usado no restante da seção
+// (agruparRegistrosProcessoEditorialPorAno): um bloco só entra (ou fica de fora) inteiro, nunca
+// parcialmente.
+function aplicarFiltroCardArteFinalizacao(dados) {
+  if (!filtroCardArteFinalizacao) return dados;
+
+  const porAno = new Map(ORDEM_ANO_ESCOLAR_COORD.map((ano) => [ano, []]));
+  dados.forEach((record) => {
+    const numero = normalizarAnoSegmento(record.ano);
+    if (numero === null) return;
+    const chave = `${numero}º`;
+    if (!porAno.has(chave)) return;
+    porAno.get(chave).push(record);
+  });
+
+  const resultado = [];
+  porAno.forEach((registros, ano) => {
+    if (registros.length === 0) return;
+    agruparRegistrosProcessoEditorialPorAno(ano, registros).forEach((grupo) => {
+      let entra;
+      if (filtroCardArteFinalizacao === 'assinadas') entra = estaAssinada(grupo.registros);
+      else if (filtroCardArteFinalizacao === 'enviadas_grafica') entra = estaEnviadaParaGrafica(grupo.registros);
+      else if (filtroCardArteFinalizacao === 'em_andamento') entra = estaEmAndamentoArteFinalizacao(grupo.registros);
+      else entra = true;
+
+      if (entra) resultado.push(...grupo.registros);
+    });
+  });
+
+  return resultado;
+}
+
+// Atualiza o destaque visual (borda/sombra) do card correspondente ao filtro rápido ativo —
+// mesmo padrão de atualizarDestaqueCardsProcessoEditorial
+function atualizarDestaqueCardsArteFinalizacaoEnvio() {
+  afeCardsGrid.querySelectorAll('[data-quick-filter]').forEach((card) => {
+    const tipo = card.dataset.quickFilter;
+    card.classList.toggle('is-quick-active', tipo === filtroCardArteFinalizacao);
+    card.setAttribute('aria-pressed', String(tipo === filtroCardArteFinalizacao));
+  });
+}
+
+// Rótulos exibidos no chip "Filtro ativo:" — 1 por valor possível de filtroCardArteFinalizacao
+const ROTULOS_FILTRO_CARD_AFE = {
+  assinadas: 'Total de provas assinadas',
+  em_andamento: 'Em andamento',
+  enviadas_grafica: 'Provas enviadas para gráfica'
+};
+
+// Mostra/esconde o chip "Filtro ativo: <rótulo> ×" no cabeçalho da tabela, conforme o filtro de
+// card atualmente ativo
+function atualizarChipFiltroCardArteFinalizacao() {
+  if (!afeFiltroCardChipWrapper) return;
+
+  if (!filtroCardArteFinalizacao) {
+    afeFiltroCardChipWrapper.hidden = true;
+    return;
+  }
+
+  afeFiltroCardChipWrapper.hidden = false;
+  afeFiltroCardChipTexto.textContent = `Filtro ativo: ${ROTULOS_FILTRO_CARD_AFE[filtroCardArteFinalizacao]}`;
+}
+
+// Calcula os cards do topo a partir do recorte já filtrado (popover inexistente nesta seção
+// + pill "Filtrar por avaliação"). "Assinadas"/"Enviadas" usam a contagem consolidada por bloco
+// (ver contarProvasAssinadasConsolidado/contarProvasEnviadasGraficaConsolidado); "Em andamento"
+// continua por registro (inalterado).
 function calcularCardsArteFinalizacaoEnvio(dados) {
-  let assinadas = 0;
   let andamento = 0;
 
   dados.forEach((record) => {
     const assinada = temDataOuValor(record.devolutiva_assinatura_coord);
-    if (assinada) assinadas += 1;
 
     const enviadaParaGrafica = temDataOuValor(record.data_envio_grafica) || temDataOuValor(record.envio_grafica);
 
@@ -8983,6 +9249,7 @@ function calcularCardsArteFinalizacaoEnvio(dados) {
     if (assinada && !enviadaParaGrafica && etapaIniciada) andamento += 1;
   });
 
+  const assinadas = contarProvasAssinadasConsolidado(dados);
   const enviadas = contarProvasEnviadasGraficaConsolidado(dados);
 
   return { assinadas, andamento, enviadas };
@@ -8990,10 +9257,98 @@ function calcularCardsArteFinalizacaoEnvio(dados) {
 
 function atualizarCardsArteFinalizacaoEnvio(dados) {
   const totais = calcularCardsArteFinalizacaoEnvio(dados);
+  afeCardAssinadas.textContent = totais.assinadas;
   afeCardAndamento.textContent = totais.andamento;
   afeCardEnviadas.textContent = totais.enviadas;
 
+  renderizarTooltipAssinadasArteFinalizacaoEnvio(dados);
   renderizarTooltipEnviadasGraficaArteFinalizacaoEnvio(dados);
+}
+
+// Calcula, por tipo de AV normalizado, o progresso de assinatura da tooltip do card "Total de
+// provas assinadas" — EXCEÇÃO ao padrão de bloco/bloquinho usado no restante do painel: aqui
+// cada LINHA da base conta individualmente (sem agrupar por BLOCO 1/BLOCO 2/REDAÇÃO/bloquinho),
+// diferente do total consolidado do próprio card (ver contarProvasAssinadasConsolidado) e das
+// demais tooltips do sistema. total = quantidade de registros daquele tipo de AV no recorte;
+// assinadas = quantos desses registros têm devolutiva_assinatura_coord preenchida. Por padrão
+// mantém a ordem fixa AV1/AV2/2º CHAMADA/REC-SEM/REC-FIM; quando `filtroTipoAv` é informado
+// (filtro "Filtrar por avaliação:" ativo), restringe a lista a apenas esse tipo.
+function calcularProgressoAssinaturaPorTipoAv(dados, filtroTipoAv = null) {
+  const tiposConsiderados = filtroTipoAv ? [filtroTipoAv] : ORDEM_TIPO_AV_PERFORMANCE;
+  const totais = new Map(tiposConsiderados.map((tipo) => [tipo, { total: 0, assinadas: 0 }]));
+
+  dados.forEach((record) => {
+    const tipo = normalizarTipoAvPerformance(record.tipo_av);
+    if (!totais.has(tipo)) return;
+    const grupoTotais = totais.get(tipo);
+    grupoTotais.total += 1;
+    if (temDataOuValor(record.devolutiva_assinatura_coord)) grupoTotais.assinadas += 1;
+  });
+
+  return tiposConsiderados.map((tipo) => {
+    const { total, assinadas } = totais.get(tipo);
+    return {
+      tipoAv: tipo,
+      total,
+      assinadas,
+      percentual: total > 0 ? (assinadas / total) * 100 : 0
+    };
+  });
+}
+
+// Renderiza a dica de ferramenta analítica (tooltip) do card "Total de provas assinadas": barras
+// compactas por tipo de AV mostrando o percentual de assinatura — mesmo padrão visual/funcional
+// da tooltip do card "Provas Enviadas para Gráfica" (ver
+// renderizarTooltipEnviadasGraficaArteFinalizacaoEnvio, logo abaixo). Respeita o filtro "Filtrar
+// por avaliação:" da seção: só exibe a avaliação filtrada quando um filtro específico está ativo.
+function renderizarTooltipAssinadasArteFinalizacaoEnvio(dados) {
+  const container = document.getElementById('afeAssinadasTooltipChart');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const grupos = calcularProgressoAssinaturaPorTipoAv(dados, afeFiltroTipoAvGlobal);
+  const totalGeral = grupos.reduce((soma, g) => soma + g.total, 0);
+
+  if (totalGeral === 0 && grupos.length > 1) {
+    const vazio = document.createElement('p');
+    vazio.className = 'coord-tooltip-empty';
+    vazio.textContent = 'Não há provas no recorte atual.';
+    container.appendChild(vazio);
+    return;
+  }
+
+  grupos.forEach((grupo) => {
+    const row = document.createElement('div');
+    row.className = 'coord-tooltip-row coord-tooltip-row--clicavel';
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '-1');
+    row.title =
+      `${grupo.tipoAv}: ${grupo.assinadas} de ${grupo.total} assinadas ` +
+      `(${formatarPercentualComVirgula(grupo.percentual)}%)`;
+
+    const label = document.createElement('span');
+    label.className = 'coord-tooltip-label';
+    label.textContent = grupo.tipoAv;
+
+    const track = document.createElement('div');
+    track.className = 'coord-tooltip-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'coord-tooltip-bar-fill';
+    fill.style.width = `${grupo.percentual}%`;
+    track.appendChild(fill);
+
+    const valor = document.createElement('span');
+    valor.className = 'coord-tooltip-value';
+    valor.textContent = `${grupo.assinadas} de ${grupo.total} · ${formatarPercentualComVirgula(grupo.percentual)}%`;
+
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(valor);
+
+    row.addEventListener('click', () => selecionarFiltroTipoAvGlobalArteFinalizacaoEnvio(grupo.tipoAv));
+
+    container.appendChild(row);
+  });
 }
 
 // Calcula, por tipo de AV normalizado, o progresso de envio para gráfica: quantas provas
@@ -9235,6 +9590,7 @@ function limparFiltrosArteFinalizacaoEnvio() {
   filtrosArteFinalizacaoEnvio.status = [];
   Object.values(afeCheckboxGroups).forEach((grupo) => desmarcarGrupoCheckbox(grupo));
   afeFilterBusca.value = '';
+  filtroCardArteFinalizacao = null;
   renderizarArteFinalizacaoEnvio();
 }
 
@@ -9862,7 +10218,12 @@ function renderizarArteFinalizacaoEnvio() {
   const dados = aplicarFiltrosArteFinalizacaoEnvio(dadosPopover);
 
   atualizarCardsArteFinalizacaoEnvio(dados);
-  renderizarTabelaArteFinalizacaoEnvio(dados);
+
+  const dadosTabela = aplicarFiltroCardArteFinalizacao(dados);
+  renderizarTabelaArteFinalizacaoEnvio(dadosTabela);
+
+  atualizarDestaqueCardsArteFinalizacaoEnvio();
+  atualizarChipFiltroCardArteFinalizacao();
 }
 
 // Renderiza a barra "FILTRAR:" no cabeçalho da tabela do Banco de Provas, com um botão pill
@@ -13678,6 +14039,43 @@ document.querySelectorAll('#viewCoordenador [data-quick-filter]').forEach((card)
   });
 })();
 
+// Dica de ferramenta analítica do card "Total de Prova Validada" do Processo Editorial: mesmo
+// comportamento da tooltip do card "Concluídas" (ver IIFE acima) — em telas sem hover (touch),
+// alterna a exibição ao tocar no card e fecha ao tocar fora; ajusta a posição horizontal para
+// não cortar na borda direita da tela.
+(function () {
+  const wrapper = document.getElementById('peCardValidadaTooltipWrapper');
+  if (!wrapper) return;
+  const tooltip = document.getElementById('peValidadaTooltip');
+  const card = document.getElementById('peCardValidadaArticle');
+
+  function ajustarPosicaoTooltip() {
+    tooltip.classList.remove('coord-analytic-tooltip--direita');
+    const rect = tooltip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      tooltip.classList.add('coord-analytic-tooltip--direita');
+    }
+  }
+
+  card.addEventListener('mouseenter', ajustarPosicaoTooltip);
+  card.addEventListener('focus', ajustarPosicaoTooltip);
+
+  card.addEventListener('click', (event) => {
+    const semHover = window.matchMedia('(hover: none)').matches;
+    if (!semHover) return;
+    event.stopPropagation();
+    const abrindo = !tooltip.classList.contains('is-visible');
+    tooltip.classList.toggle('is-visible', abrindo);
+    if (abrindo) ajustarPosicaoTooltip();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!wrapper.contains(event.target)) {
+      tooltip.classList.remove('is-visible');
+    }
+  });
+})();
+
 // Dica de ferramenta analítica do card "Enviadas" da 2ª Validação (Assinatura Coordenador):
 // mesmo comportamento das tooltips dos cards "Pendente de Envio"/"Concluídas" (ver IIFEs
 // acima) — em telas sem hover (touch), alterna a exibição ao tocar no card e fecha ao tocar
@@ -13687,6 +14085,43 @@ document.querySelectorAll('#viewCoordenador [data-quick-filter]').forEach((card)
   if (!wrapper) return;
   const tooltip = document.getElementById('assCoordEnviadasTooltip');
   const card = document.getElementById('assCoordCardEnviadasArticle');
+
+  function ajustarPosicaoTooltip() {
+    tooltip.classList.remove('coord-analytic-tooltip--direita');
+    const rect = tooltip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      tooltip.classList.add('coord-analytic-tooltip--direita');
+    }
+  }
+
+  card.addEventListener('mouseenter', ajustarPosicaoTooltip);
+  card.addEventListener('focus', ajustarPosicaoTooltip);
+
+  card.addEventListener('click', (event) => {
+    const semHover = window.matchMedia('(hover: none)').matches;
+    if (!semHover) return;
+    event.stopPropagation();
+    const abrindo = !tooltip.classList.contains('is-visible');
+    tooltip.classList.toggle('is-visible', abrindo);
+    if (abrindo) ajustarPosicaoTooltip();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!wrapper.contains(event.target)) {
+      tooltip.classList.remove('is-visible');
+    }
+  });
+})();
+
+// Dica de ferramenta analítica do card "Total de provas assinadas" da Arte-finalização e Envio:
+// mesmo comportamento das tooltips dos demais cards (ver IIFEs acima) — em telas sem hover
+// (touch), alterna a exibição ao tocar no card e fecha ao tocar fora; ajusta a posição
+// horizontal para não cortar na borda direita da tela.
+(function () {
+  const wrapper = document.getElementById('afeCardAssinadasTooltipWrapper');
+  if (!wrapper) return;
+  const tooltip = document.getElementById('afeAssinadasTooltip');
+  const card = document.getElementById('afeCardAssinadasArticle');
 
   function ajustarPosicaoTooltip() {
     tooltip.classList.remove('coord-analytic-tooltip--direita');
@@ -13886,6 +14321,27 @@ document.querySelectorAll('#viewSistemaGGE [data-quick-filter]').forEach((card) 
     }
   });
 });
+
+// Cards da seção Arte-finalização e Envio funcionam como filtros rápidos ("Total de provas
+// assinadas"/"Em Andamento"/"Provas Enviadas para Gráfica"): clique (ou Enter/Espaço) alterna o
+// filtro — mesmo padrão do bloco acima (Processo Editorial)
+document.querySelectorAll('#arte-finalizacao-envio-section [data-quick-filter]').forEach((card) => {
+  card.addEventListener('click', () => alternarFiltroCardArteFinalizacao(card.dataset.quickFilter));
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      alternarFiltroCardArteFinalizacao(card.dataset.quickFilter);
+    }
+  });
+});
+
+// "x" do chip "Filtro ativo:" da seção Arte-finalização e Envio: remove o filtro de card ativo
+if (btnFecharFiltroCardAFE) {
+  btnFecharFiltroCardAFE.addEventListener('click', () => {
+    filtroCardArteFinalizacao = null;
+    renderizarArteFinalizacaoEnvio();
+  });
+}
 
 // Navegação interna da aba Coordenador: Acompanhamento <-> Indicadores
 btnIndicadoresCoord.addEventListener('click', mostrarIndicadoresCoordenador);

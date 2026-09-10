@@ -1828,7 +1828,46 @@
          assinatura do coordenador), mesmo padrão visual/estrutural da aba Processo Editorial -->
     <section id="arte-finalizacao-envio-section" hidden>
       <section class="banco-cards-grid pe-cards-grid" id="afeCardsGrid">
-        <div class="banco-card banco-card--blue">
+        <div class="coord-card-tooltip-wrapper" id="afeCardAssinadasTooltipWrapper">
+          <article
+            class="banco-card banco-card--purple pe-card"
+            role="button"
+            tabindex="0"
+            aria-describedby="afeAssinadasTooltip"
+            id="afeCardAssinadasArticle"
+            data-quick-filter="assinadas"
+          >
+            <div class="banco-card__icon banco-card__icon--purple" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 12.5l2.2 2.2L16 9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 6.5l8-3 8 3v6c0 4.5-3.4 7.7-8 9-4.6-1.3-8-4.5-8-9v-6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Total de provas assinadas</div>
+              <div class="banco-card__subtitle">Disponíveis para arte-finalização.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="afeCardAssinadas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <!-- Dica de ferramenta analítica: progresso de assinatura por tipo de AV -->
+          <div class="coord-analytic-tooltip" id="afeAssinadasTooltip" role="tooltip">
+            <h4 class="coord-tooltip-title">Progresso de assinatura por avaliação</h4>
+            <p class="coord-tooltip-subtitle">Percentual de provas assinadas pelo coordenador por tipo de avaliação.</p>
+            <div class="coord-tooltip-chart" id="afeAssinadasTooltipChart"></div>
+          </div>
+        </div>
+
+        <div
+          class="banco-card banco-card--blue pe-card"
+          role="button"
+          tabindex="0"
+          id="afeCardAndamentoArticle"
+          data-quick-filter="em_andamento"
+        >
           <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M7 3h7l4 4v14H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -1838,7 +1877,7 @@
           </div>
           <div class="banco-card__content">
             <div class="banco-card__title">Em Andamento</div>
-            <div class="banco-card__subtitle">Provas em arte-finalização ou preparação para envio.</div>
+            <div class="banco-card__subtitle">Provas em arte-finalização.</div>
           </div>
           <div class="banco-card__metric">
             <div class="banco-card__value" id="afeCardAndamento">-</div>
@@ -1848,11 +1887,12 @@
 
         <div class="coord-card-tooltip-wrapper" id="afeCardEnviadasTooltipWrapper">
           <article
-            class="banco-card banco-card--azul-escuro"
+            class="banco-card banco-card--azul-escuro pe-card"
             role="button"
             tabindex="0"
             aria-describedby="afeEnviadasTooltip"
             id="afeCardEnviadasArticle"
+            data-quick-filter="enviadas_grafica"
           >
             <div class="banco-card__icon banco-card__icon--azul-escuro" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1879,6 +1919,13 @@
           </div>
         </div>
       </section>
+
+      <!-- Chip "Filtro ativo:" — exibido quando um dos cards acima está aplicando um filtro
+           rápido sobre a tabela/detalhes desta seção -->
+      <div class="arte-card-filtro-chip" id="afeFiltroCardChipWrapper" hidden>
+        <span id="afeFiltroCardChipTexto"></span>
+        <button type="button" id="btnFecharFiltroCardAFE" aria-label="Remover filtro ativo">&times;</button>
+      </div>
 
       <p class="status-message empty" id="afeEmptyMessage" hidden>Não há registros para os filtros selecionados.</p>
 
@@ -2890,6 +2937,37 @@
          (diagramação, cotejos, leitura final, assinatura da coordenação e arte final) -->
     <div id="viewSistemaGGE" hidden>
       <section class="banco-cards-grid pe-cards-grid" id="peCardsGrid">
+        <div class="coord-card-tooltip-wrapper" id="peCardValidadaTooltipWrapper">
+          <article
+            class="banco-card banco-card--purple pe-card pe-card--validada"
+            aria-describedby="peValidadaTooltip"
+            tabindex="0"
+            id="peCardValidadaArticle"
+          >
+            <div class="banco-card__icon banco-card__icon--purple" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 12.5l2.2 2.2L16 9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 6.5l8-3 8 3v6c0 4.5-3.4 7.7-8 9-4.6-1.3-8-4.5-8-9v-6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Total de Prova Validada</div>
+              <div class="banco-card__subtitle">Provas validadas pela coordenação.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="peCardValidada">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <!-- Dica de ferramenta analítica: progresso de validação do processo editorial por tipo de AV -->
+          <div class="coord-analytic-tooltip" id="peValidadaTooltip" role="tooltip">
+            <h4 class="coord-tooltip-title">Progresso de validação por avaliação</h4>
+            <p class="coord-tooltip-subtitle">Percentual de avaliações validadas pela coordenação.</p>
+            <div class="coord-tooltip-chart" id="peValidadaTooltipChart"></div>
+          </div>
+        </div>
+
         <div class="banco-card banco-card--blue pe-card pe-card--andamento" data-quick-filter="andamento" role="button" tabindex="0">
           <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

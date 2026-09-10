@@ -3052,6 +3052,12 @@ body {
   background: var(--color-success, #16a34a);
 }
 
+/* Tooltip do card "Total de Prova Validada" do Processo Editorial: barra roxa, na cor
+   institucional do próprio card (--purple) */
+#peValidadaTooltipChart .coord-tooltip-bar-fill {
+  background: #7c3aed;
+}
+
 /* Tooltip do card "Enviadas" da 2ª Validação: barra azul, pois representa envio
    (em vez do laranja padrão usado nas tooltips de pendência) */
 #assCoordEnviadasTooltipChart .coord-tooltip-bar-fill {
@@ -3062,6 +3068,12 @@ body {
    institucional do próprio card (--ind-azul-escuro), em vez do laranja padrão */
 #afeEnviadasTooltipChart .coord-tooltip-bar-fill {
   background: var(--ind-azul-escuro, #17365c);
+}
+
+/* Tooltip do card "Total de provas assinadas" da Arte-finalização e Envio: barra roxa, na cor
+   institucional do próprio card (--purple) */
+#afeAssinadasTooltipChart .coord-tooltip-bar-fill {
+  background: #7c3aed;
 }
 
 .coord-tooltip-value {
@@ -5377,18 +5389,6 @@ body {
   margin-bottom: 26px;
 }
 
-/* Processo Editorial: apenas 2 cards (Em andamento / Concluídas) após remoção do
-   card "Provas validadas" — sobrescreve as 3 colunas herdadas de .pe-cards-grid */
-#peCardsGrid.pe-cards-grid {
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
-}
-
-/* Arte-finalização e Envio: apenas 2 cards (Em andamento / Provas Enviadas para Gráfica) após
-   remoção do card "Provas Assinadas" — sobrescreve as 3 colunas herdadas de .pe-cards-grid */
-#afeCardsGrid.pe-cards-grid {
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
-}
-
 /* Mesmo tamanho/proporção padronizado nas 3 seções (Coordenador/Processo Editorial/
    Assinatura Coordenador) — ver .coordenador-cards-grid .banco-card /
    .assinatura-cards-grid .banco-card para os valores equivalentes */
@@ -5462,6 +5462,41 @@ body {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
 }
 
+/* Chip "Filtro ativo: <rótulo> ×" da seção Arte-finalização e Envio — mesmo padrão visual dos
+   demais chips/pills do painel (fundo claro, borda suave, texto curto) */
+.arte-card-filtro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 6px 8px 6px 14px;
+  background: #eaf2fb;
+  border: 1px solid #cfe0fb;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f4775;
+}
+
+.arte-card-filtro-chip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #1f4775;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.arte-card-filtro-chip button:hover {
+  background: rgba(31, 71, 117, 0.12);
+}
+
 /* Cards da seção Banco de Provas: "Provas com Gabarito" (verde) + "Provas sem Gabarito" (azul),
    ícone à esquerda + título/subtítulo ao centro + quantidade grande à direita */
 .banco-cards-grid {
@@ -5510,6 +5545,12 @@ body {
   border-color: #b8c7dc;
 }
 
+/* Modificador roxo (2026-09-10): criado para o card "Total de Prova Validada" da seção
+   Processo Editorial, mesmo padrão dos demais modificadores de cor do banco-card */
+.banco-card--purple {
+  border-color: #ddd0f7;
+}
+
 .banco-card__icon {
   width: 54px;
   height: 54px;
@@ -5553,6 +5594,11 @@ body {
 .banco-card__icon--azul-escuro {
   background: var(--ind-azul-suave, #eaf2fb);
   color: var(--ind-azul-escuro, #17365c);
+}
+
+.banco-card__icon--purple {
+  background: #f2ecfc;
+  color: #7c3aed;
 }
 
 .banco-card__content {
@@ -5607,6 +5653,10 @@ body {
 
 .banco-card--azul-escuro .banco-card__value {
   color: var(--ind-azul-escuro, #17365c);
+}
+
+.banco-card--purple .banco-card__value {
+  color: #7c3aed;
 }
 
 .banco-card__unit {
