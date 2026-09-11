@@ -76,6 +76,19 @@
         <img src="./assets/menu-lateral/calendario.png" alt="" class="sidebar-icon-img">
         <span class="sidebar-text">Calendário</span>
       </button>
+      <!-- "Resumo da Produção" (2026-09-11): visão executiva do total de avaliações e do
+           andamento de cada etapa do Processo de Produção — seção própria, não é alias de
+           nenhuma aba existente (mesmo padrão de "GPA"/"Previsto vs. Realizado"/"Análise de
+           Tempo"). Posicionada entre Calendário e o grupo Processo de Produção, a pedido. -->
+      <button
+        class="sidebar-btn"
+        data-tab="resumo-producao"
+        title="Resumo da Produção"
+        aria-label="Resumo da Produção"
+      >
+        <img src="./assets/menu-lateral/estatisticas.png" alt="" class="sidebar-icon-img">
+        <span class="sidebar-text">Resumo da Produção</span>
+      </button>
       <!-- Grupo expansível "Processo de Produção": agrupa as 5 subseções do fluxo de produção
            das provas (Elaboração → 1ª Validação → Processo Editorial → 2ª Validação →
            Arte-finalização e Envio — rótulos visuais 2026-07-30; internamente continuam sendo
@@ -1581,6 +1594,154 @@
          data_aplicacao, em dias úteis. Mesmo padrão visual das demais telas de Indicadores
          (pe-indicadores-header, indicadores-resumo-grid, coordenador-indicadores-charts,
          pe-donut-status-*). -->
+    <!-- "Resumo da Produção" (2026-09-11): visão executiva do total de avaliações e do
+         andamento de cada etapa do Processo de Produção (Elaboração → 1ª Validação → Processo
+         Editorial → Assinatura do Coordenador → Arte-finalização e Envio). Seção própria (base
+         filteredRecords, mesmo recorte global), com filtros próprios sempre visíveis — mesmo
+         padrão de Previsto vs. Realizado logo abaixo. -->
+    <div id="viewResumoProducao" hidden>
+      <div class="pe-indicadores-header">
+        <h2 class="pe-indicadores-titulo">Resumo da Produção</h2>
+        <p class="pe-indicadores-subtitulo">Visão executiva do total de avaliações e do andamento de cada etapa do processo de produção.</p>
+      </div>
+
+      <!-- Filtros: Ano de aplicação/Módulo/Tipo de AV/Ano-Série/Segmento/Busca geral, sempre
+           visíveis (sem popover) — mesmo padrão de campos usado em Previsto vs. Realizado -->
+      <div class="geral-calendario-filtros">
+        <div class="filter-field">
+          <label for="filterResumoAnoAplicacao">Ano de aplicação</label>
+          <select id="filterResumoAnoAplicacao">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterResumoModulo">Módulo</label>
+          <select id="filterResumoModulo">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterResumoTipoAv">Tipo de AV</label>
+          <select id="filterResumoTipoAv">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterResumoAnoSerie">Ano/Série</label>
+          <select id="filterResumoAnoSerie">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterResumoSegmento">Segmento</label>
+          <select id="filterResumoSegmento">
+            <option value="">Todos</option>
+            <option value="Ensino Fundamental">Fundamental II (6º ao 9º)</option>
+            <option value="Ensino Médio">Ensino Médio (1º ao 3º)</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterResumoBusca">Busca geral</label>
+          <input type="text" id="filterResumoBusca" placeholder="Buscar por ID, módulo, ano, avaliação ou disciplina...">
+        </div>
+      </div>
+
+      <!-- Cards executivos superiores -->
+      <div class="indicadores-resumo-grid">
+        <div class="indicadores-resumo-card">
+          <span class="indicadores-resumo-label">Total de Avaliações</span>
+          <span class="indicadores-resumo-value" id="resumoProducaoCardTotal">-</span>
+          <span class="indicadores-resumo-sub">Avaliações consolidadas no recorte atual</span>
+        </div>
+        <div class="indicadores-resumo-card">
+          <span class="indicadores-resumo-label">Total de Avaliações M3</span>
+          <span class="indicadores-resumo-value" id="resumoProducaoCardM3">-</span>
+          <span class="indicadores-resumo-sub">Avaliações do Módulo 3</span>
+        </div>
+        <div class="indicadores-resumo-card">
+          <span class="indicadores-resumo-label">Total de Avaliações M4</span>
+          <span class="indicadores-resumo-value" id="resumoProducaoCardM4">-</span>
+          <span class="indicadores-resumo-sub">Avaliações do Módulo 4</span>
+        </div>
+      </div>
+
+      <p class="status-message empty" id="resumoProducaoEmptyMessage" hidden>Não há registros para os filtros selecionados.</p>
+
+      <div id="resumoProducaoConteudo">
+        <h3 class="section-subtitle-indicator">Resumo por etapa do processo</h3>
+
+        <!-- Cards de etapa (clicáveis: mesmo padrão pe-card[data-quick-filter]/is-quick-active
+             já usado em Processo Editorial/Arte-finalização e Envio) -->
+        <div class="resumo-etapas-grid" id="resumoProducaoEtapasGrid"></div>
+
+        <!-- Chip "Filtro ativo:" — exibido quando uma etapa foi clicada, destacando a tabela de
+             detalhamento por avaliação logo abaixo -->
+        <div class="arte-card-filtro-chip" id="resumoProducaoEtapaChipWrapper" hidden>
+          <span id="resumoProducaoEtapaChipTexto"></span>
+          <button type="button" id="btnFecharEtapaChipResumoProducao" aria-label="Remover filtro ativo">&times;</button>
+        </div>
+
+        <!-- Tabela "Detalhamento por etapa": repete os mesmos dados dos cards, em formato direto -->
+        <section class="pe-matrix-card">
+          <div class="pe-tabela-header">
+            <h2 class="pe-tabela-titulo">Detalhamento por etapa</h2>
+          </div>
+
+          <div class="table-wrapper pe-ano-table-scroll">
+            <table class="data-table pe-ano-table">
+              <thead>
+                <tr>
+                  <th>Etapa</th>
+                  <th>Total</th>
+                  <th>Concluídas</th>
+                  <th>Em andamento</th>
+                  <th>Pendentes</th>
+                  <th>Progresso</th>
+                </tr>
+              </thead>
+              <tbody id="resumoProducaoTabelaEtapasBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Detalhamento por avaliação da etapa selecionada (ao clicar em um card de etapa) -->
+        <section class="pe-matrix-card" id="resumoProducaoDetalheEtapaCard" hidden>
+          <div class="stage-detail-header">
+            <h2 class="pe-tabela-titulo" id="resumoProducaoDetalheEtapaTitulo">Detalhamento da etapa</h2>
+            <!-- Filtro de status — no cabeçalho da tabela, canto direito, mesma linha do título;
+                 aparece em todas as etapas (ver renderizarDetalheEtapaResumoProducao); afeta
+                 somente esta tabela -->
+            <div class="stage-status-filter" id="resumoDetalheEtapaStatusWrapper">
+              <label for="filterResumoDetalheEtapaStatus">Status</label>
+              <select id="filterResumoDetalheEtapaStatus">
+                <option value="">Todos</option>
+                <option value="completed">Concluídas</option>
+                <option value="in-progress">Em andamento</option>
+                <option value="pending">Pendentes</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-wrapper pe-ano-table-scroll">
+            <table class="data-table pe-ano-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Ano</th>
+                  <th>Módulo</th>
+                  <th>Avaliação</th>
+                  <th>Etapa</th>
+                  <th>Status da etapa</th>
+                  <th>Última data registrada</th>
+                </tr>
+              </thead>
+              <tbody id="resumoProducaoDetalheEtapaBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+
     <div id="viewPrevistoRealizado" hidden>
       <p class="indicadores-chart-empty indicadores-empty-geral" id="indPrevistoEmptyGeral" hidden>
         Não há dados suficientes para gerar indicadores neste recorte.

@@ -5497,6 +5497,240 @@ body {
   background: rgba(31, 71, 117, 0.12);
 }
 
+/* --- Seção "Resumo da Produção" (2026-09-11): grid de cards por etapa do processo, com barra
+   de progresso — reaproveita .pe-card/[data-quick-filter]/.is-quick-active (cursor, hover,
+   destaque ao clicar) já definidos acima; só o conteúdo interno do card é próprio desta seção. */
+.resumo-etapas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 14px 0 20px;
+}
+
+.resumo-etapa-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #ffffff;
+  border: 1.5px solid var(--ind-cinza-borda, #dbe5f1);
+  border-top: 3px solid var(--ind-azul-principal, #1f4775);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Ícone "ⓘ" + tooltip explicativo de cada card de etapa (Resumo por etapa do processo) —
+   .stage-card é a própria .resumo-etapa-card (ver renderizarEtapasResumoProducao); reaproveita
+   position:relative já definida acima. */
+.stage-info-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ind-cinza-borda, #d7e1ee);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ind-azul-escuro, #0b376d);
+  font-size: 13px;
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.stage-info-btn:hover,
+.stage-info-btn:focus-visible {
+  background: var(--ind-azul-suave, #eaf2fb);
+  outline: none;
+}
+
+/* Modelo "progresso por avaliação" (barras), mesmo padrão visual/estrutural das demais
+   tooltips analíticas do sistema (.coord-analytic-tooltip/.coord-tooltip-*, ex.: "Progresso de
+   assinatura por avaliação" da Arte-finalização e Envio) — .stage-tooltip só cuida do
+   posicionamento/abertura (âncora no card, hover/focus/toque), o conteúdo interno (título,
+   subtítulo, linhas com barra) usa as classes coord-tooltip-* já existentes, sem CSS duplicado. */
+.stage-tooltip {
+  position: absolute;
+  top: 42px;
+  right: 12px;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  background: #ffffff;
+  border: 1px solid var(--ind-cinza-borda, #d9e3ef);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(15, 35, 65, 0.18);
+  padding: 14px 16px;
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.stage-card:hover .stage-tooltip,
+.stage-card:focus-within .stage-tooltip,
+.stage-tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Barra roxa, igual ao modelo de referência ("Progresso de assinatura por avaliação" da
+   Arte-finalização e Envio, #afeAssinadasTooltipChart) em vez do laranja padrão das tooltips de
+   pendência */
+.stage-tooltip .coord-tooltip-bar-fill {
+  background: #7c3aed;
+}
+
+@media (max-width: 768px) {
+  /* Sem hover em touch: a tooltip só aparece com .is-visible (toque no ícone) — display:none
+     evita qualquer exibição indesejada mesmo que :focus-within/:hover disparem opacity/visibility
+     acima (display não é afetado por essas regras) */
+  .stage-tooltip {
+    position: static;
+    width: 100%;
+    margin-top: 10px;
+    display: none;
+  }
+
+  .stage-tooltip.is-visible {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+.resumo-etapa-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.resumo-etapa-card-nome {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.resumo-etapa-card-progresso {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ind-azul-principal, #1f4775);
+  white-space: nowrap;
+}
+
+.resumo-etapa-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e7edf5;
+  overflow: hidden;
+}
+
+.resumo-etapa-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ind-azul-principal, #1f4775);
+  transition: width 0.2s ease;
+}
+
+.resumo-etapa-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12.5px;
+  color: var(--ind-texto-secundario, #6b7280);
+}
+
+.resumo-etapa-card-stats strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.resumo-stat--concluida strong {
+  color: var(--ind-verde, #16a34a);
+}
+
+.resumo-stat--andamento strong {
+  color: var(--ind-amarelo, #b45309);
+}
+
+.resumo-stat--pendente strong {
+  color: var(--ind-texto-secundario, #6b7280);
+}
+
+@media (max-width: 700px) {
+  .resumo-etapas-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cabeçalho da tabela "Detalhamento da etapa" (Resumo da Produção): título à esquerda, filtro
+   "Status" à direita, mesma linha — mesmo card branco da tabela (.pe-matrix-card), só o
+   cabeçalho tem layout próprio (não reaproveita .pe-tabela-header para não afetar as demais
+   tabelas pe-matrix-card do painel). */
+.stage-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.stage-detail-header .pe-tabela-titulo {
+  margin: 0;
+}
+
+.stage-status-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-status-filter label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ind-azul-principal, #1f4775);
+  white-space: nowrap;
+}
+
+.stage-status-filter select {
+  min-width: 180px;
+  height: 36px;
+  border: 1px solid var(--ind-cinza-borda, #cfd8e3);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--ind-azul-escuro, #0b2f5f);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .stage-detail-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stage-status-filter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stage-status-filter select {
+    width: 100%;
+  }
+}
+
 /* Cards da seção Banco de Provas: "Provas com Gabarito" (verde) + "Provas sem Gabarito" (azul),
    ícone à esquerda + título/subtítulo ao centro + quantidade grande à direita */
 .banco-cards-grid {

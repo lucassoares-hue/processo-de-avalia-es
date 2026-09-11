@@ -363,6 +363,46 @@ const viewAnaliseTempo = document.getElementById('viewAnaliseTempo');
 const viewGPA = document.getElementById('gpa-section');
 let visaoProcessoEditorial = 'acompanhamento'; // 'acompanhamento' | 'indicadores'
 
+// --- "Resumo da Produção" (2026-09-11) — seção própria (não é atalho de nenhuma aba
+// existente), mesmo padrão de Previsto vs. Realizado/Análise de Tempo: visão executiva do total
+// de avaliações e do andamento de cada etapa do Processo de Produção
+const viewResumoProducao = document.getElementById('viewResumoProducao');
+const resumoProducaoConteudo = document.getElementById('resumoProducaoConteudo');
+const resumoProducaoEmptyMessage = document.getElementById('resumoProducaoEmptyMessage');
+const resumoProducaoCardTotal = document.getElementById('resumoProducaoCardTotal');
+const resumoProducaoCardM3 = document.getElementById('resumoProducaoCardM3');
+const resumoProducaoCardM4 = document.getElementById('resumoProducaoCardM4');
+const resumoProducaoEtapasGrid = document.getElementById('resumoProducaoEtapasGrid');
+const resumoProducaoTabelaEtapasBody = document.getElementById('resumoProducaoTabelaEtapasBody');
+const resumoProducaoEtapaChipWrapper = document.getElementById('resumoProducaoEtapaChipWrapper');
+const resumoProducaoEtapaChipTexto = document.getElementById('resumoProducaoEtapaChipTexto');
+const btnFecharEtapaChipResumoProducao = document.getElementById('btnFecharEtapaChipResumoProducao');
+const resumoProducaoDetalheEtapaCard = document.getElementById('resumoProducaoDetalheEtapaCard');
+const resumoProducaoDetalheEtapaTitulo = document.getElementById('resumoProducaoDetalheEtapaTitulo');
+const resumoProducaoDetalheEtapaBody = document.getElementById('resumoProducaoDetalheEtapaBody');
+const resumoDetalheEtapaStatusWrapper = document.getElementById('resumoDetalheEtapaStatusWrapper');
+const filterResumoDetalheEtapaStatus = document.getElementById('filterResumoDetalheEtapaStatus');
+
+const filterResumoAnoAplicacao = document.getElementById('filterResumoAnoAplicacao');
+const filterResumoModulo = document.getElementById('filterResumoModulo');
+const filterResumoTipoAv = document.getElementById('filterResumoTipoAv');
+const filterResumoAnoSerie = document.getElementById('filterResumoAnoSerie');
+const filterResumoSegmento = document.getElementById('filterResumoSegmento');
+const filterResumoBusca = document.getElementById('filterResumoBusca');
+
+// Etapa de card clicada (destaca o card + mostra a tabela "Detalhamento da etapa" abaixo);
+// null = nenhuma etapa selecionada. Mesmo padrão de alternância de filtroCardArteFinalizacao.
+let etapaSelecionadaResumoProducao = null;
+
+// Filtro "Status" da tabela "Detalhamento da etapa" — por enquanto só usado quando a etapa
+// selecionada é "Processo Editorial" (ver renderizarDetalheEtapaResumoProducao); '' = "Todos".
+// Afeta só essa tabela, mantido mesmo ao trocar de etapa (mais simples que resetar).
+let filtroStatusDetalheEtapaResumoProducao = '';
+
+// Filtros próprios da seção (isolados do resto do projeto) — mesmo padrão de
+// filtrosPrevistoRealizado/filtrosAnaliseTempo
+let filtrosResumoProducao = { anoAplicacao: '', modulo: '', tipoAv: '', anoSerie: '', segmento: '', busca: '' };
+
 // Filtros interativos da seção "Indicadores — Processo Editorial" (cliques nos gráficos),
 // isolados dos demais filtros interativos de Elaborador/Coordenador
 let filtrosIndicadoresPE = {
@@ -1095,6 +1135,8 @@ function trocarAba(nomeAba) {
     fecharPopoverFiltrosArteFinalizacaoEnvio();
   }
   dom.bancoProvasVazio.hidden = nomeAba !== 'banco-provas';
+  // "Resumo da Produção": seção própria (BD_SGGE), não é alias de outra aba, só alterna o hidden
+  viewResumoProducao.hidden = nomeAba !== 'resumo-producao';
   // "GPA": seção própria (BD_MACRO2), não é alias de outra aba, só alterna o hidden
   viewGPA.hidden = nomeAba !== 'gpa';
   if (nomeAba !== 'gpa') {
@@ -1248,6 +1290,8 @@ function trocarAba(nomeAba) {
 function renderAbaAtual() {
   if (abaAtual === 'geral') {
     renderizarGeral();
+  } else if (abaAtual === 'resumo-producao') {
+    renderizarResumoProducao();
   } else if (abaAtual === 'elaborador' || abaAtual === 'indicador-elaborador') {
     renderizarVisaoElaborador();
   } else if (abaAtual === 'coordenador' || abaAtual === 'indicador-coordenador') {
@@ -12029,6 +12073,629 @@ domPrevisto.filtroBusca.addEventListener('input', () => {
   filtrosPrevistoRealizado.busca = domPrevisto.filtroBusca.value;
   filtroStatusPrevistoRealizado = null;
   renderizarIndicadorPrevistoRealizado();
+});
+
+// --- "Resumo da Produção" (2026-09-11) ---
+// Visão executiva do total de avaliações e do andamento de cada etapa do Processo de Produção
+// (Elaboração → 1ª Validação → Processo Editorial → Assinatura do Coordenador → Arte-finalização
+// e Envio). Mesma base (filteredRecords) e mesmo padrão de consolidação por bloco
+// (agruparTodosOsRegistrosProcessoEditorial/agruparRegistrosProcessoEditorialPorAno) já usado em
+// Calendário/Banco de Provas/Processo Editorial/Arte-finalização e Envio/Previsto vs. Realizado —
+// nunca conta disciplina isolada quando ela pertence a um bloco/bloquinho.
+
+// Definição das 5 etapas do processo: nome exibido, campo(s) de início (qualquer um preenchido
+// indica que a etapa começou) e campo de conclusão (só ele conclui a etapa) — usados por
+// calcularStatusEtapaResumoProducao para classificar cada bloco/bloquinho consolidado.
+// `usaBloco` decide a granularidade de CADA etapa (só nesta seção — não afeta a regra global de
+// blocos do resto do painel): true = consolida por bloco/bloquinho (mesma regra já aprovada,
+// via agruparTodosOsRegistrosProcessoEditorial/agruparRegistrosProcessoEditorialPorAno);
+// false = conta linha a linha da planilha, sem nenhuma consolidação. Só Processo Editorial e
+// Arte-finalização e Envio usam bloco; Elaboração/1ª Validação/Assinatura do Coordenador contam
+// por registro.
+// `tooltip` traz título/subtítulo do tooltip do card (ver
+// calcularProgressoEtapaPorTipoAv/renderizarLinhasProgressoEtapaResumoProducao) — mesmo modelo
+// visual das demais tooltips "Progresso de ... por avaliação" do painel (barras por tipo de AV),
+// não mais um texto explicativo.
+const ETAPAS_RESUMO_PRODUCAO = [
+  {
+    chave: 'elaboracao',
+    nome: 'Elaboração',
+    usaBloco: false,
+    camposInicio: ['data_encomenda'],
+    campoFim: 'devolutiva_encomenda',
+    tooltip: {
+      titulo: 'Progresso de elaboração por avaliação',
+      subtitulo: 'Percentual de avaliações concluídas na elaboração por tipo de avaliação.'
+    }
+  },
+  {
+    chave: 'primeira_validacao',
+    nome: '1ª Validação',
+    usaBloco: false,
+    camposInicio: ['data_envio_coord'],
+    campoFim: 'devolutiva_coord',
+    tooltip: {
+      titulo: 'Progresso de 1ª validação por avaliação',
+      subtitulo: 'Percentual de avaliações concluídas na 1ª validação por tipo de avaliação.'
+    }
+  },
+  {
+    chave: 'processo_editorial',
+    nome: 'Processo Editorial',
+    usaBloco: true,
+    camposInicio: [
+      'inicio_diagramacao',
+      'diagramacao',
+      'inicio_cotejo',
+      'inicio_aplicacao_cotejo',
+      'inicio_leitura_final',
+      'inicio_aplicacao_leitura',
+      'inicio_ctj'
+    ],
+    campoFim: 'fim_ctj',
+    tooltip: {
+      titulo: 'Progresso do processo editorial por avaliação',
+      subtitulo: 'Percentual de avaliações concluídas no processo editorial por tipo de avaliação.'
+    }
+  },
+  {
+    chave: 'assinatura_coordenador',
+    nome: 'Assinatura do Coordenador',
+    usaBloco: false,
+    camposInicio: ['envio_assinatura_coord'],
+    campoFim: 'devolutiva_assinatura_coord',
+    tooltip: {
+      titulo: 'Progresso de assinatura por avaliação',
+      subtitulo: 'Percentual de avaliações assinadas pelo coordenador por tipo de avaliação.'
+    }
+  },
+  {
+    chave: 'arte_finalizacao_envio',
+    nome: 'Arte-finalização e Envio',
+    usaBloco: true,
+    camposInicio: [
+      'arte_final',
+      'inicio_arte_final',
+      'fim_arte_final',
+      'inicio_cotejo_arte_final',
+      'checklist',
+      'data_checklist'
+    ],
+    campoFim: 'data_envio_grafica',
+    tooltip: {
+      titulo: 'Progresso de arte-finalização e envio por avaliação',
+      subtitulo: 'Percentual de avaliações enviadas para gráfica por tipo de avaliação.'
+    }
+  }
+];
+
+// Retorna os "itens" contados por UMA etapa: 1 item por bloco/bloquinho (etapa.usaBloco = true,
+// mesma consolidação de `grupos`) ou 1 item por registro/linha da planilha (etapa.usaBloco =
+// false, a partir de `dadosFiltrados`, sem nenhuma consolidação). Cada item expõe {codigo,
+// ano, modulo, tipoAv, registros} — `registros` sempre é um array (1 elemento no caso linha a
+// linha), para calcularStatusEtapaResumoProducao funcionar igual nos dois casos.
+function obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados) {
+  if (etapa.usaBloco) {
+    return grupos.map((grupo) => ({
+      codigo: grupo.id,
+      ano: grupo.registros[0].ano,
+      modulo: grupo.registros[0].modulo,
+      tipoAv: grupo.registros[0].tipo_av,
+      registros: grupo.registros
+    }));
+  }
+
+  return dadosFiltrados.map((record) => ({
+    codigo: obterIdProcessoEditorial(record),
+    ano: record.ano,
+    modulo: record.modulo,
+    tipoAv: record.tipo_av,
+    registros: [record]
+  }));
+}
+
+// Status de UM bloco/bloquinho consolidado para UMA etapa: 'completed' só quando TODOS os
+// registros do bloco têm o campo de conclusão preenchido; 'in-progress' quando pelo menos um
+// registro tem algum campo de início preenchido mas nem todos concluíram; 'pending' quando
+// nenhum registro tem qualquer campo de início preenchido.
+function calcularStatusEtapaResumoProducao(registrosDoBloco, camposInicio, campoFim) {
+  if (registrosDoBloco.every((record) => temDataOuValor(record[campoFim]))) return 'completed';
+  const iniciada = registrosDoBloco.some((record) => camposInicio.some((campo) => temDataOuValor(record[campo])));
+  return iniciada ? 'in-progress' : 'pending';
+}
+
+const ROTULOS_STATUS_ETAPA_RESUMO_PRODUCAO = {
+  completed: 'Concluída',
+  'in-progress': 'Em andamento',
+  pending: 'Pendente'
+};
+
+function badgeClassForStatusEtapaResumoProducao(status) {
+  const map = {
+    completed: 'badge-pe-status-concluido',
+    'in-progress': 'badge-pe-status-andamento',
+    pending: 'badge-pe-status-pendente'
+  };
+  return map[status] || '';
+}
+
+// Calcula, para cada uma das 5 etapas, total/concluídas/em andamento/pendentes/progresso — cada
+// etapa usa sua própria granularidade (ver etapa.usaBloco/obterItensEtapaResumoProducao):
+// Processo Editorial e Arte-finalização e Envio contam por bloco/bloquinho consolidado; as
+// demais contam linha a linha da planilha. Os cards superiores (Total de Avaliações/M3/M4)
+// continuam usando `grupos` (consolidado por bloco) à parte, em calcularCardsResumoProducao.
+function calcularResumoEtapasProducao(grupos, dadosFiltrados) {
+  return ETAPAS_RESUMO_PRODUCAO.map((etapa) => {
+    const itens = obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados);
+
+    let concluidas = 0;
+    let andamento = 0;
+    let pendentes = 0;
+
+    itens.forEach((item) => {
+      const status = calcularStatusEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim);
+      if (status === 'completed') concluidas += 1;
+      else if (status === 'in-progress') andamento += 1;
+      else pendentes += 1;
+    });
+
+    const total = itens.length;
+    const progresso = total > 0 ? (concluidas / total) * 100 : 0;
+
+    return { ...etapa, total, concluidas, andamento, pendentes, progresso };
+  });
+}
+
+// Cards executivos superiores: total de avaliações consolidadas + total por Módulo M3/M4 — a
+// partir dos mesmos grupos consolidados por bloco (1 grupo = 1 avaliação, nunca 1 por disciplina)
+function calcularCardsResumoProducao(grupos) {
+  const total = grupos.length;
+  const m3 = grupos.filter((grupo) => safe(grupo.registros[0].modulo) === 'M3').length;
+  const m4 = grupos.filter((grupo) => safe(grupo.registros[0].modulo) === 'M4').length;
+  return { total, m3, m4 };
+}
+
+// Popula os selects de Ano de aplicação/Módulo/Ano-Série/Tipo de AV — mesmo padrão de
+// popularFiltrosPrevistoRealizado/popularFiltrosAnaliseTempo (Tipo de AV e Ano-Série com opções
+// fixas na ordem pedagógica; Módulo e Ano de aplicação derivados dos dados)
+function popularFiltrosResumoProducao(records) {
+  populateSelectOptions(filterResumoModulo, records, 'modulo');
+  populateAnoAplicacaoOptions(filterResumoAnoAplicacao, records, 'Todos');
+
+  if (filterResumoAnoSerie.options.length <= 1) {
+    ORDEM_ANO_ESCOLAR_COORD.forEach((ano) => {
+      const option = document.createElement('option');
+      option.value = ano;
+      option.textContent = ano;
+      filterResumoAnoSerie.appendChild(option);
+    });
+  }
+
+  if (filterResumoTipoAv.options.length <= 1) {
+    ORDEM_TIPO_AV_PERFORMANCE.forEach((tipoAv) => {
+      const option = document.createElement('option');
+      option.value = tipoAv;
+      option.textContent = tipoAv;
+      filterResumoTipoAv.appendChild(option);
+    });
+  }
+}
+
+// Aplica os filtros próprios da seção (Ano de aplicação/Módulo/Tipo de AV/Ano-Série/Segmento/
+// busca) — sempre ANTES da consolidação por bloco, para não gerar contagens incorretas
+function aplicarFiltrosResumoProducao(dados) {
+  const { anoAplicacao, modulo, tipoAv, anoSerie, segmento, busca } = filtrosResumoProducao;
+  const buscaLower = busca.trim().toLowerCase();
+
+  return dados.filter((record) => {
+    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
+    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (tipoAv && normalizarTipoAvPerformance(record.tipo_av) !== tipoAv) return false;
+
+    if (anoSerie) {
+      const numero = normalizarAnoSegmento(record.ano);
+      if (numero === null || `${numero}º` !== anoSerie) return false;
+    }
+
+    if (segmento && identificarSegmentoPorAno(record.ano) !== segmento) return false;
+
+    if (buscaLower) {
+      const alvo = [record.id, record.modulo, record.ano, record.tipo_av, record.frente]
+        .map((v) => safe(v).toLowerCase())
+        .join(' ');
+      if (!alvo.includes(buscaLower)) return false;
+    }
+
+    return true;
+  });
+}
+
+// Alterna a etapa selecionada (clique/Enter/Espaço num card de etapa): clicar na etapa já ativa
+// remove o destaque; clicar em outra etapa troca. Mesmo padrão de
+// alternarFiltroCardArteFinalizacao.
+function alternarEtapaResumoProducao(chave) {
+  etapaSelecionadaResumoProducao = etapaSelecionadaResumoProducao === chave ? null : chave;
+  renderizarResumoProducao();
+}
+
+// Última data preenchida entre os campos da etapa (conclusão + início), usada na coluna "Última
+// data registrada" da tabela de detalhamento — prioriza a data mais recente já parseável
+// (dd/mm/aaaa); cai para o primeiro valor não vazio quando nenhum dos campos é uma data válida
+function obterUltimaDataEtapaResumoProducao(registrosDoBloco, camposInicio, campoFim) {
+  const campos = [campoFim, ...camposInicio];
+  let melhorTexto = null;
+  let melhorData = null;
+
+  registrosDoBloco.forEach((record) => {
+    campos.forEach((campo) => {
+      const valor = safe(record[campo]);
+      if (!valor) return;
+      const data = parseBrDate(valor);
+      if (data) {
+        if (!melhorData || data.getTime() > melhorData.getTime()) {
+          melhorData = data;
+          melhorTexto = valor;
+        }
+      } else if (!melhorTexto) {
+        melhorTexto = valor;
+      }
+    });
+  });
+
+  return melhorTexto || '-';
+}
+
+// Renderiza os 3 cards executivos superiores
+function renderizarCardsResumoProducao(totais) {
+  resumoProducaoCardTotal.textContent = totais.total;
+  resumoProducaoCardM3.textContent = totais.m3;
+  resumoProducaoCardM4.textContent = totais.m4;
+}
+
+// Calcula, por tipo de AV normalizado, o progresso de UMA etapa (mesmo padrão de
+// calcularProgressoValidacaoPorTipoAv/calcularProgressoEnvioGraficaPorTipoAv já usados nas
+// demais tooltips "Progresso de ... por avaliação" do painel): usa os mesmos itens do card
+// (obterItensEtapaResumoProducao — bloco ou linha a linha, conforme etapa.usaBloco) e a mesma
+// regra de conclusão do card (todos os registros do item com etapa.campoFim preenchido). Mantém
+// sempre as 5 avaliações fixas (mesmo com total 0), para preservar o padrão visual.
+function calcularProgressoEtapaPorTipoAv(etapa, grupos, dadosFiltrados) {
+  const itens = obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados);
+  const totais = new Map(ORDEM_TIPO_AV_PERFORMANCE.map((tipo) => [tipo, { total: 0, concluidas: 0 }]));
+
+  itens.forEach((item) => {
+    const tipo = normalizarTipoAvPerformance(item.tipoAv);
+    if (!totais.has(tipo)) return;
+    const grupoTotais = totais.get(tipo);
+    grupoTotais.total += 1;
+    if (item.registros.every((record) => temDataOuValor(record[etapa.campoFim]))) grupoTotais.concluidas += 1;
+  });
+
+  return ORDEM_TIPO_AV_PERFORMANCE.map((tipo) => {
+    const { total, concluidas } = totais.get(tipo);
+    return {
+      tipoAv: tipo,
+      total,
+      concluidas,
+      percentual: total > 0 ? (concluidas / total) * 100 : 0
+    };
+  });
+}
+
+// Preenche o container da tooltip de um card de etapa com 1 linha por tipo de AV (label + barra
+// de progresso + "concluídas de total · percentual") — mesmo padrão visual/funcional das demais
+// tooltips "Progresso de ... por avaliação" do sistema (ver
+// renderizarLinhasTooltipProgressoValidacao/renderizarTooltipEnviadasGraficaArteFinalizacaoEnvio),
+// só que puramente informativa (sem clique para filtrar), pois esta seção não tem um filtro
+// global "Filtrar por avaliação".
+function renderizarLinhasProgressoEtapaResumoProducao(container, linhas) {
+  container.innerHTML = '';
+
+  linhas.forEach((linha) => {
+    const row = document.createElement('div');
+    row.className = 'coord-tooltip-row';
+    row.title =
+      `${linha.tipoAv}: ${linha.concluidas} de ${linha.total} concluídas ` +
+      `(${formatarPercentualComVirgula(linha.percentual)}%)`;
+
+    const label = document.createElement('span');
+    label.className = 'coord-tooltip-label';
+    label.textContent = linha.tipoAv;
+
+    const track = document.createElement('div');
+    track.className = 'coord-tooltip-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'coord-tooltip-bar-fill';
+    fill.style.width = `${linha.percentual}%`;
+    track.appendChild(fill);
+
+    const valor = document.createElement('span');
+    valor.className = 'coord-tooltip-value';
+    valor.textContent = `${linha.concluidas} de ${linha.total} · ${formatarPercentualComVirgula(linha.percentual)}%`;
+
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(valor);
+
+    container.appendChild(row);
+  });
+}
+
+// Fecha qualquer tooltip de etapa aberto por clique/toque quando o usuário clica fora do card —
+// mesmo padrão (fechar ao clicar fora) já usado pelas demais tooltips analíticas do sistema.
+// Registrado 1 única vez (fora da função de render, que recria os cards a cada chamada).
+document.addEventListener('click', (event) => {
+  if (event.target.closest('.stage-card')) return;
+  document.querySelectorAll('.stage-tooltip.is-visible').forEach((el) => el.classList.remove('is-visible'));
+});
+
+// Renderiza o grid de cards por etapa (clicáveis: mesmo padrão pe-card[data-quick-filter]/
+// is-quick-active já usado em Processo Editorial/Arte-finalização e Envio — só o conteúdo
+// interno do card é próprio desta seção). Cada card também recebe o ícone "ⓘ" + tooltip
+// "Progresso de ... por avaliação" (barras por tipo de AV, mesmo modelo das demais tooltips do
+// painel) no canto superior direito — `grupos`/`dadosFiltrados` alimentam essa tooltip
+// (calcularProgressoEtapaPorTipoAv), sem afetar os números do próprio card.
+function renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados) {
+  resumoProducaoEtapasGrid.innerHTML = '';
+
+  etapas.forEach((etapa) => {
+    const ativo = etapaSelecionadaResumoProducao === etapa.chave;
+
+    const card = document.createElement('article');
+    card.className = 'resumo-etapa-card stage-card pe-card';
+    card.dataset.quickFilter = etapa.chave;
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.classList.toggle('is-quick-active', ativo);
+    card.setAttribute('aria-pressed', String(ativo));
+
+    // Tooltip "Progresso de ... por avaliação": sem ícone "i" visível no card (removido a
+    // pedido) — continua aberta por hover/focus no próprio card, via
+    // .stage-card:hover/.stage-card:focus-within .stage-tooltip (CSS já existente).
+    const tooltip = document.createElement('div');
+    tooltip.className = 'stage-tooltip';
+    tooltip.id = `stageTooltip-${etapa.chave}`;
+    tooltip.setAttribute('role', 'tooltip');
+
+    const tooltipTitulo = document.createElement('h4');
+    tooltipTitulo.className = 'coord-tooltip-title';
+    tooltipTitulo.textContent = etapa.tooltip.titulo;
+
+    const tooltipSubtitulo = document.createElement('p');
+    tooltipSubtitulo.className = 'coord-tooltip-subtitle';
+    tooltipSubtitulo.textContent = etapa.tooltip.subtitulo;
+
+    const tooltipChart = document.createElement('div');
+    tooltipChart.className = 'coord-tooltip-chart';
+    renderizarLinhasProgressoEtapaResumoProducao(
+      tooltipChart,
+      calcularProgressoEtapaPorTipoAv(etapa, grupos, dadosFiltrados)
+    );
+
+    tooltip.appendChild(tooltipTitulo);
+    tooltip.appendChild(tooltipSubtitulo);
+    tooltip.appendChild(tooltipChart);
+
+    const header = document.createElement('div');
+    header.className = 'resumo-etapa-card-header';
+    const nome = document.createElement('span');
+    nome.className = 'resumo-etapa-card-nome';
+    nome.textContent = etapa.nome;
+    const progresso = document.createElement('span');
+    progresso.className = 'resumo-etapa-card-progresso';
+    progresso.textContent = `${formatarPercentualComVirgula(etapa.progresso)}%`;
+    header.appendChild(nome);
+    header.appendChild(progresso);
+
+    const track = document.createElement('div');
+    track.className = 'resumo-etapa-progress-track';
+    const fill = document.createElement('div');
+    fill.className = 'resumo-etapa-progress-fill';
+    fill.style.width = `${etapa.progresso}%`;
+    track.appendChild(fill);
+
+    const stats = document.createElement('div');
+    stats.className = 'resumo-etapa-card-stats';
+    stats.innerHTML = `
+      <span>Total: <strong>${etapa.total}</strong></span>
+      <span class="resumo-stat--concluida">Concluídas: <strong>${etapa.concluidas}</strong></span>
+      <span class="resumo-stat--andamento">Em andamento: <strong>${etapa.andamento}</strong></span>
+      <span class="resumo-stat--pendente">Pendentes: <strong>${etapa.pendentes}</strong></span>
+    `;
+
+    card.appendChild(header);
+    card.appendChild(track);
+    card.appendChild(stats);
+    card.appendChild(tooltip);
+
+    card.addEventListener('click', () => alternarEtapaResumoProducao(etapa.chave));
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        alternarEtapaResumoProducao(etapa.chave);
+      }
+    });
+
+    resumoProducaoEtapasGrid.appendChild(card);
+  });
+}
+
+// Renderiza a tabela "Detalhamento por etapa" — repete os mesmos dados dos cards em formato direto
+function renderizarTabelaEtapasResumoProducao(etapas) {
+  resumoProducaoTabelaEtapasBody.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+
+  etapas.forEach((etapa) => {
+    const tr = document.createElement('tr');
+
+    const tdNome = document.createElement('td');
+    tdNome.textContent = etapa.nome;
+    tr.appendChild(tdNome);
+
+    [etapa.total, etapa.concluidas, etapa.andamento, etapa.pendentes].forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = valor;
+      tr.appendChild(td);
+    });
+
+    const tdProgresso = document.createElement('td');
+    tdProgresso.textContent = `${formatarPercentualComVirgula(etapa.progresso)}%`;
+    tr.appendChild(tdProgresso);
+
+    fragment.appendChild(tr);
+  });
+
+  resumoProducaoTabelaEtapasBody.appendChild(fragment);
+}
+
+// Mostra/esconde o chip "Filtro ativo: <etapa> ×" e a tabela "Detalhamento da etapa" conforme a
+// etapa atualmente selecionada (clique num card) — lista os mesmos itens contados pelo card/
+// tabela "Detalhamento por etapa" daquela etapa (bloco ou linha a linha, ver
+// obterItensEtapaResumoProducao/etapa.usaBloco), anotados com o status daquela etapa. O filtro
+// "Status" do cabeçalho (.stage-detail-header) aparece nas 5 etapas; quando um status específico
+// está selecionado, restringe só esta tabela — não afeta os cards, a tabela "Detalhamento por
+// etapa" nem os demais filtros da seção.
+function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados) {
+  if (!etapaSelecionadaResumoProducao) {
+    resumoProducaoEtapaChipWrapper.hidden = true;
+    resumoProducaoDetalheEtapaCard.hidden = true;
+    resumoProducaoDetalheEtapaBody.innerHTML = '';
+    return;
+  }
+
+  const etapa = ETAPAS_RESUMO_PRODUCAO.find((e) => e.chave === etapaSelecionadaResumoProducao);
+  if (!etapa) return;
+
+  resumoProducaoEtapaChipWrapper.hidden = false;
+  resumoProducaoEtapaChipTexto.textContent = `Filtro ativo: ${etapa.nome}`;
+
+  resumoProducaoDetalheEtapaCard.hidden = false;
+  resumoProducaoDetalheEtapaTitulo.textContent = `Detalhamento da etapa — ${etapa.nome}`;
+  filterResumoDetalheEtapaStatus.value = filtroStatusDetalheEtapaResumoProducao;
+
+  resumoProducaoDetalheEtapaBody.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+
+  const itens = obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados).map((item) => ({
+    ...item,
+    status: calcularStatusEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim)
+  }));
+
+  const itensExibidos = filtroStatusDetalheEtapaResumoProducao
+    ? itens.filter((item) => item.status === filtroStatusDetalheEtapaResumoProducao)
+    : itens;
+
+  if (itensExibidos.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 7;
+    td.className = 'pe-ano-detail-empty';
+    td.style.textAlign = 'center';
+    td.style.padding = '16px';
+    td.textContent = 'Nenhuma avaliação encontrada para o status selecionado.';
+    tr.appendChild(td);
+    fragment.appendChild(tr);
+    resumoProducaoDetalheEtapaBody.appendChild(fragment);
+    return;
+  }
+
+  itensExibidos.forEach((item) => {
+    const tr = document.createElement('tr');
+
+    [
+      item.codigo,
+      safe(item.ano),
+      safe(item.modulo),
+      normalizarTipoAvPerformance(item.tipoAv),
+      etapa.nome
+    ].forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = valor;
+      tr.appendChild(td);
+    });
+
+    const tdStatus = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = `badge ${badgeClassForStatusEtapaResumoProducao(item.status)}`;
+    badge.textContent = ROTULOS_STATUS_ETAPA_RESUMO_PRODUCAO[item.status];
+    tdStatus.appendChild(badge);
+    tr.appendChild(tdStatus);
+
+    const tdData = document.createElement('td');
+    tdData.textContent = obterUltimaDataEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim);
+    tr.appendChild(tdData);
+
+    fragment.appendChild(tr);
+  });
+
+  resumoProducaoDetalheEtapaBody.appendChild(fragment);
+}
+
+// Orquestrador da seção: base = filteredRecords (mesmo recorte global de todas as outras abas) +
+// filtros próprios (Ano de aplicação/Módulo/Tipo de AV/Ano-Série/Segmento/busca) — alimenta os
+// cards superiores (sempre consolidados por bloco, via `grupos`), o grid de etapas/tabela
+// "Detalhamento por etapa" (cada etapa com sua própria granularidade — ver
+// ETAPAS_RESUMO_PRODUCAO/etapa.usaBloco: só Processo Editorial e Arte-finalização e Envio usam
+// bloco, as demais contam linha a linha a partir de `dadosFiltrados`) e, quando uma etapa está
+// selecionada, a tabela de detalhamento por avaliação daquela etapa.
+function renderizarResumoProducao() {
+  popularFiltrosResumoProducao(filteredRecords);
+
+  const dadosFiltrados = aplicarFiltrosResumoProducao(filteredRecords);
+
+  if (dadosFiltrados.length === 0) {
+    resumoProducaoEmptyMessage.hidden = false;
+    resumoProducaoConteudo.hidden = true;
+    renderizarCardsResumoProducao({ total: 0, m3: 0, m4: 0 });
+    return;
+  }
+  resumoProducaoEmptyMessage.hidden = true;
+  resumoProducaoConteudo.hidden = false;
+
+  // Consolidação por bloco (mesma regra global já aprovada) — usada só pelos cards superiores e
+  // pelas etapas com etapa.usaBloco = true (Processo Editorial/Arte-finalização e Envio)
+  const grupos = agruparTodosOsRegistrosProcessoEditorial(dadosFiltrados);
+
+  renderizarCardsResumoProducao(calcularCardsResumoProducao(grupos));
+
+  const etapas = calcularResumoEtapasProducao(grupos, dadosFiltrados);
+  renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados);
+  renderizarTabelaEtapasResumoProducao(etapas);
+  renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados);
+}
+
+filterResumoAnoAplicacao.addEventListener('change', () => {
+  filtrosResumoProducao.anoAplicacao = filterResumoAnoAplicacao.value;
+  renderizarResumoProducao();
+});
+filterResumoModulo.addEventListener('change', () => {
+  filtrosResumoProducao.modulo = filterResumoModulo.value;
+  renderizarResumoProducao();
+});
+filterResumoTipoAv.addEventListener('change', () => {
+  filtrosResumoProducao.tipoAv = filterResumoTipoAv.value;
+  renderizarResumoProducao();
+});
+filterResumoAnoSerie.addEventListener('change', () => {
+  filtrosResumoProducao.anoSerie = filterResumoAnoSerie.value;
+  renderizarResumoProducao();
+});
+filterResumoSegmento.addEventListener('change', () => {
+  filtrosResumoProducao.segmento = filterResumoSegmento.value;
+  renderizarResumoProducao();
+});
+filterResumoBusca.addEventListener('input', () => {
+  filtrosResumoProducao.busca = filterResumoBusca.value;
+  renderizarResumoProducao();
+});
+btnFecharEtapaChipResumoProducao.addEventListener('click', () => {
+  etapaSelecionadaResumoProducao = null;
+  renderizarResumoProducao();
+});
+// Filtro "Status" da tabela "Detalhamento da etapa" — só afeta essa tabela (ver
+// renderizarDetalheEtapaResumoProducao), não os cards nem os demais filtros da seção
+filterResumoDetalheEtapaStatus.addEventListener('change', () => {
+  filtroStatusDetalheEtapaResumoProducao = filterResumoDetalheEtapaStatus.value;
+  renderizarResumoProducao();
 });
 
 // --- "Análise de Tempo" (dentro do grupo "Indicadores do Processo", 2026-09-09) ---
