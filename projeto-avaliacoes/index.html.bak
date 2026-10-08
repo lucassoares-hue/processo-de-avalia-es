@@ -1,0 +1,2978 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Avaliações SGGE</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Tela de abertura: animação institucional exibida antes do login/painel -->
+  <div id="splashScreen" class="splash-screen">
+    <div class="splash-content">
+      <img src="assets/logo/logo-sgge.png" alt="SGGE" class="splash-logo">
+      <h1>Painel de Avaliações SGGE</h1>
+      <p>Sistema de acompanhamento de avaliações</p>
+      <div class="splash-loader">
+        <span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tela de login: exibida antes do painel, enquanto não houver usuário autenticado -->
+  <div class="login-screen hidden" id="loginScreen">
+    <div class="login-card" id="loginCard">
+      <img src="assets/logo/logo-sgge.png" alt="Logo SGGE" class="login-logo" id="loginLogo">
+      <h1 class="login-title">Painel de Avaliações SGGE</h1>
+      <p class="login-subtitle">Acesse com seu usuário e senha.</p>
+
+      <form class="login-form" id="loginForm">
+        <div class="filter-field">
+          <label for="loginNome">Nome</label>
+          <input type="text" id="loginNome" class="login-input" autocomplete="username" placeholder="Nome">
+        </div>
+        <div class="filter-field">
+          <label for="loginSenha">Senha</label>
+          <input type="password" id="loginSenha" class="login-input" autocomplete="current-password" placeholder="Senha">
+        </div>
+
+        <p class="login-error" id="loginError" hidden></p>
+
+        <button type="submit" class="login-button" id="btnLogin">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app-shell hidden" id="appShell">
+
+  <nav class="sidebar" id="sidebarNav" aria-label="Navegação principal">
+    <!-- Bloco fixo do topo (logo + usuário): não rola. Só a lista de abas (.sidebar-menu) rola
+         internamente quando o menu cresce, o rodapé "Sair" (.sidebar-footer) fica sempre
+         visível — ver regras de flex/overflow em style.css -->
+    <div class="sidebar-top">
+      <div class="sidebar-logo">
+        <img src="assets/logo/logo-sgge.png" alt="Logo SGGE">
+      </div>
+
+      <!-- Avatar + nome do usuário logado, centralizados logo abaixo do logo. O botão "Sair"
+           fica separado, em .sidebar-footer, fixo no rodapé (ver final da sidebar) — os dois
+           elementos são escondidos/mostrados juntos por renderizarUsuarioLogado()/
+           mostrarTelaLogin() em script.js, mesmo estado de "usuário logado" de antes. -->
+      <div class="sidebar-user" id="userMenu" hidden>
+        <span class="sidebar-user-avatar" id="userAvatar"></span>
+        <span class="sidebar-user-name" id="userName"></span>
+      </div>
+    </div>
+
+    <div class="sidebar-menu" id="tabsNav">
+      <button
+        class="sidebar-btn is-active"
+        data-tab="geral"
+        title="Calendário"
+        aria-label="Calendário"
+      >
+        <img src="./assets/menu-lateral/calendario.png" alt="" class="sidebar-icon-img">
+        <span class="sidebar-text">Calendário</span>
+      </button>
+      <!-- Grupo expansível "Processo de Produção": agrupa as 5 subseções do fluxo de produção
+           das provas (Elaboração → 1ª Validação → Processo Editorial → 2ª Validação →
+           Arte-finalização e Envio — rótulos visuais 2026-07-30; internamente continuam sendo
+           elaborador/coordenador/sistema-gge/assinatura-coordenador/arte-finalizacao-envio).
+           Os data-tab de cada subitem continuam exatamente os mesmos de antes (inclusive
+           "sistema-gge", mantido internamente por herança) — só o texto exibido mudou. -->
+      <div class="sidebar-group" id="sidebarGroupProcessoProducao">
+        <button
+          type="button"
+          class="sidebar-btn sidebar-group-toggle"
+          id="sidebarGroupToggleProcessoProducao"
+          title="Processo de Produção"
+          aria-label="Processo de Produção"
+          aria-expanded="false"
+        >
+          <img src="./assets/menu-lateral/engrenagem.png" alt="" class="sidebar-icon-img">
+          <span class="sidebar-text">Processo de Produção</span>
+          <span class="sidebar-group-arrow" aria-hidden="true">▾</span>
+        </button>
+        <div class="sidebar-submenu">
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="elaborador"
+            title="Elaboração"
+            aria-label="Elaboração"
+            data-icon-normal="assets/menu-lateral/icone-elaborador.png"
+            data-icon-ativo="assets/menu-lateral/icone-elaborador-ativo.png"
+          >
+            <span class="sidebar-text">Elaboração</span>
+          </button>
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="coordenador"
+            title="1ª Validação"
+            aria-label="1ª Validação"
+            data-icon-normal="assets/menu-lateral/icone-coordenador.png"
+            data-icon-ativo="assets/menu-lateral/icone-coordenador-ativo.png"
+          >
+            <span class="sidebar-text">1ª Validação</span>
+          </button>
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="sistema-gge"
+            title="Processo Editorial"
+            aria-label="Processo Editorial"
+            data-icon-normal="assets/menu-lateral/icone-sistema-gge.png"
+            data-icon-ativo="assets/menu-lateral/icone-sistema-gge-ativo.png"
+          >
+            <span class="sidebar-text">Processo Editorial</span>
+          </button>
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="assinatura-coordenador"
+            title="Assinatura do Coordenador"
+            aria-label="Assinatura do Coordenador"
+            data-icon-normal="assets/menu-lateral/icone-geral.png"
+            data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
+          >
+            <span class="sidebar-text">Assinatura do Coordenador</span>
+          </button>
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="arte-finalizacao-envio"
+            title="Arte-finalização e Envio"
+            aria-label="Arte-finalização e Envio"
+            data-icon-normal="assets/menu-lateral/icone-geral.png"
+            data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
+          >
+            <span class="sidebar-text">Arte-finalização e Envio</span>
+          </button>
+        </div>
+      </div>
+      <button
+        class="sidebar-btn"
+        data-tab="banco-provas"
+        title="Banco de Provas"
+        aria-label="Banco de Provas"
+      >
+        <img src="./assets/menu-lateral/provas.png" alt="" class="sidebar-icon-img">
+        <span class="sidebar-text">Banco de Provas</span>
+      </button>
+      <button
+        class="sidebar-btn"
+        data-tab="gpa"
+        title="GPA"
+        aria-label="GPA"
+      >
+        <img src="./assets/menu-lateral/gpa.png" alt="" class="sidebar-icon-img">
+        <span class="sidebar-text">GPA</span>
+      </button>
+      <!-- Grupo expansível "Indicadores do Processo" (renomeado 2026-07-30, era "Indicador do
+           Processo" — só o texto visível mudou; id/data-tab internos continuam
+           "indicador-processo"/"IndicadorProcesso" por herança). Mesmo padrão do grupo
+           "Processo de Produção" acima (mesmas classes .sidebar-group/.sidebar-group-toggle/
+           .sidebar-submenu/.sidebar-subitem, reaproveitadas sem CSS novo). Os 3 subitens abrem
+           direto nas sub-visões de Indicadores já existentes de Elaborador/Coordenador/
+           Processo Editorial (data-tab "indicador-elaborador"/"indicador-coordenador"/
+           "indicador-sistema", tratados como atalho para a mesma tela em trocarAba — não
+           duplicam lógica nem criam uma 2ª aba de verdade). O item "2ª Validação" (antiga aba
+           Assinatura Coordenador) saiu deste submenu — agora é aberto por um botão dentro da
+           própria tela "Indicadores — Coordenador" (data-tab "indicador-segunda-validacao"
+           continua existindo internamente, só não tem mais botão próprio na sidebar). -->
+      <div class="sidebar-group" id="sidebarGroupIndicadorProcesso">
+        <button
+          type="button"
+          class="sidebar-btn sidebar-group-toggle"
+          id="sidebarGroupToggleIndicadorProcesso"
+          title="Indicadores do Processo"
+          aria-label="Indicadores do Processo"
+          aria-expanded="false"
+        >
+          <img src="./assets/menu-lateral/estatisticas.png" alt="" class="sidebar-icon-img">
+          <span class="sidebar-text">Indicadores do Processo</span>
+          <span class="sidebar-group-arrow" aria-hidden="true">▾</span>
+        </button>
+        <div class="sidebar-submenu">
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="indicador-elaborador"
+            title="Elaborador"
+            aria-label="Elaborador"
+            data-icon-normal="assets/menu-lateral/icone-elaborador.png"
+            data-icon-ativo="assets/menu-lateral/icone-elaborador-ativo.png"
+          >
+            <span class="sidebar-text">Elaborador</span>
+          </button>
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="indicador-coordenador"
+            title="Coordenador"
+            aria-label="Coordenador"
+            data-icon-normal="assets/menu-lateral/icone-coordenador.png"
+            data-icon-ativo="assets/menu-lateral/icone-coordenador-ativo.png"
+          >
+            <span class="sidebar-text">Coordenador</span>
+          </button>
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="indicador-sistema"
+            title="Sistema"
+            aria-label="Sistema"
+            data-icon-normal="assets/menu-lateral/icone-geral.png"
+            data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
+          >
+            <span class="sidebar-text">Sistema</span>
+          </button>
+          <!-- Nova seção própria (2026-07-30) — não é atalho de nenhuma aba existente, tem
+               tela/orquestrador/estado próprios (viewPrevistoRealizado, renderizarIndicadorPrevistoRealizado) -->
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="indicador-previsto-realizado"
+            title="Previsto vs. Realizado"
+            aria-label="Previsto vs. Realizado"
+            data-icon-normal="assets/menu-lateral/icone-geral.png"
+            data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
+          >
+            <span class="sidebar-text">Previsto vs. Realizado</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer" id="sidebarFooter" hidden>
+      <button type="button" id="btnLogout" class="sidebar-logout-button">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg" class="sidebar-logout-icon" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M16 17l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Sair</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="app-body">
+
+  <header class="app-header">
+    <div class="app-header-top">
+      <div class="app-header-titles" id="appHeaderTitles">
+        <h1>Painel de Avaliações SGGE</h1>
+        <p class="subtitle">Acompanhamento do processo de avaliação</p>
+      </div>
+
+      <!-- Substitui o título acima quando o usuário está na tela Indicadores — Elaborador -->
+      <button type="button" id="btnVoltarAcompanhamento" class="header-back-button" hidden>&larr; Voltar ao acompanhamento</button>
+
+      <!-- Substitui o título acima quando o usuário está na tela Indicadores — Coordenador -->
+      <button type="button" id="btnVoltarAcompanhamentoCoord" class="header-back-button" hidden>&larr; Voltar ao acompanhamento</button>
+
+      <!-- Substitui o título acima quando o usuário está na tela Indicadores — Processo Editorial -->
+      <button type="button" id="btnVoltarAcompanhamentoPE" class="header-back-button" hidden>&larr; Voltar ao acompanhamento</button>
+
+      <!-- Substitui o título acima quando o usuário está na tela Indicadores — Assinatura
+           Coordenador (2026-07-30: só é possível chegar aqui pelo botão "2ª Validação" dentro
+           de Indicadores — Coordenador, então o texto/destino voltam para lá, não mais para a
+           seção de acompanhamento) -->
+      <button type="button" id="btnVoltarAcompanhamentoAssCoord" class="header-back-button" hidden>&larr; Voltar para Coordenador</button>
+
+      <div class="app-header-actions">
+        <!-- Filtros rápidos da aba Geral (Ano + Módulo): controlam os cards "Dias faltando
+             para a aplicação da avaliação" e o Calendário de Avaliações (incluindo o modal de
+             avaliações do dia); só aparecem quando a aba Geral está ativa -->
+        <div class="geral-header-filters" id="geralHeaderFiltrosWrapper" hidden>
+          <select id="geralFiltroAno" class="elab-modulo-rapido-select geral-header-filter" aria-label="Ano">
+            <option value="">Ano</option>
+          </select>
+          <select id="geralFiltroModulo" class="elab-modulo-rapido-select geral-header-filter" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <button
+          type="button"
+          id="btnIndicadores"
+          class="header-action-btn"
+          title="Indicadores"
+          aria-label="Ver indicadores da aba Elaborador"
+          aria-pressed="false"
+          hidden
+        >Indicadores</button>
+
+        <!-- Botão "RELATÓRIO" da seção Indicadores — Elaborador: abre o modal de filtros para
+             gerar o relatório de desempenho por elaborador (relatorioElaboradorModalBackdrop) —
+             mesma visibilidade do filtro rápido de Módulo logo abaixo -->
+        <button
+          type="button"
+          id="btnRelatorioElaborador"
+          class="report-btn"
+          title="Gerar relatório do elaborador"
+          aria-label="Gerar relatório do elaborador"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M14 2v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M8 13h8M8 17h8M8 9h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>RELATÓRIO</span>
+        </button>
+
+        <!-- Filtro rápido de Módulo da seção Indicadores — Elaborador, mesmo padrão visual/
+             funcional das demais seções (elab-modulo-rapido-wrapper). Reaproveita o
+             <select id="filterIndModulo"> que antes ficava dentro do popover, mesmo id, mesmo
+             estado em indSelectFilters.modulo, nenhuma lógica de filtro nova. -->
+        <div class="elab-modulo-rapido-wrapper" id="indModuloRapidoWrapper" hidden>
+          <select id="filterIndModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <div class="elab-filter-popover-wrapper" id="indFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosInd"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderInd"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="indFilterBadge" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da seção Indicadores — Elaborador -->
+          <section class="elab-filters-popover" id="indFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Indicadores</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosInd"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <!-- Campo "Módulo" foi movido para o filtro rápido no cabeçalho (mesmo
+                       <select id="filterIndModulo">, só mudou de lugar — ver
+                       #indModuloRapidoWrapper); nenhuma lógica de filtro foi alterada. -->
+                  <div class="filter-field">
+                    <label for="filterIndAno">Ano</label>
+                    <select id="filterIndAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndDisciplina">Disciplina</label>
+                    <select id="filterIndDisciplina"><option value="">Todas</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndTipoAv">Tipo de AV</label>
+                    <select id="filterIndTipoAv"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndElaborador">Elaborador</label>
+                    <select id="filterIndElaborador"><option value="">Todos</option></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterIndBusca">Busca geral</label>
+                <input type="text" id="filterIndBusca" placeholder="Buscar nos indicadores...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosInd" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarInd" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosInd" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Filtro rápido de Módulo, ao lado esquerdo do botão de filtro geral da aba
+             Elaboração — filtra direto, sem precisar abrir o popover; combina com os demais
+             filtros do popover (mesma lógica de aplicarFiltrosElaborador) -->
+        <div class="elab-modulo-rapido-wrapper" id="elabModuloRapidoWrapper" hidden>
+          <select id="filterElabModuloRapido" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <div class="elab-filter-popover-wrapper" id="elabFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosElab"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeader"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="elabFilterBadge" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da aba Elaborador -->
+          <section class="elab-filters-popover" id="elabFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Elaborador</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosElab"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Encomendas</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterElabAno">Ano</label>
+                    <select id="filterElabAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterElabDisciplina">Disciplina</label>
+                    <select id="filterElabDisciplina"><option value="">Todas</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterElabTipoAv">Tipo de AV</label>
+                    <select id="filterElabTipoAv"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterElabStatusEncomenda">Status da encomenda</label>
+                    <select id="filterElabStatusEncomenda">
+                      <option value="">Todos</option>
+                      <option value="Realizada">Realizada</option>
+                      <option value="Pendente">Pendente</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Devoluções</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterElabStatusPrazo">Status do prazo</label>
+                    <select id="filterElabStatusPrazo">
+                      <option value="">Todos</option>
+                      <option value="Sem prazo">Sem prazo</option>
+                      <option value="Atrasada">Atrasada</option>
+                      <option value="No prazo">No prazo</option>
+                      <option value="Entregue no prazo">Entregue no prazo</option>
+                      <option value="Entregue fora do prazo">Entregue fora do prazo</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Validações</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterElabStatusValidacao">Status da validação</label>
+                    <select id="filterElabStatusValidacao">
+                      <option value="">Todos</option>
+                      <option value="Validada">Validada</option>
+                      <option value="Pendente">Pendente</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterElabBusca">Busca geral</label>
+                <input type="text" id="filterElabBusca" placeholder="Buscar na aba Elaborador...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosElab" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarElab" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosElab" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <button
+          type="button"
+          id="btnIndicadoresCoord"
+          class="header-action-btn"
+          title="Indicadores"
+          aria-label="Ver indicadores da aba Coordenador"
+          aria-pressed="false"
+          hidden
+        >Indicadores</button>
+
+        <button
+          type="button"
+          id="btnIndicadoresPE"
+          class="header-action-btn"
+          title="Indicadores"
+          aria-label="Ver indicadores da aba Processo Editorial"
+          aria-pressed="false"
+          hidden
+        >Indicadores</button>
+
+        <!-- Filtro rápido de Módulo, ao lado esquerdo do botão de filtro geral da seção
+             1ª Validação (Coordenador) — mesmo padrão da seção Elaboração. Reaproveita o
+             <select id="filterCoordModulo"> que antes ficava dentro do popover (mesmo id,
+             mesmo estado em coordSelectFilters.modulo, nenhuma lógica de filtro nova). -->
+        <div class="elab-modulo-rapido-wrapper" id="coordModuloRapidoWrapper" hidden>
+          <select id="filterCoordModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <div class="elab-filter-popover-wrapper" id="coordFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosCoord"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderCoord"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="coordFilterBadge" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da aba Coordenador -->
+          <section class="elab-filters-popover" id="coordFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Coordenador</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosCoord"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Avaliação</h3>
+                <div class="elab-filter-fields">
+                  <!-- Campo "Módulo" foi movido para o filtro rápido no cabeçalho da seção
+                       (mesmo <select id="filterCoordModulo">, só mudou de lugar — ver acima de
+                       #coordFilterPopoverWrapper); nenhuma lógica de filtro foi alterada. -->
+                  <div class="filter-field">
+                    <label for="filterCoordTipoAv">Tipo de AV</label>
+                    <select id="filterCoordTipoAv"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterCoordAno">Ano</label>
+                    <select id="filterCoordAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterCoordDisciplina">Disciplina</label>
+                    <select id="filterCoordDisciplina"><option value="">Todas</option></select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Coordenação</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterCoordCoordenador">Coordenador</label>
+                    <select id="filterCoordCoordenador"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterCoordStatusGeral">Status geral</label>
+                    <select id="filterCoordStatusGeral">
+                      <option value="">Todos</option>
+                      <option value="Aguardando elaborador">Aguardando elaborador</option>
+                      <option value="Não enviado para validação">Não enviado para validação</option>
+                      <option value="Aguardando análise">Aguardando análise</option>
+                      <option value="Prazo atrasado">Prazo atrasado</option>
+                      <option value="Devolvida no prazo">Devolvida no prazo</option>
+                      <option value="Devolvida com atraso">Devolvida com atraso</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Prazo</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterCoordSituacaoPrazo">Situação do prazo</label>
+                    <select id="filterCoordSituacaoPrazo">
+                      <option value="">Todos</option>
+                      <option value="Aguardando análise">Aguardando análise</option>
+                      <option value="Prazo atrasado">Prazo atrasado</option>
+                      <option value="Devolvida no prazo">Devolvida no prazo</option>
+                      <option value="Devolvida com atraso">Devolvida com atraso</option>
+                      <option value="Aguardando elaborador">Aguardando elaborador</option>
+                      <option value="Não enviado para validação">Não enviado para validação</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterCoordBusca">Busca geral</label>
+                <input type="text" id="filterCoordBusca" placeholder="Buscar na aba Coordenador...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosCoord" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarCoord" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosCoord" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Filtro rápido de Módulo, ao lado esquerdo do botão de filtro geral da seção
+             2ª Validação (Assinatura Coordenador) — mesmo padrão da seção Elaboração. Estado
+             próprio em assCoordSelectFilters.modulo (nenhum campo de Módulo existia antes no
+             popover desta seção, então é um filtro novo, igual ao da Elaboração — não um
+             campo relocado, diferente de Processo Editorial/1ª Validação). -->
+        <div class="elab-modulo-rapido-wrapper" id="assCoordModuloRapidoWrapper" hidden>
+          <select id="filterAssCoordModuloRapido" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <!-- Botão de filtro (ícone de funil) e popover da seção Assinatura Coordenador -->
+        <div class="elab-filter-popover-wrapper" id="assCoordFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosAssCoord"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderAssCoord"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="assCoordFilterBadge" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da seção Assinatura Coordenador -->
+          <section class="elab-filters-popover" id="assCoordFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Assinatura Coordenador</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosAssCoord"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Avaliação</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterAssCoordAno">Ano</label>
+                    <select id="filterAssCoordAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterAssCoordDisciplina">Disciplina</label>
+                    <select id="filterAssCoordDisciplina"><option value="">Todas</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterAssCoordTipoAv">Tipo de AV</label>
+                    <select id="filterAssCoordTipoAv"><option value="">Todos</option></select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Coordenação</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterAssCoordCoordenador">Coordenador</label>
+                    <select id="filterAssCoordCoordenador"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterAssCoordStatus">Status da assinatura</label>
+                    <select id="filterAssCoordStatus">
+                      <option value="">Todos</option>
+                      <option value="Não enviado para assinatura">Não enviado para assinatura</option>
+                      <option value="Em assinatura">Em assinatura</option>
+                      <option value="Atrasadas">Assinatura atrasada</option>
+                      <option value="Assinado no prazo">Assinado no prazo</option>
+                      <option value="Assinado com atraso">Assinado com atraso</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterAssCoordBusca">Busca geral</label>
+                <input type="text" id="filterAssCoordBusca" placeholder="Buscar na aba Assinatura Coordenador...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosAssCoord" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarAssCoord" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosAssCoord" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <button
+          type="button"
+          id="btnIndicadoresAssCoord"
+          class="header-action-btn"
+          title="Indicadores"
+          aria-label="Ver indicadores da aba Assinatura Coordenador"
+          aria-pressed="false"
+          hidden
+        >Indicadores</button>
+
+        <!-- Filtro rápido de Módulo da seção Indicadores — Coordenador, mesmo padrão visual/
+             funcional das demais seções (elab-modulo-rapido-wrapper) — fica antes do botão
+             "Assinatura do Coordenador" e do botão de filtro, mesma visibilidade dos dois. -->
+        <div class="elab-modulo-rapido-wrapper" id="indModuloRapidoWrapperCoord" hidden>
+          <select id="filterIndCoordModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <!-- Botão "2ª Validação" dentro da tela "Indicadores — Coordenador": abre os
+             indicadores da antiga aba Assinatura Coordenador (reaproveita
+             renderizarIndicadoresAssinaturaCoordenador/viewAssinaturaCoordenadorIndicadores,
+             não duplica nada) — fica à esquerda do botão de filtro (mesma visibilidade,
+             mesma regra: só aparece quando essa sub-visão está ativa). -->
+        <button
+          type="button"
+          id="btnAbrirSegundaValidacaoIndCoord"
+          class="header-action-btn"
+          title="Abrir indicadores da Assinatura do Coordenador"
+          aria-label="Abrir indicadores da Assinatura do Coordenador"
+          hidden
+        >Assinatura do Coordenador</button>
+
+        <div class="elab-filter-popover-wrapper" id="indFilterPopoverWrapperCoord" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosIndCoord"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderIndCoord"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="indFilterBadgeCoord" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da seção Indicadores — Coordenador -->
+          <section class="elab-filters-popover" id="indFiltersPopoverCoord" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Indicadores</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosIndCoord"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterIndCoordAno">Ano</label>
+                    <select id="filterIndCoordAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndCoordDisciplina">Disciplina</label>
+                    <select id="filterIndCoordDisciplina"><option value="">Todas</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndCoordCoordenador">Coordenador</label>
+                    <select id="filterIndCoordCoordenador"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndCoordTipoAv">Tipo de AV</label>
+                    <select id="filterIndCoordTipoAv"><option value="">Todos</option></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterIndCoordBusca">Busca geral</label>
+                <input type="text" id="filterIndCoordBusca" placeholder="Buscar nos indicadores...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosIndCoord" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarIndCoord" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosIndCoord" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Botão "2ª Validação" dentro da tela "Indicadores — Coordenador": abre os
+             indicadores da antiga aba Assinatura Coordenador (reaproveita
+             renderizarIndicadoresAssinaturaCoordenador/viewAssinaturaCoordenadorIndicadores,
+             não duplica nada) — só visível quando essa sub-visão está ativa (mesma regra do
+             botão de filtro ao lado). -->
+        <button
+          type="button"
+          id="btnAbrirSegundaValidacaoIndCoord"
+          class="header-action-btn"
+          title="Abrir indicadores da Assinatura do Coordenador"
+          aria-label="Abrir indicadores da Assinatura do Coordenador"
+          hidden
+        >Assinatura do Coordenador</button>
+
+        <!-- Filtro rápido de Módulo, ao lado esquerdo do botão de filtro geral da seção
+             Processo Editorial — mesmo padrão da seção Elaboração. Reaproveita o
+             <select id="filterPEModulo"> que antes ficava dentro do popover (mesmo id, mesmo
+             estado em peSelectFilters.modulo, nenhuma lógica de filtro nova). -->
+        <div class="elab-modulo-rapido-wrapper" id="peModuloRapidoWrapper" hidden>
+          <select id="filterPEModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <!-- Botão de filtro (ícone de funil) e popover da seção Processo Editorial -->
+        <div class="elab-filter-popover-wrapper" id="peFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosPE"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderPE"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="peFilterBadge" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da seção Processo Editorial -->
+          <section class="elab-filters-popover" id="peFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Processo Editorial</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosPE"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <!-- Campo "Módulo" foi movido para o filtro rápido no cabeçalho da seção
+                       (mesmo <select id="filterPEModulo">, só mudou de lugar — ver acima de
+                       #peFilterPopoverWrapper); nenhuma lógica de filtro foi alterada. -->
+                  <div class="filter-field">
+                    <label for="filterPEAno">Ano</label>
+                    <select id="filterPEAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterPEDisciplina">Disciplina</label>
+                    <select id="filterPEDisciplina"><option value="">Todas</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterPETipoAv">Tipo de AV</label>
+                    <select id="filterPETipoAv"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterPEResponsavel">Responsável</label>
+                    <select id="filterPEResponsavel"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterPEStatusEditorial">Status do processo</label>
+                    <select id="filterPEStatusEditorial">
+                      <option value="">Todos</option>
+                      <option value="Concluído">Concluído</option>
+                      <option value="Em andamento">Em andamento</option>
+                      <option value="Pendente">Pendente</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterPEBusca">Busca geral</label>
+                <input type="text" id="filterPEBusca" placeholder="Buscar no Processo Editorial...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosPE" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarPE" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosPE" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Filtro rápido de Módulo, ao lado esquerdo do botão de filtro geral da seção
+             Arte-finalização e Envio — mesmo padrão de Processo Editorial/Assinatura Coordenador. -->
+        <div class="elab-modulo-rapido-wrapper" id="afeModuloRapidoWrapper" hidden>
+          <select id="filterAFEModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <!-- Botão de filtro (ícone de funil) e popover da seção Arte-finalização e Envio -->
+        <div class="elab-filter-popover-wrapper" id="afeFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosAFE"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderAFE"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="afeFilterBadge" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da seção Arte-finalização e Envio -->
+          <section class="elab-filters-popover" id="afeFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Arte-finalização e Envio</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosAFE"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterAFEAno">Ano</label>
+                    <select id="filterAFEAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterAFETipoAv">Tipo de AV</label>
+                    <select id="filterAFETipoAv"><option value="">Todas</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterAFEStatus">Status</label>
+                    <select id="filterAFEStatus">
+                      <option value="">Todos</option>
+                      <option value="Pendente">Pendente</option>
+                      <option value="Em andamento">Em andamento</option>
+                      <option value="Enviada para gráfica">Enviada para gráfica</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterAFEBusca">Busca geral</label>
+                <input type="text" id="filterAFEBusca" placeholder="Buscar na Arte-finalização e Envio...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosAFE" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarAFE" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosAFE" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Filtro rápido de Módulo da seção Indicadores — Processo Editorial (Sistema), mesmo
+             padrão visual/funcional das demais seções. Reaproveita o <select id="filterIndPEModulo">
+             que antes ficava dentro do popover, mesmo id, mesmo estado em indSelectFiltersPE.modulo,
+             nenhuma lógica de filtro nova. -->
+        <div class="elab-modulo-rapido-wrapper" id="indModuloRapidoWrapperPE" hidden>
+          <select id="filterIndPEModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <div class="elab-filter-popover-wrapper" id="indFilterPopoverWrapperPE" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosIndPE"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              id="iconeFiltroHeaderIndPE"
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="indFilterBadgePE" hidden>0</span>
+          </button>
+
+          <!-- Popover de filtros da seção Indicadores — Processo Editorial -->
+          <section class="elab-filters-popover" id="indFiltersPopoverPE" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros — Indicadores</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosIndPE"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <!-- Campo "Módulo" foi movido para o filtro rápido no cabeçalho (mesmo
+                       <select id="filterIndPEModulo">, só mudou de lugar — ver
+                       #indModuloRapidoWrapperPE); nenhuma lógica de filtro foi alterada. -->
+                  <div class="filter-field">
+                    <label for="filterIndPEAno">Ano</label>
+                    <select id="filterIndPEAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndPETipoAv">Tipo de AV</label>
+                    <select id="filterIndPETipoAv"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterIndPEStatus">Status do processo</label>
+                    <select id="filterIndPEStatus">
+                      <option value="">Todos</option>
+                      <option value="Pendente">Não iniciado</option>
+                      <option value="Em andamento">Em processo</option>
+                      <option value="Concluído">Concluído</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterIndPEBusca">Busca geral</label>
+                <input type="text" id="filterIndPEBusca" placeholder="Buscar nos indicadores...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button id="btnLimparFiltrosIndPE" class="btn btn-secondary">Limpar filtros</button>
+                <button id="btnAtualizarIndPE" class="btn btn-outline">Atualizar dados</button>
+                <button id="btnAplicarFiltrosIndPE" class="btn btn-primary">Aplicar filtros</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Cards de indicadores -->
+    <section class="cards-grid" id="cardsGrid" hidden>
+      <div class="card">
+        <span class="card-label">Total de avaliações</span>
+        <span class="card-value" id="cardTotal">-</span>
+      </div>
+      <div class="card">
+        <span class="card-label">Em andamento</span>
+        <span class="card-value" id="cardAndamento">-</span>
+      </div>
+      <div class="card">
+        <span class="card-label">Concluídas</span>
+        <span class="card-value" id="cardConcluidas">-</span>
+      </div>
+      <div class="card card-alert">
+        <span class="card-label">Atrasadas</span>
+        <span class="card-value" id="cardAtrasadas">-</span>
+      </div>
+      <div class="card">
+        <span class="card-label">Pendentes de diagramação</span>
+        <span class="card-value" id="cardDiagramacao">-</span>
+      </div>
+      <div class="card">
+        <span class="card-label">Enviadas para gráfica</span>
+        <span class="card-value" id="cardGrafica">-</span>
+      </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="filters-panel" id="filtersPanel" hidden>
+      <div class="filters-grid">
+        <div class="filter-field">
+          <label for="filterModulo">Módulo</label>
+          <select id="filterModulo"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filterElaborador">Elaborador</label>
+          <select id="filterElaborador"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filterTipoAv">Tipo AV</label>
+          <select id="filterTipoAv"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filterFrente">Frente</label>
+          <select id="filterFrente"><option value="">Todas</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filterAno">Ano</label>
+          <select id="filterAno"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filterCoordenador">Coordenador</label>
+          <select id="filterCoordenador"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filterResponsavel">Responsável</label>
+          <select id="filterResponsavel"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field filter-search">
+          <label for="filterBusca">Busca geral</label>
+          <input type="text" id="filterBusca" placeholder="Buscar em todos os campos...">
+        </div>
+      </div>
+      <div class="filters-actions">
+        <button id="btnLimparFiltros" class="btn btn-secondary">Limpar filtros</button>
+        <button id="btnAtualizar" class="btn btn-primary">Atualizar dados</button>
+      </div>
+    </section>
+
+    <!-- Status -->
+    <div id="loadingMessage" class="status-message loading" hidden>Carregando dados...</div>
+    <div id="errorMessage" class="status-message error" hidden></div>
+    <div id="emptyMessage" class="status-message empty" hidden>Nenhum registro encontrado para os filtros selecionados.</div>
+
+    <!-- Tabela: Visão Geral -->
+    <section class="table-wrapper" id="viewGeral" hidden>
+      <table class="data-table" id="dataTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Módulo</th>
+            <th>Elaborador</th>
+            <th>Tipo AV</th>
+            <th>Data aplicação</th>
+            <th>Frente</th>
+            <th>Ano</th>
+            <th>Coordenador</th>
+            <th>Responsável</th>
+            <th>Etapa atual</th>
+            <th>Situação</th>
+            <th>Prazo atual</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </section>
+
+    <!-- Aba Geral: tela inicial do sistema (2026-07-30) — mensagem de boas-vindas + calendário
+         mensal de avaliações (coluna data_aplicacao). id do elemento e data-tab continuam
+         "geral"/"geral-section" por herança (sem relação com o grupo "Processo de Produção" do
+         menu lateral, que é outra coisa). -->
+    <section id="geral-section">
+      <div class="geral-boas-vindas">
+        <h1 class="geral-saudacao" id="geralSaudacaoUsuario">Olá!</h1>
+      </div>
+
+      <!-- Faixa "Dias faltando para a aplicação da avaliação" (2026-07-30) — substitui a antiga
+           "Gestão à Vista — Avaliações" (tabela removida). Até 5 cards com as próximas
+           avaliações por data_aplicacao (dias corridos até a data, mais próxima primeiro),
+           acima do calendário. Não usa os filtros do calendário (ocultos) — sempre mostra as
+           próximas avaliações do recorte global (filteredRecords). -->
+      <section class="pe-matrix-card geral-contagem-card">
+        <div class="pe-tabela-header">
+          <h2 class="pe-tabela-titulo geral-contagem-titulo">Dias Faltando para a Aplicação da Avaliação</h2>
+        </div>
+        <div class="geral-contagem-corpo">
+          <p class="geral-contagem-vazio" id="geralContagemVazio" hidden>Não há avaliações futuras no recorte atual.</p>
+          <div class="geral-contagem-grade" id="geralContagemGrade"></div>
+          <div class="geral-contagem-detalhe" id="geralContagemDetalhe" hidden>
+            <div class="geral-contagem-detalhe-header">
+              <h3 class="geral-contagem-detalhe-titulo" id="geralContagemDetalheTitulo">Avaliações</h3>
+              <select class="geral-contagem-detalhe-filtro-ano" id="geralContagemDetalheFiltroAno">
+                <option value="">Ano</option>
+              </select>
+            </div>
+            <div class="geral-contagem-detalhe-tabela-wrapper">
+              <table class="data-table geral-contagem-detalhe-tabela">
+                <thead>
+                  <tr>
+                    <th>Ano</th>
+                    <th>Bloco</th>
+                    <th>Módulo</th>
+                    <th>Data da Aplicação</th>
+                  </tr>
+                </thead>
+                <tbody id="geralContagemDetalheCorpo"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pe-matrix-card geral-calendario-card">
+        <div class="pe-tabela-header">
+          <div>
+            <h2 class="pe-tabela-titulo pe-tabela-titulo--com-icone">
+              <img src="./assets/menu-lateral/calendario.png" alt="" class="section-title-icon">
+              <span>Calendário de Avaliações</span>
+            </h2>
+          </div>
+        </div>
+
+        <div class="geral-calendario-body">
+          <!-- Filtros do calendário (Tipo de AV/busca) ocultos a pedido (2026-07-30) — os
+               elementos continuam no DOM (mesmos ids, mesmo JS/estado geralFiltrosCalendario
+               inalterado) só escondidos com `hidden`, para não mexer em nenhuma lógica de
+               filtragem/eventos do calendário. Ano/Módulo saíram daqui e viraram os filtros
+               visíveis no topo direito do header (ver #geralHeaderFiltrosWrapper). -->
+          <div class="geral-calendario-filtros" hidden>
+            <div class="filter-field">
+              <label for="geralFiltroTipoAv">Tipo de AV</label>
+              <select id="geralFiltroTipoAv">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="filter-field geral-calendario-busca-field">
+              <label for="geralFiltroBusca">Busca geral</label>
+              <input type="text" id="geralFiltroBusca" placeholder="Buscar por tipo, ano, disciplina ou módulo...">
+            </div>
+          </div>
+
+          <!-- Navegação de mês -->
+          <div class="geral-calendario-nav">
+            <button type="button" id="geralCalendarioMesAnterior" class="geral-calendario-nav-btn" aria-label="Mês anterior">&lsaquo;</button>
+            <h3 class="geral-calendario-mes-ano" id="geralCalendarioMesAno">-</h3>
+            <button type="button" id="geralCalendarioHoje" class="geral-calendario-nav-btn geral-calendario-nav-btn--hoje">Hoje</button>
+            <button type="button" id="geralCalendarioMesProximo" class="geral-calendario-nav-btn" aria-label="Próximo mês">&rsaquo;</button>
+          </div>
+
+          <div class="geral-calendario-semana">
+            <span>dom.</span><span>seg.</span><span>ter.</span><span>qua.</span><span>qui.</span><span>sex.</span><span>sáb.</span>
+          </div>
+
+          <div class="geral-calendario-grade" id="geralCalendarioGrade"></div>
+        </div>
+      </section>
+
+      <!-- Lista de todas as avaliações do dia clicado no calendário, agrupadas por módulo + tipo de AV -->
+      <div class="geral-evento-modal-backdrop" id="geralDiaModalBackdrop" hidden>
+        <div class="geral-evento-modal geral-dia-modal" role="dialog" aria-modal="true" aria-labelledby="geralDiaModalTitulo">
+          <button type="button" class="geral-evento-modal-fechar" id="geralDiaModalFechar" aria-label="Fechar">&times;</button>
+          <h3 class="geral-evento-modal-titulo" id="geralDiaModalTitulo">Avaliações do dia</h3>
+          <div class="geral-dia-modal-corpo" id="geralDiaModalCorpo"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Aba Assinatura Coordenador: seção temporária em branco, aguardando desenvolvimento futuro -->
+    <!-- Aba Assinatura Coordenador: acompanhamento do envio, assinatura e devolutiva da
+         assinatura da coordenação (envio_assinatura_coord/prazo_assinatura_coord/
+         devolutiva_assinatura_coord/observacao) — mesma estrutura/comportamento da aba
+         Coordenador, com os campos trocados -->
+    <section id="assinatura-coordenador-section" hidden>
+      <p class="indicadores-chart-empty indicadores-empty-geral" id="assCoordEmptyGeral" hidden>
+        Não há dados para os filtros selecionados.
+      </p>
+
+      <div id="assCoordConteudo">
+        <!-- Cards de status, clicáveis como filtro rápido -->
+        <div class="banco-cards-grid assinatura-cards-grid" id="assCoordCardsGrid">
+          <div class="coord-card-tooltip-wrapper" id="assCoordCardEnviadasTooltipWrapper">
+            <article
+              class="banco-card banco-card--blue"
+              data-quick-filter="enviadas"
+              role="button"
+              tabindex="0"
+              aria-pressed="false"
+              aria-describedby="assCoordEnviadasTooltip"
+              id="assCoordCardEnviadasArticle"
+            >
+              <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 6.5l9 5 9-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M3 6.5V18h18V6.5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                  <path d="M13.5 3h6v6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M19.5 3L12 10.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="banco-card__content">
+                <div class="banco-card__title">Enviadas </div>
+                <div class="banco-card__subtitle">Enviadas ao coordenador.</div>
+              </div>
+              <div class="banco-card__metric">
+                <div class="banco-card__value" id="cardAssCoordEnviadas">-</div>
+                <div class="banco-card__unit">provas</div>
+              </div>
+            </article>
+
+            <!-- Dica de ferramenta analítica: progresso de envio para assinatura do coordenador por tipo de AV -->
+            <div class="coord-analytic-tooltip" id="assCoordEnviadasTooltip" role="tooltip">
+              <h4 class="coord-tooltip-title">Progresso de envio por avaliação</h4>
+              <p class="coord-tooltip-subtitle">Percentual de avaliações enviadas para assinatura do coordenador.</p>
+              <div class="coord-tooltip-chart" id="assCoordEnviadasTooltipChart"></div>
+            </div>
+          </div>
+
+          <article class="banco-card banco-card--blue" data-quick-filter="em-assinatura" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+                <path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Em assinatura</div>
+              <div class="banco-card__subtitle">Aguardando assinatura.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardAssCoordEmAssinatura">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <article class="banco-card banco-card--green" data-quick-filter="assinadas" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--green" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 3h7l4 4v14H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M14 3v4h4" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M9.5 13.5l2 2 3.5-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Assinadas</div>
+              <div class="banco-card__subtitle">Provas já assinadas.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardAssCoordAssinadas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <article class="banco-card banco-card--red" data-quick-filter="atrasadas" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--red" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3l10 18H2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M12 9.5v4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Atrasadas</div>
+              <div class="banco-card__subtitle">Assinaturas fora do prazo.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardAssCoordAtrasadas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+        </div>
+
+        <!-- Tabela operacional de assinatura da coordenação -->
+        <section class="indicadores-block">
+          <div class="coord-tabela-header">
+            <h3 class="indicadores-block-title">Avaliações enviadas para assinatura do coordenador</h3>
+            <div class="coord-detail-filters" id="assCoordFiltroAvaliacaoTopo"></div>
+          </div>
+          <div class="table-wrapper coord-table-scroll">
+            <table class="data-table data-table-compact">
+              <thead>
+                <tr>
+                  <th>Coordenador</th>
+                  <th>Total de demandas</th>
+                  <th>Não enviadas</th>
+                  <th>Em assinatura</th>
+                  <th>Assinadas</th>
+                  <th>Atrasadas</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tableBodyAssinaturaCoordenador"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- Indicadores — Assinatura Coordenador: sub-visão de análise da etapa de assinatura da
+         coordenação, mesmo padrão de Indicadores — Coordenador/Processo Editorial -->
+    <div id="viewAssinaturaCoordenadorIndicadores" hidden>
+      <p class="indicadores-chart-empty indicadores-empty-geral" id="indAssCoordEmptyGeral" hidden>
+        Não há dados suficientes para gerar indicadores neste recorte.
+      </p>
+
+      <div id="indAssCoordConteudo">
+        <div class="pe-indicadores-header">
+          <h2 class="pe-indicadores-titulo">Indicadores — Assinatura do Coordenador</h2>
+          <p class="pe-indicadores-subtitulo">Prazo de devolutiva e desempenho por coordenador na etapa de assinatura.</p>
+        </div>
+
+        <!-- Cards executivos -->
+        <div class="indicadores-resumo-grid indicadores-resumo-grid--ass-coord">
+          <div class="indicadores-resumo-card">
+            <span class="indicadores-resumo-label">Total de Assinatura</span>
+            <span class="indicadores-resumo-value" id="indAssCoordCardTotal">-</span>
+            <span class="indicadores-resumo-sub">Provas enviadas para assinatura do coordenador</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Fora do prazo</span>
+            <span class="indicadores-resumo-value" id="indAssCoordCardForaPrazo">-</span>
+            <span class="indicadores-resumo-sub">Assinaturas devolvidas fora do prazo</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--ok">
+            <span class="indicadores-resumo-label">Dentro do prazo</span>
+            <span class="indicadores-resumo-value" id="indAssCoordCardNoPrazo">-</span>
+            <span class="indicadores-resumo-sub">Assinaturas devolvidas no prazo</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--laranja">
+            <span class="indicadores-resumo-label">Média de atraso</span>
+            <span class="indicadores-resumo-value" id="indAssCoordCardMediaAtraso">-</span>
+            <span class="indicadores-resumo-sub">Média de dias de atraso nas assinaturas</span>
+          </div>
+        </div>
+
+        <!-- Gráficos: pizza (dentro/fora do prazo) + ranking de atraso médio por coordenador
+             (1ª linha); Desempenho por Coordenador – Assinatura em largura total (2ª linha) -->
+        <div class="coordenador-indicadores-charts">
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Distribuição das assinaturas por prazo</h3>
+            <p class="indicadores-chart-subtitle">Total devolvido dentro do prazo e fora do prazo</p>
+            <div class="pe-donut-status-chart" id="graficoDonutPrazoAssCoord"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Atraso médio por coordenador</h3>
+            <p class="indicadores-chart-subtitle">Média de dias de atraso nas assinaturas por coordenador</p>
+            <div class="coord-ranking-chart" id="graficoRankingAtrasoAssCoord"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card coord-chart-full coord-performance-card">
+            <header class="coord-performance-header">
+              <span class="coord-performance-header-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 20V10M11 20V4M18 20v-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <div class="coord-performance-header-text">
+                <h3 class="indicadores-block-title coord-performance-title">Desempenho por Coordenador – Assinatura</h3>
+                <p class="indicadores-chart-subtitle coord-performance-subtitle">Barras = média de atraso (dias) · Linha = volume de registros válidos · clique nas barras para filtrar</p>
+              </div>
+            </header>
+            <div class="coord-performance-chart" id="graficoDesempenhoAssCoord"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- "Previsto vs. Realizado" (2026-07-30): nova seção própria dentro do grupo "Indicadores
+         do Processo" (não é atalho de nenhuma aba existente — diferente de Elaborador/
+         Coordenador/Sistema, que reaproveitam sub-visões já existentes). Compara a data final
+         de envio/finalização (data_envio_grafica, com fallback para envio_grafica) contra
+         data_aplicacao, em dias úteis. Mesmo padrão visual das demais telas de Indicadores
+         (pe-indicadores-header, indicadores-resumo-grid, coordenador-indicadores-charts,
+         pe-donut-status-*). -->
+    <div id="viewPrevistoRealizado" hidden>
+      <p class="indicadores-chart-empty indicadores-empty-geral" id="indPrevistoEmptyGeral" hidden>
+        Não há dados suficientes para gerar indicadores neste recorte.
+      </p>
+
+      <div id="indPrevistoConteudo">
+        <div class="pe-indicadores-header">
+          <h2 class="pe-indicadores-titulo">Previsto vs. Realizado</h2>
+          <p class="pe-indicadores-subtitulo">Análise das provas em relação ao prazo ideal de envio antes da aplicação.</p>
+        </div>
+
+        <!-- Filtros: Módulo/Ano/Tipo de AV/Busca geral, sempre visíveis (sem popover) — mesmo
+             padrão de campos usado no calendário da aba Geral -->
+        <div class="geral-calendario-filtros">
+          <div class="filter-field">
+            <label for="filterPrevistoModulo">Módulo</label>
+            <select id="filterPrevistoModulo">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filterPrevistoAno">Ano</label>
+            <select id="filterPrevistoAno">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filterPrevistoTipoAv">Tipo de AV</label>
+            <select id="filterPrevistoTipoAv">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filterPrevistoBusca">Busca geral</label>
+            <input type="text" id="filterPrevistoBusca" placeholder="Buscar por ID, módulo, ano, avaliação ou disciplina...">
+          </div>
+        </div>
+
+        <!-- Cards executivos -->
+        <div class="indicadores-resumo-grid indicadores-resumo-grid--coord">
+          <div class="indicadores-resumo-card">
+            <span class="indicadores-resumo-label">Total de provas</span>
+            <span class="indicadores-resumo-value" id="indPrevistoCardTotal">-</span>
+            <span class="indicadores-resumo-sub">Provas no recorte atual</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--ok">
+            <span class="indicadores-resumo-label">Dentro do previsto</span>
+            <span class="indicadores-resumo-value" id="indPrevistoCardDentro">-</span>
+            <span class="indicadores-resumo-sub">Enviadas com 5 dias úteis ou mais de antecedência</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Fora do previsto</span>
+            <span class="indicadores-resumo-value" id="indPrevistoCardFora">-</span>
+            <span class="indicadores-resumo-sub">Enviadas com menos de 5 dias úteis de antecedência</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--laranja">
+            <span class="indicadores-resumo-label">Em processo de produção</span>
+            <span class="indicadores-resumo-value" id="indPrevistoCardProcesso">-</span>
+            <span class="indicadores-resumo-sub">Provas ainda sem envio final registrado</span>
+          </div>
+          <div class="indicadores-resumo-card">
+            <span class="indicadores-resumo-label">Média de dias úteis por prova finalizada</span>
+            <span class="indicadores-resumo-value" id="indPrevistoCardMediaDias">-</span>
+            <span class="indicadores-resumo-sub">Média de antecedência entre envio e aplicação</span>
+          </div>
+        </div>
+
+        <!-- Gráficos: Distribuição geral (donut) + Resultado por módulo (barras empilhadas) -->
+        <div class="coordenador-indicadores-charts">
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Distribuição geral</h3>
+            <p class="indicadores-chart-subtitle">Provas dentro do previsto, fora do previsto e em processo de produção</p>
+            <div class="pe-donut-status-chart" id="graficoDistribuicaoGeralPrevisto"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Resultado por módulo</h3>
+            <p class="indicadores-chart-subtitle">Provas dentro do previsto, fora do previsto e em processo, por módulo</p>
+            <div class="prg-stacked-chart" id="graficoResultadoModuloPrevisto"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Arte-finalização e Envio: acompanha a fase final do fluxo editorial (depois da
+         assinatura do coordenador), mesmo padrão visual/estrutural da aba Processo Editorial -->
+    <section id="arte-finalizacao-envio-section" hidden>
+      <section class="banco-cards-grid pe-cards-grid" id="afeCardsGrid">
+        <div class="banco-card banco-card--blue">
+          <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 3h7l4 4v14H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M14 3v4h4" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M9.5 12h5M9.5 15h5M9.5 18h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="banco-card__content">
+            <div class="banco-card__title">Em Andamento</div>
+            <div class="banco-card__subtitle">Provas em arte-finalização ou preparação para envio.</div>
+          </div>
+          <div class="banco-card__metric">
+            <div class="banco-card__value" id="afeCardAndamento">-</div>
+            <div class="banco-card__unit">provas</div>
+          </div>
+        </div>
+
+        <div class="coord-card-tooltip-wrapper" id="afeCardEnviadasTooltipWrapper">
+          <article
+            class="banco-card banco-card--azul-escuro"
+            role="button"
+            tabindex="0"
+            aria-describedby="afeEnviadasTooltip"
+            id="afeCardEnviadasArticle"
+          >
+            <div class="banco-card__icon banco-card__icon--azul-escuro" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 7h11l5 5v7H4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M15 7v5h5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M8 15.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Provas Enviadas para Gráfica</div>
+              <div class="banco-card__subtitle">Provas finalizadas e enviadas para gráfica.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="afeCardEnviadas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <!-- Dica de ferramenta analítica: progresso de envio para gráfica por tipo de AV -->
+          <div class="coord-analytic-tooltip" id="afeEnviadasTooltip" role="tooltip">
+            <h4 class="coord-tooltip-title">Progresso de envio para gráfica por avaliação</h4>
+            <p class="coord-tooltip-subtitle">Percentual de provas enviadas para gráfica por tipo de avaliação.</p>
+            <div class="coord-tooltip-chart" id="afeEnviadasTooltipChart"></div>
+          </div>
+        </div>
+      </section>
+
+      <p class="status-message empty" id="afeEmptyMessage" hidden>Não há registros para os filtros selecionados.</p>
+
+      <section class="pe-matrix-card">
+        <div class="pe-tabela-header">
+          <h2 class="pe-tabela-titulo">Fluxo de Arte-finalização e Envio</h2>
+          <div class="coord-detail-filters" id="afeFiltroAvaliacaoTopo"></div>
+        </div>
+
+        <div class="table-wrapper pe-ano-table-scroll" id="afeTableWrapper">
+          <table class="data-table pe-ano-table">
+            <thead>
+              <tr>
+                <th>Ano</th>
+                <th>Total de Provas</th>
+                <th>Total em Processo</th>
+                <th>Total Enviada para a Gráfica</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="afeTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pe-matrix-footer">
+          <div class="pe-legend">
+            <span class="pe-legend-item"><span class="status-step completed">✓</span>Concluído</span>
+            <span class="pe-legend-item"><span class="status-step in-progress"></span>Em andamento</span>
+            <span class="pe-legend-item"><span class="status-step pending"></span>Pendente</span>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- Aba Banco de Provas: seção temporária em branco, aguardando desenvolvimento futuro -->
+    <section id="banco-provas-section" hidden>
+      <!-- 2. Barra única no topo: filtro rápido de Módulo + botão de filtros avançados + busca
+           (substitui a antiga busca + pills "FILTRAR:" por ano) -->
+      <div class="banco-searchbar-wrapper" id="bpFilterPopoverWrapper">
+        <div class="banco-searchbar">
+          <select id="filterBPModulo" class="banco-searchbar-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+
+          <div class="banco-searchbar-divider"></div>
+
+          <button
+            type="button"
+            id="btnAbrirFiltrosBP"
+            class="banco-searchbar-filter-btn"
+            title="Filtros avançados"
+            aria-label="Abrir filtros avançados"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
+            <span class="elab-filter-badge" id="bpFilterBadge" hidden>0</span>
+          </button>
+
+          <div class="banco-searchbar-divider"></div>
+
+          <input
+            type="text"
+            id="filterBPBusca"
+            class="banco-searchbar-input"
+            placeholder="Procurar provas"
+          >
+
+          <span class="banco-searchbar-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+              <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </div>
+
+        <!-- Painel de filtros avançados: Tipo de AV, Ano Escolar (segmento: Ensino Fundamental/
+             Ensino Médio) e Série (ano específico: 6º...3º) — abre/fecha com btnAbrirFiltrosBP,
+             mesmo padrão de popover usado no resto do sistema (elab-filters-popover), só com
+             classe própria para o visual "premium" pedido para esta barra. -->
+        <section class="banco-filtros-avancados" id="bpFiltersPopover" hidden>
+          <div class="banco-filtros-avancados-header">
+            <h3 class="elab-popover-title">Filtros avançados</h3>
+            <button
+              type="button"
+              id="btnFecharFiltrosBP"
+              class="elab-popover-close"
+              title="Fechar"
+              aria-label="Fechar filtros"
+            >&times;</button>
+          </div>
+          <div class="elab-filter-fields">
+            <div class="filter-field">
+              <label for="filterBPTipoAv">Tipo de AV</label>
+              <select id="filterBPTipoAv"><option value="">Tipo de AV</option></select>
+            </div>
+            <div class="filter-field">
+              <label for="filterBPSegmento">Ano Escolar</label>
+              <select id="filterBPSegmento"><option value="">Ano Escolar</option></select>
+            </div>
+            <div class="filter-field">
+              <label for="filterBPAno">Série</label>
+              <select id="filterBPAno"><option value="">Série</option></select>
+            </div>
+            <div class="filter-field">
+              <label for="filterBPDisciplina">Disciplina</label>
+              <select id="filterBPDisciplina"><option value="">Disciplina</option></select>
+            </div>
+          </div>
+          <div class="elab-filters-buttons">
+            <button id="btnLimparFiltrosBP" class="btn btn-secondary">Limpar filtros</button>
+          </div>
+        </section>
+      </div>
+
+      <p class="status-message empty" id="bpEmptyMessage" hidden>Não há registros para os filtros selecionados.</p>
+
+      <!-- 3. Tabela abaixo dos filtros -->
+      <section class="pe-matrix-card banco-provas-table-card">
+        <div class="pe-tabela-header">
+          <h2 class="pe-tabela-titulo pe-tabela-titulo--com-icone">
+            <img src="./assets/menu-lateral/provas.png" alt="" class="section-title-icon">
+            <span>Banco de Provas</span>
+          </h2>
+        </div>
+
+        <div class="table-wrapper" id="bpTableWrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th class="col-acesso">Acesso</th>
+              </tr>
+            </thead>
+            <tbody id="bpTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- Aba GPA ("Guia Para Avaliação"): consulta aos PDFs/links de Guia Para Avaliação da
+         BD_MACRO2 (API_MACRO2_URL), independente da API principal (BD_SGGE/API_URL) — ver
+         carregarDadosMacro2/dadosGPA em script.js. Não é uma seção de indicadores: o campo
+         "gpa" é o link do arquivo, não uma nota — mesmo padrão visual/estrutural da seção
+         "Banco de Provas" (barra de busca + tabela de acesso a arquivos). -->
+    <section id="gpa-section" hidden>
+      <!-- Card branco: logo + barra de busca/filtros, tudo no mesmo card -->
+      <section class="pe-matrix-card gpa-header-card">
+        <div class="gpa-header-top">
+          <img src="assets/logo-gpa.png" alt="Logo GPA" class="gpa-header-logo">
+        </div>
+
+        <!-- Barra única: filtro rápido de Módulo + botão de filtros avançados (Ano/Tipo de AV)
+             + busca — mesmo padrão/classes da seção Banco de Provas -->
+        <div class="banco-searchbar-wrapper" id="gpaFilterPopoverWrapper">
+          <div class="banco-searchbar">
+            <select id="filterGPAModulo" class="banco-searchbar-select" aria-label="Módulo">
+              <option value="">Módulo</option>
+            </select>
+
+            <div class="banco-searchbar-divider"></div>
+
+            <button
+              type="button"
+              id="btnAbrirFiltrosGPA"
+              class="banco-searchbar-filter-btn"
+              title="Filtros avançados"
+              aria-label="Abrir filtros avançados"
+              aria-expanded="false"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+              <span class="elab-filter-badge" id="gpaFilterBadge" hidden>0</span>
+            </button>
+
+            <div class="banco-searchbar-divider"></div>
+
+            <input
+              type="text"
+              id="filterGPABusca"
+              class="banco-searchbar-input"
+              placeholder="Procurar guias"
+            >
+
+            <span class="banco-searchbar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </div>
+
+          <!-- Painel de filtros avançados: Ano e Tipo de AV -->
+          <section class="banco-filtros-avancados" id="gpaFiltersPopover" hidden>
+            <div class="banco-filtros-avancados-header">
+              <h3 class="elab-popover-title">Filtros avançados</h3>
+              <button
+                type="button"
+                id="btnFecharFiltrosGPA"
+                class="elab-popover-close"
+                title="Fechar"
+                aria-label="Fechar filtros"
+              >&times;</button>
+            </div>
+            <div class="elab-filter-fields">
+              <div class="filter-field">
+                <label for="filterGPAAno">Ano</label>
+                <select id="filterGPAAno"><option value="">Ano</option></select>
+              </div>
+              <div class="filter-field">
+                <label for="filterGPATipoAv">Tipo de AV</label>
+                <select id="filterGPATipoAv"><option value="">Tipo de AV</option></select>
+              </div>
+            </div>
+            <div class="elab-filters-buttons">
+              <button id="btnLimparFiltrosGPA" class="btn btn-secondary">Limpar filtros</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <p class="status-message empty" id="gpaEmptyMessage" hidden>Nenhum Guia Para Avaliação encontrado.</p>
+
+      <section class="pe-matrix-card banco-provas-table-card">
+        <div class="pe-tabela-header">
+          <h2 class="pe-tabela-titulo pe-tabela-titulo--com-icone">
+            <img src="./assets/logo-gpa.png" alt="" class="section-title-icon">
+            <span>Guias Para Avaliação</span>
+          </h2>
+        </div>
+
+        <div class="table-wrapper" id="gpaTableWrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Módulo</th>
+                <th>Ano</th>
+                <th>Avaliação</th>
+                <th class="col-acesso">Acesso</th>
+              </tr>
+            </thead>
+            <tbody id="gpaTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- Acompanhamento de encomendas por Elaborador -->
+    <section id="viewElaborador" hidden>
+      <div id="viewElaboradorAcompanhamento">
+      <div class="stat-groups" id="statGroupsElaborador">
+
+        <!-- Bloco 1: Encomendas -->
+        <section class="stat-group stat-group--blue">
+          <header class="stat-group-header stat-group-header--blue">
+            <span class="stat-group-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 7l8-4 8 4v10l-8 4-8-4V7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M4 7l8 4 8-4M12 11v10" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <h2 class="stat-group-title">Encomendas</h2>
+          </header>
+          <div class="stat-cards">
+            <article class="stat-card" data-metric="cardElabTotal" data-quick-filter="total-encomendas" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Total de encomendas</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabTotal">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabTotal">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">100%</text>
+                </svg>
+              </div>
+            </article>
+            <article class="stat-card" data-metric="cardElabRealizadas" data-quick-filter="encomendas-realizadas" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Realizadas</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabRealizadas">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabRealizadas">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">0%</text>
+                </svg>
+              </div>
+            </article>
+            <article class="stat-card" data-metric="cardElabPendentes" data-quick-filter="encomendas-pendentes" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Pendentes</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabPendentes">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabPendentes">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">0%</text>
+                </svg>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Bloco 2: Devoluções (Prazos) -->
+        <section class="stat-group stat-group--green">
+          <header class="stat-group-header stat-group-header--green">
+            <span class="stat-group-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <h2 class="stat-group-title">Devoluções (Prazos)</h2>
+          </header>
+          <div class="stat-cards stat-cards--four">
+            <article class="stat-card" data-metric="cardElabEntreguesPrazo" data-quick-filter="entregues-no-prazo" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">No prazo</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabEntreguesPrazo">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabEntreguesPrazo">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">0%</text>
+                </svg>
+              </div>
+            </article>
+            <article class="stat-card stat-card--danger" data-metric="cardElabEntreguesForaPrazo" data-quick-filter="entregues-fora-prazo" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Fora do prazo</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabEntreguesForaPrazo">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabEntreguesForaPrazo">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">0%</text>
+                </svg>
+              </div>
+            </article>
+            <article class="stat-card stat-card--danger" data-metric="cardElabAtrasadas" data-quick-filter="encomendas-atrasadas" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Pendentes atrasadas</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabAtrasadas">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabAtrasadas">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">0%</text>
+                </svg>
+              </div>
+            </article>
+            <article class="stat-card" data-metric="cardElabNoPrazo" data-quick-filter="encomendas-no-prazo" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Pendentes no prazo</span>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-card-value" id="cardElabNoPrazo">-</span>
+                <svg class="stat-ring" viewBox="0 0 64 64" id="ringElabNoPrazo">
+                  <circle class="stat-ring-track" cx="32" cy="32" r="26"></circle>
+                  <circle class="stat-ring-progress" cx="32" cy="32" r="26"></circle>
+                  <text class="stat-ring-text" x="32" y="37" text-anchor="middle">0%</text>
+                </svg>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Bloco 3: Validações -->
+        <section class="stat-group stat-group--purple">
+          <header class="stat-group-header stat-group-header--purple">
+            <span class="stat-group-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <h2 class="stat-group-title">Validações</h2>
+          </header>
+          <div class="stat-cards stat-cards--two">
+            <article class="stat-card stat-card--bar" data-metric="cardElabValidadas" data-quick-filter="validadas-sgge" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Validadas pelo SGGE</span>
+                <span class="stat-card-percent" id="percentElabValidadas">0%</span>
+              </div>
+              <span class="stat-card-value" id="cardElabValidadas">-</span>
+              <div class="stat-progress">
+                <div class="stat-progress-fill" id="barElabValidadas"></div>
+              </div>
+            </article>
+            <article class="stat-card stat-card--bar" data-metric="cardElabAguardando" data-quick-filter="aguardando-validacao" role="button" tabindex="0" aria-pressed="false">
+              <div class="stat-card-top">
+                <span class="stat-card-label">Aguardando validação</span>
+                <span class="stat-card-percent" id="percentElabAguardando">0%</span>
+              </div>
+              <span class="stat-card-value" id="cardElabAguardando">-</span>
+              <div class="stat-progress">
+                <div class="stat-progress-fill" id="barElabAguardando"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+      </div>
+
+      <div class="table-wrapper" id="elaboradorTableWrapper">
+        <table class="data-table data-table-compact">
+          <thead>
+            <tr>
+              <th>Módulo</th>
+              <th>Ano</th>
+              <th>Disciplina</th>
+              <th>Tipo de AV</th>
+              <th>Elaborador</th>
+              <th>Data da encomenda</th>
+              <th>Status</th>
+              <th>Prazo</th>
+              <th>Data da devolutiva</th>
+              <th>Dias</th>
+              <th>Status</th>
+              <th>Data da validação</th>
+              <th>Atraso validação</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBodyElaborador"></tbody>
+        </table>
+      </div>
+      </div>
+
+      <!-- Indicadores: conclusões do processo de encomenda/devolutiva/validação -->
+      <div id="viewElaboradorIndicadores" hidden>
+        <p class="indicadores-chart-empty indicadores-empty-geral" id="indicadoresEmptyGeral" hidden>
+          Não há dados suficientes para gerar indicadores neste recorte.
+        </p>
+
+        <div id="indicadoresConteudo">
+        <!-- Filtros interativos ativados ao clicar em itens dos gráficos -->
+        <div class="indicadores-filtros-ativos" id="indicadoresFiltrosAtivos" hidden>
+          <span class="indicadores-filtros-ativos-label">Filtros ativos:</span>
+          <div class="indicadores-filtros-ativos-lista" id="indicadoresFiltrosAtivosLista"></div>
+          <button type="button" class="btn btn-secondary indicadores-filtros-ativos-limpar" id="btnLimparFiltrosIndicadores">
+            Limpar filtros dos indicadores
+          </button>
+        </div>
+
+        <!-- Bloco 1: Cards executivos -->
+        <div class="indicadores-resumo-grid indicadores-resumo-grid--exec">
+          <div class="indicadores-resumo-card indicadores-resumo-card--ok">
+            <span class="indicadores-resumo-label">Entregas no prazo</span>
+            <span class="indicadores-resumo-value" id="indEntreguesPrazo">-</span>
+            <span class="indicadores-resumo-sub">Devolutivas entregues dentro do prazo</span>
+          </div>
+          <div class="indicadores-resumo-card" id="indCardTaxaAtraso">
+            <span class="indicadores-resumo-label">Taxa de atraso</span>
+            <span class="indicadores-resumo-value" id="indTaxaAtraso">-</span>
+            <span class="indicadores-resumo-sub">Encomendas com atraso no recorte</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--media-atraso">
+            <span class="indicadores-resumo-label">Média de atraso</span>
+            <span class="indicadores-resumo-value" id="indMediaAtraso">-</span>
+            <span class="indicadores-resumo-sub">Encomendas com atraso</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Maior atraso individual</span>
+            <span class="indicadores-resumo-value" id="indMaiorAtraso">-</span>
+            <span class="indicadores-resumo-sub" id="indMaiorAtrasoSub">Maior atraso de uma única encomenda</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Maior impacto em atraso</span>
+            <span class="indicadores-resumo-value indicadores-resumo-value--nome" id="indElaboradorMaisAtrasa">-</span>
+            <span class="indicadores-resumo-sub" id="indElaboradorMaisAtrasaSub"></span>
+          </div>
+        </div>
+
+        <!-- Bloco 2: Ranking de elaboradores que mais atrasam + Disciplinas que mais atrasam
+             (mesma altura, cada um com scroll interno se o conteúdo passar do espaço) -->
+        <div class="indicadores-grid-top">
+          <section class="indicadores-chart-block indicadores-chart-block--ranking">
+            <h3 class="indicadores-block-title">Ranking de elaboradores que mais atrasam</h3>
+            <div class="indicadores-chart" id="graficoRankingElaboradores"></div>
+          </section>
+
+          <section class="indicadores-chart-block indicadores-chart-block--disciplinas">
+            <h3 class="indicadores-block-title">Disciplinas que mais atrasam</h3>
+            <div class="indicadores-chart" id="graficoDisciplinas"></div>
+          </section>
+        </div>
+
+        <!-- Bloco 3: Avaliações que mais atrasam + coluna (Distribuição por segmento / Anos que
+             mais atrasam), com altura combinada próxima da de "Avaliações que mais atrasam" -->
+        <div class="indicadores-grid-middle">
+          <section class="indicadores-chart-block indicadores-chart-block--respiro indicadores-chart-block--tipoav">
+            <h3 class="indicadores-block-title">Avaliações que mais atrasam</h3>
+            <div class="indicadores-chart" id="graficoTipoAv"></div>
+          </section>
+
+          <div class="indicadores-side-stack">
+            <section class="indicadores-chart-block indicadores-chart-block--segmento">
+              <h3 class="indicadores-block-title">Taxa de atraso por segmento</h3>
+              <p class="indicadores-chart-subtitle">Distribuição das encomendas com atraso entre Ensino Fundamental e Ensino Médio</p>
+              <div class="indicadores-chart indicadores-chart--segmento" id="graficoSegmento"></div>
+            </section>
+
+            <section class="indicadores-chart-block indicadores-chart-block--ano">
+              <h3 class="indicadores-block-title">Anos que mais atrasam</h3>
+              <div class="indicadores-chart" id="graficoAno"></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- Bloco 4: Recorrência de atraso por elaborador -->
+        <section class="indicadores-block indicadores-block--recorrencia">
+          <h3 class="indicadores-block-title">Recorrência de atraso por elaborador</h3>
+          <div class="table-wrapper indicator-table-scroll">
+            <table class="data-table data-table-compact">
+              <thead>
+                <tr>
+                  <th class="rank-cell">#</th>
+                  <th>Elaborador</th>
+                  <th>Total de encomendas</th>
+                  <th>Encomendas com atraso</th>
+                  <th>Taxa de atraso</th>
+                  <th>Média de atraso</th>
+                  <th>Maior atraso individual</th>
+                  <th>Classificação</th>
+                </tr>
+              </thead>
+              <tbody id="indicadoresRecorrenciaBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Bloco 5: Performance da entrega do elaborador (gráfico de linha, largura total) -->
+        <section class="indicadores-chart-block indicadores-chart-block--full">
+          <h3 class="indicadores-block-title">Performance da entrega do elaborador</h3>
+          <p class="indicadores-chart-subtitle">Média de dias em relação ao prazo por módulo e tipo de avaliação</p>
+          <div class="perf-chart-wrapper" id="graficoPerformanceElaborador"></div>
+        </section>
+
+        <!-- Bloco 6: Resumo por disciplina -->
+        <section class="indicadores-block">
+          <h3 class="indicadores-block-title">Resumo por disciplina</h3>
+          <div class="table-wrapper indicator-table-scroll">
+            <table class="data-table data-table-compact">
+              <thead>
+                <tr>
+                  <th class="rank-cell">#</th>
+                  <th>Disciplina</th>
+                  <th>Total de encomendas</th>
+                  <th>Entregues no prazo</th>
+                  <th>Entregues fora do prazo</th>
+                  <th>Pendências vencidas</th>
+                  <th>Média de atraso</th>
+                  <th>Taxa de atraso</th>
+                </tr>
+              </thead>
+              <tbody id="indicadoresDisciplinaBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal "Gerar relatório do elaborador" (Indicadores — Elaborador): filtros próprios
+         (Elaborador/Disciplina/Módulo/Avaliação, independentes dos filtros da tela) + prévia do
+         relatório, para impressão/PDF via window.print() (ver #elaborador-report-print-area e o
+         @media print correspondente em style.css) -->
+    <div class="geral-evento-modal-backdrop" id="relatorioElaboradorModalBackdrop" hidden>
+      <div
+        class="report-modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="relatorioElaboradorModalTitulo"
+      >
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharRelatorioElaborador" aria-label="Fechar">&times;</button>
+
+        <div class="report-header">
+          <h3 class="report-title" id="relatorioElaboradorModalTitulo">Relatório de Desempenho do Elaborador</h3>
+          <p class="report-subtitle">Análise de entregas, atrasos e recorrências conforme os filtros selecionados.</p>
+        </div>
+
+        <div class="report-filter-bar">
+          <div class="filter-field">
+            <label for="filterRelatorioElaborador">Elaborador</label>
+            <select id="filterRelatorioElaborador"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelatorioCoordenador">Coordenador</label>
+            <select id="filterRelatorioCoordenador"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelatorioSegmento">Segmento</label>
+            <select id="filterRelatorioSegmento">
+              <option value="">Todos</option>
+              <option value="Fundamental II">Fundamental II</option>
+              <option value="Ensino Médio">Ensino Médio</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelatorioDisciplina">Disciplina</label>
+            <select id="filterRelatorioDisciplina"><option value="">Todas</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelatorioModulo">Módulo</label>
+            <select id="filterRelatorioModulo"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelatorioAvaliacao">Avaliação</label>
+            <select id="filterRelatorioAvaliacao"><option value="">Todas</option></select>
+          </div>
+        </div>
+
+        <!-- Prévia do relatório: só o HTML dentro de #elaborador-report-print-area é usado para
+             montar a janela de impressão (ver imprimirRelatorioElaborador em script.js) -->
+        <div id="elaborador-report-print-area" class="relatorio-elaborador-preview" hidden>
+          <div class="report-print-header">
+            <div class="report-header-left">
+              <img src="assets/logo/logo-sgge.png" alt="Logo SGGE">
+            </div>
+            <h1 class="report-title">Relatório de Desempenho do Elaborador</h1>
+          </div>
+
+          <dl class="report-meta">
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Elaborador</dt>
+              <dd class="report-meta-value" id="relatorioMetaElaborador">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Coordenador</dt>
+              <dd class="report-meta-value" id="relatorioMetaCoordenador">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Segmento</dt>
+              <dd class="report-meta-value" id="relatorioMetaSegmento">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Disciplina</dt>
+              <dd class="report-meta-value" id="relatorioMetaDisciplina">Todas</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Módulo</dt>
+              <dd class="report-meta-value" id="relatorioMetaModulo">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Avaliação</dt>
+              <dd class="report-meta-value" id="relatorioMetaAvaliacao">Todas</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Data de geração</dt>
+              <dd class="report-meta-value" id="relatorioMetaData">-</dd>
+            </div>
+          </dl>
+
+          <div class="report-kpis" id="relatorioElaboradorResumoGrid">
+            <div class="report-kpi ok">
+              <span class="report-kpi-label">Entregas no prazo</span>
+              <span class="report-kpi-value" id="relatorioResumoEntreguesPrazo">-</span>
+            </div>
+            <div class="report-kpi danger">
+              <span class="report-kpi-label">Entregas fora do prazo</span>
+              <span class="report-kpi-value" id="relatorioResumoForaPrazo">-</span>
+            </div>
+            <div class="report-kpi info">
+              <span class="report-kpi-label">Média de atraso</span>
+              <span class="report-kpi-value" id="relatorioResumoMediaAtraso">-</span>
+            </div>
+            <div class="report-kpi danger">
+              <span class="report-kpi-label">Maior atraso individual</span>
+              <span class="report-kpi-value" id="relatorioResumoMaiorAtraso">-</span>
+            </div>
+          </div>
+
+          <div class="report-section">
+            <h3 class="report-section-title">Recorrência de atraso por elaborador</h3>
+            <p class="report-section-subtitle">Detalhamento consolidado da recorrência de atraso do elaborador.</p>
+
+            <div class="report-table-wrap">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th class="rank-cell">#</th>
+                    <th>Elaborador</th>
+                    <th>Total de encomendas</th>
+                    <th>Encomendas com atraso</th>
+                    <th>Taxa de atraso</th>
+                    <th>Média de atraso</th>
+                    <th>Maior atraso individual</th>
+                    <th>Classificação</th>
+                  </tr>
+                </thead>
+                <tbody id="relatorioElaboradorRecorrenciaBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="report-section">
+            <h3 class="report-section-title">Todas as entregas detalhadas</h3>
+            <p class="report-section-subtitle">Lista completa das entregas dos elaboradores</p>
+
+            <div class="report-table-wrap">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th>Módulo</th>
+                    <th>Ano</th>
+                    <th>Avaliação</th>
+                    <th>Disciplina</th>
+                    <th>Elaborador</th>
+                    <th>Prazo</th>
+                    <th>Devolutiva</th>
+                    <th>Dias de atraso</th>
+                  </tr>
+                </thead>
+                <tbody id="relatorioElaboradorTabelaBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="report-closing-note">
+            Reforçamos a importância do cumprimento dos prazos estabelecidos, essencial para a organização e continuidade do fluxo de produção, bem como para garantir o bom andamento das etapas posteriores do processo.
+          </div>
+        </div>
+
+        <p class="status-message empty relatorio-elaborador-vazio" id="relatorioElaboradorVazio" hidden>
+          Não há registros para os filtros selecionados.
+        </p>
+
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarRelatorioElaborador">Cancelar</button>
+          <button type="button" class="btn btn-outline" id="btnGerarRelatorioElaborador">Gerar relatório</button>
+          <button type="button" class="btn btn-primary" id="btnImprimirRelatorioElaborador" disabled>Imprimir / Salvar PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Coordenador: acompanhamento do envio, análise e devolutiva das avaliações -->
+    <section id="viewCoordenador" hidden>
+      <div id="viewCoordenadorAcompanhamento">
+
+      <p class="indicadores-chart-empty indicadores-empty-geral" id="coordEmptyGeral" hidden>
+        Não há dados para os filtros selecionados.
+      </p>
+
+      <div id="coordConteudo">
+        <!-- Cards de status, clicáveis como filtro rápido -->
+        <div class="banco-cards-grid coordenador-cards-grid" id="coordCardsGrid">
+          <div class="coord-card-tooltip-wrapper" id="coordCardPendenteTooltipWrapper">
+            <article
+              class="banco-card banco-card--orange"
+              data-quick-filter="pendente-envio-validacao"
+              role="button"
+              tabindex="0"
+              aria-pressed="false"
+              aria-describedby="coordPendenteTooltip"
+              id="coordCardPendenteEnvioArticle"
+            >
+              <div class="banco-card__icon banco-card__icon--orange" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M8 9l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M4 15v4h16v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="banco-card__content">
+                <div class="banco-card__title">Pendente de envio</div>
+                <div class="banco-card__subtitle">Provas ainda não enviadas.</div>
+              </div>
+              <div class="banco-card__metric">
+                <div class="banco-card__value" id="cardCoordPendenteEnvio">-</div>
+                <div class="banco-card__unit">provas</div>
+              </div>
+            </article>
+
+            <!-- Dica de ferramenta analítica: distribuição das pendências de envio por tipo de AV -->
+            <div class="coord-analytic-tooltip" id="coordPendenteTooltip" role="tooltip">
+              <h4 class="coord-tooltip-title">Progresso de envio por avaliação</h4>
+              <p class="coord-tooltip-subtitle">Percentual de avaliações validadas pelo SGGE já enviadas para validação</p>
+              <div class="coord-tooltip-chart" id="coordPendenteTooltipChart"></div>
+            </div>
+          </div>
+
+          <article class="banco-card banco-card--blue" data-quick-filter="enviadas" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6h16v12H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M4 6l8 7 8-7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Enviadas para validação</div>
+              <div class="banco-card__subtitle">Provas enviadas para validação.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardCoordEnviadas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <article class="banco-card banco-card--amber" data-quick-filter="aguardando" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--amber" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+                <path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Em validação</div>
+              <div class="banco-card__subtitle">Aguardando validação do coordenador.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardCoordAguardando">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <article class="banco-card banco-card--green" data-quick-filter="recebidas" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--green" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 3h7l4 4v14H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M14 3v4h4" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M9.5 13.5l2 2 3.5-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Validadas</div>
+              <div class="banco-card__subtitle">Provas validadas pelo coordenador.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardCoordRecebidas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <article class="banco-card banco-card--red" data-quick-filter="prazo-atrasado" role="button" tabindex="0" aria-pressed="false">
+            <div class="banco-card__icon banco-card__icon--red" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3l10 18H2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M12 9.5v4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Validações atrasadas</div>
+              <div class="banco-card__subtitle">Validações com prazo vencido.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="cardCoordPrazoAtrasado">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+        </div>
+
+        <!-- Tabela operacional da coordenação -->
+        <section class="indicadores-block" id="coordTabelaCard">
+          <div class="coord-tabela-header">
+            <h3 class="indicadores-block-title">Avaliações enviadas para coordenação</h3>
+            <div class="coord-detail-filters" id="coordFiltroAvaliacaoTopo"></div>
+          </div>
+          <div class="table-wrapper coord-table-scroll">
+            <table class="data-table data-table-compact coord-table-grouped">
+              <thead>
+                <tr class="coord-thead-grupos">
+                  <th colspan="3" class="coord-grupo-th coord-grupo-th--planejamento">
+                    <span class="coord-grupo-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 6h16v12H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                        <path d="M4 6l8 7 8-7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    demandas (SGGE)
+                  </th>
+                  <th colspan="4" class="coord-grupo-th coord-grupo-th--validacao">
+                    <span class="coord-grupo-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    Validação e devolutiva dos COORDENADORES (GGE)
+                  </th>
+                </tr>
+                <tr>
+                  <th class="coord-col-th--planejamento">Coordenador</th>
+                  <th class="coord-col-th--planejamento">Total de demandas</th>
+                  <th class="coord-col-th--planejamento coord-col-th--divisor">Não enviadas</th>
+                  <th class="coord-col-th--validacao">Em validação</th>
+                  <th class="coord-col-th--validacao">Devolvidas</th>
+                  <th class="coord-col-th--validacao">Atrasadas</th>
+                  <th class="coord-col-th--validacao">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tableBodyCoordenador"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      </div>
+
+      <!-- Indicadores: painel analítico do fluxo de validação dos coordenadores -->
+      <div id="viewCoordenadorIndicadores" hidden>
+        <p class="indicadores-chart-empty indicadores-empty-geral" id="indCoordEmptyGeral" hidden>
+          Não há dados suficientes para gerar indicadores neste recorte.
+        </p>
+
+        <div id="indCoordConteudo">
+        <!-- Filtros interativos ativados ao clicar em itens dos gráficos -->
+        <div class="indicadores-filtros-ativos" id="indCoordFiltrosAtivos" hidden>
+          <span class="indicadores-filtros-ativos-label">Filtros ativos:</span>
+          <div class="indicadores-filtros-ativos-lista" id="indCoordFiltrosAtivosLista"></div>
+          <button type="button" class="btn btn-secondary indicadores-filtros-ativos-limpar" id="btnLimparFiltrosIndicadoresCoord">
+            Limpar filtros dos indicadores
+          </button>
+        </div>
+
+        <!-- Cards executivos -->
+        <div class="indicadores-resumo-grid indicadores-resumo-grid--coord">
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Média de atraso</span>
+            <span class="indicadores-resumo-value" id="indCoordMediaAtraso">-</span>
+            <span class="indicadores-resumo-sub">Média entre validações atrasadas</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Maior atraso individual</span>
+            <span class="indicadores-resumo-value" id="indCoordMaiorAtraso">-</span>
+            <span class="indicadores-resumo-sub" id="indCoordMaiorAtrasoSub">Maior atraso em uma única validação</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Coordenador que mais atrasa</span>
+            <span class="indicadores-resumo-value indicadores-resumo-value--nome" id="indCoordMaisAtrasa">-</span>
+            <span class="indicadores-resumo-sub" id="indCoordMaisAtrasaSub"></span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--taxa-critica">
+            <span class="indicadores-resumo-label">% Fora do prazo</span>
+            <span class="indicadores-resumo-value" id="indCoordPctForaPrazo">-</span>
+            <span class="indicadores-resumo-sub">Validações fora do prazo</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--ok">
+            <span class="indicadores-resumo-label">% No prazo</span>
+            <span class="indicadores-resumo-value" id="indCoordPctNoPrazo">-</span>
+            <span class="indicadores-resumo-sub">Validações dentro do prazo</span>
+          </div>
+        </div>
+
+        <!-- Gráficos: Ranking de atraso (média) + Distribuição dos atrasos por avaliação (1ª linha);
+             Atraso por avaliação + Total por ano escolar (2ª linha); Desempenho do coordenador
+             em largura total (3ª linha) -->
+        <div class="coordenador-indicadores-charts">
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Ranking de atraso por coordenador</h3>
+            <p class="indicadores-chart-subtitle">Média de atraso nas devolutivas por coordenador</p>
+            <div class="coord-ranking-chart" id="graficoRankingMediaAtrasoCoord"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Distribuição dos atrasos por avaliação</h3>
+            <p class="indicadores-chart-subtitle">Percentual de ocorrências de atraso por tipo de avaliação</p>
+            <div class="coord-donut-tipoav-chart" id="graficoDistribuicaoAtrasoTipoAvCoord"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card coord-chart-card--atraso-avaliacao">
+            <h3 class="indicadores-block-title">Atraso por avaliação</h3>
+            <p class="indicadores-chart-subtitle">Média de atraso nas validações por tipo de avaliação</p>
+            <div class="coord-ranking-chart" id="graficoAtrasoTipoAvCoord"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Média de atraso por ano escolar</h3>
+            <p class="indicadores-chart-subtitle">Média de atraso nas validações por ano escolar</p>
+            <div class="coord-ranking-chart" id="graficoAnoEscolarCoord"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card coord-chart-full">
+            <h3 class="indicadores-block-title">Recorrência de atraso por coordenador</h3>
+            <div class="table-wrapper indicator-table-scroll">
+              <table class="data-table data-table-compact">
+                <thead>
+                  <tr>
+                    <th class="rank-cell">#</th>
+                    <th>Coordenador</th>
+                    <th>Volume de atividades</th>
+                    <th>Enviadas com atraso</th>
+                    <th>Taxa de atraso</th>
+                    <th>Média de atraso</th>
+                    <th>Maior atraso individual</th>
+                  </tr>
+                </thead>
+                <tbody id="indicadoresRecorrenciaCoordBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card coord-chart-full coord-performance-card">
+            <header class="coord-performance-header">
+              <span class="coord-performance-header-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 20V10M11 20V4M18 20v-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <div class="coord-performance-header-text">
+                <h3 class="indicadores-block-title coord-performance-title">Desempenho do Coordenador</h3>
+                <p class="indicadores-chart-subtitle coord-performance-subtitle">Barras = média de atraso (dias) · Linha = volume de registros válidos · clique nas barras para filtrar</p>
+              </div>
+            </header>
+            <div class="coord-performance-chart" id="graficoDesempenhoCoordenador"></div>
+          </section>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Processo Editorial: matriz de acompanhamento das etapas editoriais pós-validação
+         (diagramação, cotejos, leitura final, assinatura da coordenação e arte final) -->
+    <div id="viewSistemaGGE" hidden>
+      <section class="banco-cards-grid pe-cards-grid" id="peCardsGrid">
+        <div class="banco-card banco-card--blue pe-card pe-card--andamento" data-quick-filter="andamento" role="button" tabindex="0">
+          <div class="banco-card__icon banco-card__icon--blue" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 3h7l4 4v14H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M14 3v4h4" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M9.5 12h5M9.5 15h5M9.5 18h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="banco-card__content">
+            <div class="banco-card__title">Em andamento</div>
+            <div class="banco-card__subtitle">Provas em andamento no fluxo editorial.</div>
+          </div>
+          <div class="banco-card__metric">
+            <div class="banco-card__value" id="peCardAndamento">-</div>
+            <div class="banco-card__unit">provas</div>
+          </div>
+        </div>
+
+        <div class="coord-card-tooltip-wrapper" id="peCardConcluidasTooltipWrapper">
+          <article
+            class="banco-card banco-card--green pe-card pe-card--concluidas"
+            data-quick-filter="concluido"
+            role="button"
+            tabindex="0"
+            aria-describedby="peConcluidasTooltip"
+            id="peCardConcluidasArticle"
+          >
+            <div class="banco-card__icon banco-card__icon--green" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 12.5l5 5L20 6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="banco-card__content">
+              <div class="banco-card__title">Concluídas</div>
+              <div class="banco-card__subtitle">Provas concluídas no processo editorial.</div>
+            </div>
+            <div class="banco-card__metric">
+              <div class="banco-card__value" id="peCardConcluidas">-</div>
+              <div class="banco-card__unit">provas</div>
+            </div>
+          </article>
+
+          <!-- Dica de ferramenta analítica: progresso de conclusão do processo editorial por tipo de AV -->
+          <div class="coord-analytic-tooltip" id="peConcluidasTooltip" role="tooltip">
+            <h4 class="coord-tooltip-title">Progresso de conclusão por avaliação</h4>
+            <p class="coord-tooltip-subtitle">Percentual de avaliações finalizadas no processo editorial.</p>
+            <div class="coord-tooltip-chart" id="peConcluidasTooltipChart"></div>
+          </div>
+        </div>
+      </section>
+
+      <p class="status-message empty" id="peEmptyMessage" hidden>Não há registros para os filtros selecionados.</p>
+
+      <section class="pe-matrix-card">
+        <div class="pe-tabela-header">
+          <h2 class="pe-tabela-titulo">Fluxo do Processo Editorial</h2>
+          <div class="coord-detail-filters" id="peFiltroAvaliacaoTopo"></div>
+        </div>
+
+        <div class="table-wrapper pe-ano-table-scroll" id="peTableWrapper">
+          <table class="data-table pe-ano-table">
+            <thead>
+              <tr>
+                <th>Ano</th>
+                <th>Total de Provas</th>
+                <th>Total em Processo</th>
+                <th>Total Finalizada</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="peTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pe-matrix-footer">
+          <div class="pe-legend">
+            <span class="pe-legend-item"><span class="status-step completed">✓</span>Concluído</span>
+            <span class="pe-legend-item"><span class="status-step in-progress"></span>Em andamento</span>
+            <span class="pe-legend-item"><span class="status-step pending"></span>Pendente</span>
+          </div>
+          <span class="pe-ultima-atualizacao">Última atualização: <span id="peUltimaAtualizacao">-</span></span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Indicadores — Processo Editorial: sub-visão de análise de andamento/gargalos do fluxo
+         editorial, no mesmo padrão de Indicadores — Coordenador -->
+    <div id="viewProcessoEditorialIndicadores" hidden>
+      <p class="indicadores-chart-empty indicadores-empty-geral" id="indPEEmptyGeral" hidden>
+        Não há dados suficientes para gerar indicadores neste recorte.
+      </p>
+
+      <div id="indPEConteudo">
+        <div class="pe-indicadores-header">
+          <h2 class="pe-indicadores-titulo">Indicadores — Processo Editorial</h2>
+          <p class="pe-indicadores-subtitulo">Análise do andamento, gargalos e tempo médio do fluxo editorial.</p>
+        </div>
+
+        <!-- Filtros interativos ativados ao clicar em itens dos gráficos -->
+        <div class="indicadores-filtros-ativos" id="indPEFiltrosAtivos" hidden>
+          <span class="indicadores-filtros-ativos-label">Filtros ativos:</span>
+          <div class="indicadores-filtros-ativos-lista" id="indPEFiltrosAtivosLista"></div>
+          <button type="button" class="btn btn-secondary indicadores-filtros-ativos-limpar" id="btnLimparFiltrosIndicadoresPE">
+            Limpar filtros dos indicadores
+          </button>
+        </div>
+
+        <!-- Cards executivos -->
+        <div class="indicadores-resumo-grid indicadores-resumo-grid--pe">
+          <div class="indicadores-resumo-card">
+            <span class="indicadores-resumo-label">Média geral do processo</span>
+            <span class="indicadores-resumo-value" id="indPECardMediaGeral">-</span>
+            <span class="indicadores-resumo-sub">Tempo médio entre Diagramação e Cotejo Final</span>
+          </div>
+          <div class="indicadores-resumo-card">
+            <span class="indicadores-resumo-label">Etapa mais lenta</span>
+            <span class="indicadores-resumo-value indicadores-resumo-value--nome" id="indPECardEtapaLenta">-</span>
+            <span class="indicadores-resumo-sub" id="indPECardEtapaLentaSub"></span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--alerta">
+            <span class="indicadores-resumo-label">Maior gargalo</span>
+            <span class="indicadores-resumo-value indicadores-resumo-value--nome" id="indPECardGargalo">-</span>
+            <span class="indicadores-resumo-sub" id="indPECardGargaloSub"></span>
+          </div>
+          <div class="indicadores-resumo-card">
+            <span class="indicadores-resumo-label">Em andamento</span>
+            <span class="indicadores-resumo-value" id="indPECardAndamento">-</span>
+            <span class="indicadores-resumo-sub">Provas com etapas em andamento</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--ok">
+            <span class="indicadores-resumo-label">Concluídas</span>
+            <span class="indicadores-resumo-value" id="indPECardConcluidas">-</span>
+            <span class="indicadores-resumo-sub">Provas com todas as etapas concluídas</span>
+          </div>
+          <div class="indicadores-resumo-card indicadores-resumo-card--ok">
+            <span class="indicadores-resumo-label">Taxa de conclusão</span>
+            <span class="indicadores-resumo-value" id="indPECardTaxaConclusao">-</span>
+            <span class="indicadores-resumo-sub" id="indPECardTaxaConclusaoSub"></span>
+          </div>
+        </div>
+
+        <!-- Gráficos: Média de tempo por etapa + Gargalos por etapa (1ª linha); Distribuição do
+             status + Andamento por avaliação (2ª linha); Andamento por ano escolar + Mapa de
+             calor do processo (3ª linha) -->
+        <div class="coordenador-indicadores-charts pe-indicadores-charts">
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Média de tempo por etapa</h3>
+            <p class="indicadores-chart-subtitle">Duração média, em dias, de cada etapa do fluxo</p>
+            <div class="coord-ranking-chart" id="graficoTempoPorEtapaPE"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Gargalos por etapa</h3>
+            <p class="indicadores-chart-subtitle">Quantidade de pendências por etapa do processo</p>
+            <div class="coord-ranking-chart" id="graficoGargalosPE"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Distribuição do status do processo</h3>
+            <p class="indicadores-chart-subtitle">Provas por status geral do fluxo editorial</p>
+            <div class="pe-donut-status-chart" id="graficoStatusProcessoPE"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Andamento por avaliação</h3>
+            <p class="indicadores-chart-subtitle">Percentual de conclusão por tipo de avaliação</p>
+            <div class="coord-ranking-chart" id="graficoAndamentoAvaliacaoPE"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Andamento por ano escolar</h3>
+            <p class="indicadores-chart-subtitle">Percentual de conclusão por ano escolar</p>
+            <div class="coord-ranking-chart" id="graficoAndamentoAnoPE"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Mapa de calor do processo</h3>
+            <p class="indicadores-chart-subtitle">Status predominante de cada etapa, por ano escolar</p>
+            <div class="pe-heatmap" id="graficoMapaCalorPE"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card coord-chart-full">
+            <h3 class="indicadores-block-title">Resumo por ano e avaliação</h3>
+            <div class="table-wrapper indicator-table-scroll">
+              <table class="data-table data-table-compact">
+                <thead>
+                  <tr>
+                    <th class="rank-cell">#</th>
+                    <th>Ano</th>
+                    <th>Avaliação</th>
+                    <th>Total de provas</th>
+                    <th>Em andamento</th>
+                    <th>Concluídas</th>
+                    <th>Taxa de conclusão</th>
+                    <th>Média do processo</th>
+                    <th>Principal gargalo</th>
+                  </tr>
+                </thead>
+                <tbody id="indPEResumoBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-count" id="resultsCount"></div>
+
+  </main>
+
+  <footer class="app-footer">
+    <span>SGGE &middot; Sistema de acompanhamento de avaliações</span>
+  </footer>
+
+  </div>
+
+  </div>
+
+  <!-- Tooltip reutilizável do gráfico de performance de entrega do elaborador -->
+  <div class="perf-tooltip" id="perfTooltip" hidden></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
