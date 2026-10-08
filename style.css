@@ -2682,7 +2682,8 @@ body {
 }
 
 /* Sidebar responsiva: em telas médias, volta ao modo compacto (só ícones) */
-@media (max-width: 900px) {
+/* Modo compacto (só ícones) apenas em tablet; abaixo de 768px a sidebar vira drawer */
+@media (min-width: 769px) and (max-width: 900px) {
   .sidebar {
     width: 64px;
     padding: 16px 10px;
@@ -2741,106 +2742,6 @@ body {
   }
 }
 
-/* Sidebar responsiva: vira menu horizontal de ícones no topo em telas pequenas */
-@media (max-width: 600px) {
-  .sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    padding: 10px 0;
-    gap: 14px;
-    overflow: visible;
-  }
-
-  /* Logo + usuário (dentro de .sidebar-top) viram itens lado a lado, igual ao menu, nessa
-     barra horizontal */
-  .sidebar-top {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .sidebar-logo {
-    width: auto;
-    padding: 0 12px 0 0;
-    margin-bottom: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.14);
-  }
-
-  .sidebar-logo img {
-    width: 36px;
-    height: 36px;
-  }
-
-  .sidebar-menu {
-    flex: 0 0 auto;
-    flex-direction: row;
-    gap: 8px;
-    overflow-y: visible;
-    overflow-x: auto;
-    padding: 0;
-  }
-
-  .sidebar-btn {
-    width: 40px;
-    height: 40px;
-  }
-
-  .sidebar-icon {
-    width: 20px;
-    height: 20px;
-  }
-
-  /* Avatar + nome viram um mini item inline (nome escondido, só o círculo) ao lado do menu */
-  .sidebar-user {
-    flex-direction: row;
-    align-items: center;
-    padding-bottom: 0;
-    margin-bottom: 0;
-    border-bottom: none;
-    border-left: 1px solid rgba(255, 255, 255, 0.14);
-    padding-left: 12px;
-    gap: 0;
-  }
-
-  .sidebar-user-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.8rem;
-    margin-bottom: 0;
-  }
-
-  .sidebar-user-name {
-    display: none;
-  }
-
-  /* Rodapé "Sair" também vira um item inline compacto (só o ícone de logout, sem o texto) */
-  .sidebar-footer {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: none;
-    border-left: 1px solid rgba(255, 255, 255, 0.14);
-    padding-left: 12px;
-  }
-
-  .sidebar-logout-button {
-    width: auto;
-    padding: 8px 10px;
-  }
-
-  /* Item compacto: mantém só o ícone real (SVG), esconde o texto "Sair" */
-  .sidebar-logout-button span {
-    display: none;
-  }
-
-  .app-body {
-    margin-left: 0;
-  }
-}
 
 /* ==================================================
    Aba "Coordenador" — cards de status + tabela operacional
@@ -4225,7 +4126,7 @@ body {
   }
 }
 
-@media (max-width: 900px) {
+@media (min-width: 769px) and (max-width: 900px) {
   .sidebar-user-name {
     display: none;
   }
@@ -5080,196 +4981,6 @@ body {
   box-shadow: 0 0 0 4px rgba(11, 58, 120, 0.12);
 }
 
-/* --- "Análise de Tempo": legenda + linha do tempo por ano/série --- */
-
-.tempo-legenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin: 4px 0 16px;
-  font-size: 0.78rem;
-  color: var(--ind-texto-secundario, #64748b);
-}
-
-.tempo-legenda-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.tempo-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  display: inline-block;
-  flex: none;
-}
-
-.tempo-dot--concluida { background: var(--ind-verde, #15803d); }
-.tempo-dot--andamento { background: #2b6cb0; }
-.tempo-dot--pendente { background: #cbd5e1; }
-.tempo-dot--risco { background: #d97706; }
-.tempo-dot--atraso { background: var(--ind-vermelho, #b91c1c); }
-
-.tempo-linha-ano {
-  border: 1px solid var(--ind-cinza-borda, #e2e8f0);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
-}
-
-.tempo-linha-ano:hover {
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-}
-
-.tempo-linha-ano-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.tempo-linha-ano-titulo {
-  font-weight: 700;
-  color: var(--ind-texto, #0f172a);
-  font-size: 0.88rem;
-}
-
-.tempo-linha-ano-alerta {
-  font-size: 0.76rem;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.tempo-linha-ano-alerta--dentro {
-  background: var(--ind-verde-suave, #dcfce7);
-  color: var(--ind-verde, #15803d);
-}
-
-.tempo-linha-ano-alerta--risco {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.tempo-linha-ano-alerta--atraso {
-  background: var(--ind-vermelho-suave, #fee2e2);
-  color: var(--ind-vermelho, #b91c1c);
-}
-
-.tempo-linha-ano-alerta--concluido {
-  background: #ebf8ff;
-  color: #2b6cb0;
-}
-
-.tempo-linha-ano-pontos {
-  display: flex;
-  align-items: center;
-  margin-top: 12px;
-  overflow-x: auto;
-}
-
-.tempo-ponto {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 92px;
-  position: relative;
-}
-
-.tempo-ponto::before {
-  content: '';
-  position: absolute;
-  top: 5px;
-  left: -50%;
-  width: 100%;
-  height: 2px;
-  background: var(--ind-cinza-borda, #e2e8f0);
-  z-index: 0;
-}
-
-.tempo-ponto:first-child::before {
-  content: none;
-}
-
-.tempo-ponto-marcador {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  z-index: 1;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px var(--ind-cinza-borda, #e2e8f0);
-}
-
-.tempo-ponto-label {
-  font-size: 0.65rem;
-  text-align: center;
-  color: var(--ind-texto-secundario, #64748b);
-  line-height: 1.2;
-}
-
-.tempo-linha-ano-detalhe {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--ind-cinza-borda, #e2e8f0);
-  font-size: 0.78rem;
-}
-
-.tempo-linha-ano-detalhe table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.tempo-linha-ano-detalhe th,
-.tempo-linha-ano-detalhe td {
-  text-align: left;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--ind-cinza-borda, #e2e8f0);
-}
-
-/* Coluna "Cronograma restante até o envio" da tabela de detalhamento — mini-lista vertical, 1
-   bloco por etapa restante */
-.tempo-detalhe-table td {
-  vertical-align: top;
-}
-
-.tempo-cronograma-restante {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 220px;
-}
-
-.tempo-cronograma-etapa {
-  background: var(--ind-cinza-fundo, #f8fafc);
-  border: 1px solid var(--ind-cinza-borda, #e2e8f0);
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
-.tempo-cronograma-etapa-nome {
-  font-weight: 600;
-  font-size: 0.76rem;
-  color: var(--ind-texto, #0f172a);
-  display: block;
-}
-
-.tempo-cronograma-etapa-datas {
-  font-size: 0.72rem;
-  color: var(--ind-texto-secundario, #64748b);
-}
-
-.tempo-cronograma-concluido {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ind-verde, #15803d);
-}
-
 /* Título/subtítulo no topo da visão "Indicadores — Processo Editorial" */
 .pe-indicadores-header {
   margin-bottom: 16px;
@@ -6121,12 +5832,6 @@ body {
   background-color: var(--ind-vermelho-suave, #fee2e2);
   color: var(--ind-vermelho, #b91c1c);
   border-color: rgba(185, 28, 28, 0.2);
-}
-
-.badge-tempo-risco {
-  background-color: #fef3c7;
-  color: #92400e;
-  border-color: rgba(146, 64, 14, 0.2);
 }
 
 /* Badge de status por ano (tabela "Fluxo do Processo Editorial") virou um <button> para carregar
@@ -7305,3 +7010,320 @@ body {
    Agora a impressão abre uma janela separada só com o HTML de #elaborador-report-print-area e
    um <style> próprio, isolado do resto do sistema (ver imprimirRelatorioElaborador em
    script.js) — nada precisa ser escondido/ajustado aqui na página principal. */
+
+/* Card "Pendentes de envio" (aba Coordenador): mesmo tamanho dos demais banco-card do grid,
+   só com destaque laranja */
+.coordenador-cards-grid .pending-send-small-card {
+  border: 1px solid #fed7aa;
+  background: #fffaf5;
+}
+
+.coordenador-cards-grid .pending-send-small-card .banco-card__icon {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.coordenador-cards-grid .pending-send-small-card .banco-card__value {
+  color: #ea580c;
+}
+
+/* ==================================================
+   Mobile (≤ 768px): sidebar vira drawer + layout em 1 coluna.
+   Desktop (> 768px) não é afetado por nada abaixo.
+   ================================================== */
+.mobile-menu-btn,
+.mobile-sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Drawer lateral: fechado por padrão, abre com .mobile-open */
+  /* Fechada: totalmente fora da tela e invisível (nenhum ícone/avatar aparece solto) */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -300px;
+    width: 280px;
+    max-width: 85vw;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1000;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px 12px 12px;
+    overflow-y: auto;
+    box-shadow: none;
+    visibility: hidden;
+    transition: left 0.25s ease, visibility 0s linear 0.25s;
+  }
+
+  .sidebar.mobile-open {
+    left: 0;
+    visibility: visible;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.25);
+    transition: left 0.25s ease, visibility 0s;
+  }
+  .mobile-sidebar-overlay.active {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+  }
+
+  body.mobile-menu-aberto {
+    overflow: hidden;
+  }
+
+  .app-body {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  /* Cabeçalho compacto com o botão hambúrguer à esquerda */
+  .app-header {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 16px;
+  }
+
+  .app-header-top {
+    gap: 10px;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .mobile-menu-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .app-header-titles {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .app-header-titles h1 {
+    font-size: 16px;
+    line-height: 1.2;
+  }
+
+  .app-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .container {
+    width: 100%;
+    padding: 16px;
+  }
+
+  /* Filtros empilhados em 1 coluna */
+  .filters-grid,
+  .geral-calendario-filtros {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .filters-grid select,
+  .filters-grid input,
+  .geral-calendario-filtros select,
+  .geral-calendario-filtros input,
+  .geral-calendario-filtros .filter-field {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Grids de cards em 1 coluna */
+  .cards-grid,
+  .banco-cards-grid,
+  .banco-cards-grid.coordenador-cards-grid,
+  .coord-cards-grid,
+  .resumo-etapas-grid,
+  .indicadores-resumo-grid,
+  .indicadores-grid-top,
+  .indicadores-grid-middle,
+  .report-kpis {
+    grid-template-columns: 1fr !important;
+  }
+
+  .indicadores-resumo-grid > *,
+  .banco-cards-grid > * {
+    grid-column: auto !important;
+  }
+
+  /* Tabelas: rolagem horizontal dentro do próprio container, nunca na página */
+  .table-wrapper,
+  .report-table-wrap,
+  .geral-contagem-detalhe-tabela-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .container table {
+    min-width: 720px;
+  }
+
+  /* Tabelas sem wrapper próprio também rolam sozinhas */
+  .container :not(.table-wrapper):not(.report-table-wrap):not(.geral-contagem-detalhe-tabela-wrapper) > table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modais cabendo na tela */
+  .report-modal-content,
+  .geral-evento-modal,
+  [role="dialog"] {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+
+  .app-footer {
+    position: static;
+  }
+}
+
+/* Tabela "Guias Para Avaliação" (GPA): só Código + Acesso */
+.gpa-table th.gpa-codigo-cell,
+.gpa-table td.gpa-codigo-cell {
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.gpa-table td.gpa-codigo-cell {
+  font-weight: 600;
+  color: #0b2f5b;
+}
+
+.gpa-table .col-acesso {
+  text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .container table.gpa-table {
+    min-width: 0;
+  }
+
+  .gpa-table td.gpa-codigo-cell {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Banco de Provas + GPA no mobile: cada linha vira um card (ID/Código + Acesso logo abaixo),
+   sem rolagem horizontal. Desktop (> 768px) continua com a tabela normal. */
+@media (max-width: 768px) {
+  .container .table-wrapper table.bp-table,
+  .container .table-wrapper table.gpa-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .bp-table thead,
+  .gpa-table thead {
+    display: none;
+  }
+
+  .bp-table tbody,
+  .gpa-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .bp-table tr,
+  .gpa-table tr {
+    display: block;
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 8px 18px rgba(15, 35, 65, 0.06);
+  }
+
+  .bp-table td,
+  .gpa-table td,
+  .gpa-table td.gpa-codigo-cell,
+  .gpa-table .col-acesso {
+    display: block;
+    width: 100%;
+    border: none;
+    padding: 0;
+    text-align: left;
+    background: transparent;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .bp-table td::before,
+  .gpa-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+  }
+
+  /* ID / Código */
+  .bp-table td:first-child,
+  .gpa-table td:first-child {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0b2f5f;
+    margin-bottom: 12px;
+  }
+
+  /* Acesso: botões lado a lado, quebrando se não couber */
+  .bp-table td.col-acesso,
+  .gpa-table td.col-acesso {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .bp-table td.col-acesso::before,
+  .gpa-table td.col-acesso::before {
+    flex-basis: 100%;
+    margin-bottom: 0;
+  }
+
+  .bp-table td.col-acesso > *,
+  .gpa-table td.col-acesso > * {
+    flex: 1 1 120px;
+    justify-content: center;
+    text-align: center;
+  }
+}

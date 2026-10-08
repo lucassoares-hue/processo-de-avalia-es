@@ -358,8 +358,6 @@ const viewProcessoEditorialIndicadores = document.getElementById('viewProcessoEd
 // atalho de nenhuma aba existente (ver bloco de funções mais abaixo, perto de
 // renderizarIndicadoresAssinaturaCoordenador)
 const viewPrevistoRealizado = document.getElementById('viewPrevistoRealizado');
-// "Análise de Tempo" — mesmo padrão de seção própria (não é atalho de nenhuma aba existente)
-const viewAnaliseTempo = document.getElementById('viewAnaliseTempo');
 const viewGPA = document.getElementById('gpa-section');
 let visaoProcessoEditorial = 'acompanhamento'; // 'acompanhamento' | 'indicadores'
 
@@ -400,7 +398,7 @@ let etapaSelecionadaResumoProducao = null;
 let filtroStatusDetalheEtapaResumoProducao = '';
 
 // Filtros próprios da seção (isolados do resto do projeto) — mesmo padrão de
-// filtrosPrevistoRealizado/filtrosAnaliseTempo
+// filtrosPrevistoRealizado
 let filtrosResumoProducao = { anoAplicacao: '', modulo: '', tipoAv: '', anoSerie: '', segmento: '', busca: '' };
 
 // Filtros interativos da seção "Indicadores — Processo Editorial" (cliques nos gráficos),
@@ -1032,8 +1030,7 @@ const TABS_GRUPO_INDICADOR_PROCESSO = [
   'indicador-coordenador',
   'indicador-segunda-validacao',
   'indicador-sistema',
-  'indicador-previsto-realizado',
-  'indicador-tempo'
+  'indicador-previsto-realizado'
 ];
 const sidebarGrupoIndicadorProcesso = document.getElementById('sidebarGroupIndicadorProcesso');
 const sidebarGroupToggleIndicadorProcesso = document.getElementById('sidebarGroupToggleIndicadorProcesso');
@@ -1144,8 +1141,6 @@ function trocarAba(nomeAba) {
   }
   // "Previsto vs. Realizado": seção própria (não é alias de outra aba), só alterna o hidden
   viewPrevistoRealizado.hidden = nomeAba !== 'indicador-previsto-realizado';
-  // "Análise de Tempo": seção própria (não é alias de outra aba), só alterna o hidden
-  viewAnaliseTempo.hidden = nomeAba !== 'indicador-tempo';
   // Botão de filtros avançados (bpFilterPopoverWrapper) agora vive dentro da própria barra de
   // busca da seção Banco de Provas (banco-searchbar-wrapper), então sua visibilidade já segue
   // automaticamente a da section pai (dom.bancoProvasVazio acima) — só fecha o painel ao sair
@@ -1270,6 +1265,10 @@ function trocarAba(nomeAba) {
   indModuloRapidoWrapperCoord.hidden = !emIndicadoresCoordenador;
   // Botão "2ª Validação": só aparece junto do filtro de Indicadores — Coordenador
   btnAbrirSegundaValidacaoIndCoord.hidden = !emIndicadoresCoordenador;
+  btnRelatorioCoordenador.hidden = !emIndicadoresCoordenador;
+  if (!emIndicadoresCoordenador) {
+    fecharModalRelatorioCoordenador();
+  }
   if (!ehAbaCoordenador) {
     fecharPopoverFiltrosCoordenador();
     fecharPopoverFiltrosIndicadoresTopoCoord();
@@ -1318,8 +1317,6 @@ function renderAbaAtual() {
     renderizarGPA();
   } else if (abaAtual === 'indicador-previsto-realizado') {
     renderizarIndicadorPrevistoRealizado();
-  } else if (abaAtual === 'indicador-tempo') {
-    renderizarAnaliseTempo();
   }
 }
 
@@ -9002,9 +8999,12 @@ function renderizarTabelaBancoProvas(dadosCompletos) {
 
     const tdId = document.createElement('td');
     tdId.textContent = grupo.id;
+    tdId.dataset.label = 'ID';
     tr.appendChild(tdId);
 
-    tr.appendChild(criarCelulaAcessoBancoProvas(grupo.registros));
+    const tdAcesso = criarCelulaAcessoBancoProvas(grupo.registros);
+    tdAcesso.dataset.label = 'Acesso';
+    tr.appendChild(tdAcesso);
 
     fragment.appendChild(tr);
   });
@@ -12256,7 +12256,7 @@ function calcularCardsResumoProducao(grupos) {
 }
 
 // Popula os selects de Ano de aplicação/Módulo/Ano-Série/Tipo de AV — mesmo padrão de
-// popularFiltrosPrevistoRealizado/popularFiltrosAnaliseTempo (Tipo de AV e Ano-Série com opções
+// popularFiltrosPrevistoRealizado (Tipo de AV e Ano-Série com opções
 // fixas na ordem pedagógica; Módulo e Ano de aplicação derivados dos dados)
 function popularFiltrosResumoProducao(records) {
   populateSelectOptions(filterResumoModulo, records, 'modulo');
@@ -12283,8 +12283,11 @@ function popularFiltrosResumoProducao(records) {
 
 // Aplica os filtros próprios da seção (Ano de aplicação/Módulo/Tipo de AV/Ano-Série/Segmento/
 // busca) — sempre ANTES da consolidação por bloco, para não gerar contagens incorretas
-function aplicarFiltrosResumoProducao(dados) {
-  const { anoAplicacao, modulo, tipoAv, anoSerie, segmento, busca } = filtrosResumoProducao;
+// ignorarModulo = true é usado só pelos cards "Total de Avaliações M3/M4", que não devem ser
+// afetados pelo filtro de Módulo
+function aplicarFiltrosResumoProducao(dados, ignorarModulo = false) {
+  const { anoAplicacao, tipoAv, anoSerie, segmento, busca } = filtrosResumoProducao;
+  const modulo = ignorarModulo ? '' : filtrosResumoProducao.modulo;
   const buscaLower = busca.trim().toLowerCase();
 
   return dados.filter((record) => {
@@ -12642,10 +12645,15 @@ function renderizarResumoProducao() {
 
   const dadosFiltrados = aplicarFiltrosResumoProducao(filteredRecords);
 
+  // Cards M3/M4: mesmos filtros da seção, exceto Módulo, com a mesma consolidação por bloco
+  const cardsSemModulo = calcularCardsResumoProducao(
+    agruparTodosOsRegistrosProcessoEditorial(aplicarFiltrosResumoProducao(filteredRecords, true))
+  );
+
   if (dadosFiltrados.length === 0) {
     resumoProducaoEmptyMessage.hidden = false;
     resumoProducaoConteudo.hidden = true;
-    renderizarCardsResumoProducao({ total: 0, m3: 0, m4: 0 });
+    renderizarCardsResumoProducao({ total: 0, m3: cardsSemModulo.m3, m4: cardsSemModulo.m4 });
     return;
   }
   resumoProducaoEmptyMessage.hidden = true;
@@ -12655,7 +12663,11 @@ function renderizarResumoProducao() {
   // pelas etapas com etapa.usaBloco = true (Processo Editorial/Arte-finalização e Envio)
   const grupos = agruparTodosOsRegistrosProcessoEditorial(dadosFiltrados);
 
-  renderizarCardsResumoProducao(calcularCardsResumoProducao(grupos));
+  renderizarCardsResumoProducao({
+    total: calcularCardsResumoProducao(grupos).total,
+    m3: cardsSemModulo.m3,
+    m4: cardsSemModulo.m4,
+  });
 
   const etapas = calcularResumoEtapasProducao(grupos, dadosFiltrados);
   renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados);
@@ -12696,780 +12708,6 @@ btnFecharEtapaChipResumoProducao.addEventListener('click', () => {
 filterResumoDetalheEtapaStatus.addEventListener('change', () => {
   filtroStatusDetalheEtapaResumoProducao = filterResumoDetalheEtapaStatus.value;
   renderizarResumoProducao();
-});
-
-// --- "Análise de Tempo" (dentro do grupo "Indicadores do Processo", 2026-09-09) ---
-// Cronograma reverso: a partir de data_aplicacao (ajustada para dia útil quando cai em fim de
-// semana — reaproveita ajustarAplicacaoParaDiaUtil, já definida na seção Previsto vs.
-// Realizado), subtrai 5 dias úteis para achar a "Data limite segura" (prazo final para o
-// material estar finalizado/enviado com segurança) e, a partir dela, analisa se cada etapa do
-// fluxo produtivo está dentro do prazo, em risco ou atrasada. Mesma base (filteredRecords) e
-// mesmo padrão de consolidação por bloco (agruparRegistrosProcessoEditorialPorAno) já usado em
-// Processo Editorial/Arte-finalização e Envio/Previsto vs. Realizado — nunca conta disciplina
-// isolada quando ela pertence a um bloco/bloquinho.
-
-const domTempo = {
-  emptyGeral: document.getElementById('indTempoEmptyGeral'),
-  conteudo: document.getElementById('indTempoConteudo'),
-  filtroModulo: document.getElementById('filterTempoModulo'),
-  filtroAno: document.getElementById('filterTempoAno'),
-  filtroSegmento: document.getElementById('filterTempoSegmento'),
-  filtroTipoAv: document.getElementById('filterTempoTipoAv'),
-  filtroAnoAplicacao: document.getElementById('filterTempoAnoAplicacao'),
-  filtroBusca: document.getElementById('filterTempoBusca'),
-  cardTotal: document.getElementById('indTempoCardTotal'),
-  cardDentro: document.getElementById('indTempoCardDentro'),
-  cardRisco: document.getElementById('indTempoCardRisco'),
-  cardAtrasada: document.getElementById('indTempoCardAtrasada'),
-  cardGargalo: document.getElementById('indTempoCardGargalo'),
-  cardDentroWrapper: document.getElementById('indTempoCardDentroWrapper'),
-  cardRiscoWrapper: document.getElementById('indTempoCardRiscoWrapper'),
-  cardAtrasadaWrapper: document.getElementById('indTempoCardAtrasadaWrapper'),
-  filtroStatusChipWrapper: document.getElementById('indTempoFiltroStatusChipWrapper'),
-  filtroStatusChipTexto: document.getElementById('indTempoFiltroStatusChipTexto'),
-  filtroStatusChipRemover: document.getElementById('indTempoFiltroStatusChipRemover'),
-  timeline: document.getElementById('indTempoTimeline'),
-  tabelaDetalheBody: document.getElementById('indTempoDetalheTableBody')
-};
-
-// Filtros próprios da seção (isolados do resto do projeto)
-let filtrosAnaliseTempo = { modulo: '', ano: '', segmento: '', tipoAv: '', anoAplicacao: '', busca: '' };
-
-// Filtro de status aplicado ao clicar nos cards "Dentro do cronograma"/"Em risco"/"Atrasadas" —
-// afeta a linha do tempo e a tabela de detalhamento; os cards continuam mostrando os totais
-// gerais do recorte (mesmo padrão de "Total de provas" em Previsto vs. Realizado)
-let filtroStatusAnaliseTempo = null;
-
-// Antecedência mínima (dias úteis) para o material ser considerado seguro — mesmo valor de
-// LIMITE_DIAS_UTEIS_PREVISTO, mas com constante própria para não acoplar as duas seções
-const ANTECEDENCIA_MINIMA_SEGURA_DIAS_UTEIS = 5;
-
-// subtrai/adiciona dias úteis (seg-sex) a uma data-base — usadas para achar a "Data limite
-// segura" (data_aplicacao ajustada - 5 dias úteis)
-function subtrairDiasUteisTempo(dataBase, quantidade) {
-  if (!dataBase) return null;
-  const data = new Date(dataBase.getFullYear(), dataBase.getMonth(), dataBase.getDate());
-  let restante = quantidade;
-  while (restante > 0) {
-    data.setDate(data.getDate() - 1);
-    const diaSemana = data.getDay();
-    if (diaSemana !== 0 && diaSemana !== 6) restante -= 1;
-  }
-  return data;
-}
-
-function adicionarDiasUteisTempo(dataBase, quantidade) {
-  if (!dataBase) return null;
-  const data = new Date(dataBase.getFullYear(), dataBase.getMonth(), dataBase.getDate());
-  let restante = quantidade;
-  while (restante > 0) {
-    data.setDate(data.getDate() + 1);
-    const diaSemana = data.getDay();
-    if (diaSemana !== 0 && diaSemana !== 6) restante -= 1;
-  }
-  return data;
-}
-
-// Dias úteis entre 2 datas (objetos Date), com sinal — mesmo algoritmo de
-// calcularDiasUteisEntrePrevistoRealizado (nome próprio para não acoplar as 2 seções, como
-// pedido: positivo quando `dataFim` é depois de `dataInicio`, negativo quando é antes)
-function calcularDiasUteisEntreDatasTempo(dataInicio, dataFim) {
-  if (!dataInicio || !dataFim) return null;
-
-  const inicio = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate());
-  const fim = new Date(dataFim.getFullYear(), dataFim.getMonth(), dataFim.getDate());
-  if (inicio.getTime() === fim.getTime()) return 0;
-
-  const sinal = fim > inicio ? 1 : -1;
-  const [de, ate] = sinal === 1 ? [inicio, fim] : [fim, inicio];
-
-  let contador = 0;
-  const cursor = new Date(de);
-  cursor.setDate(cursor.getDate() + 1);
-  while (cursor.getTime() <= ate.getTime()) {
-    const diaSemana = cursor.getDay();
-    if (diaSemana !== 0 && diaSemana !== 6) contador += 1;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return contador * sinal;
-}
-
-// Etapas do fluxo, na ordem da linha do tempo. `campoFim` é o campo que marca a etapa como
-// concluída (para as etapas com vários sub-campos — Processo Editorial/Arte-finalização — é o
-// último sub-campo da sequência); `campoInicio`/`camposInicio` marcam o começo da etapa, usados
-// só para saber se já está "Em andamento". `prazoDias` é o prazo padrão (dias úteis) — só
-// definido para as 4 etapas com prazo fixo pedidas; as demais ficam null (prazo calculado pela
-// margem restante até a Data limite segura, não por um prazo fixo por etapa).
-const ETAPAS_ANALISE_TEMPO = [
-  { chave: 'encomenda', nome: 'Encomenda', campoFim: 'data_encomenda', prazoDias: null },
-  { chave: 'elaboracao', nome: 'Elaboração', campoInicio: 'data_encomenda', campoFim: 'devolutiva_encomenda', prazoDias: 7 },
-  { chave: 'validacao_sgge', nome: 'Validação SGGE', campoInicio: 'devolutiva_encomenda', campoFim: 'data_validacao_sgge', prazoDias: 2 },
-  { chave: 'primeira_validacao', nome: '1ª Validação coord.', campoInicio: 'data_envio_coord', campoFim: 'devolutiva_coord', prazoDias: 7 },
-  {
-    chave: 'processo_editorial',
-    nome: 'Processo editorial',
-    camposInicio: [
-      'inicio_diagramacao',
-      'inicio_cotejo',
-      'inicio_aplicacao_cotejo',
-      'inicio_leitura_final',
-      'inicio_aplicacao_leitura',
-      'inicio_ctj'
-    ],
-    campoFim: 'fim_ctj',
-    prazoDias: null
-  },
-  { chave: 'assinatura', nome: 'Assinatura', campoInicio: 'envio_assinatura_coord', campoFim: 'devolutiva_assinatura_coord', prazoDias: 3 },
-  {
-    chave: 'validacao_assinatura',
-    nome: 'Validação da assinatura',
-    campoInicio: 'inicio_verificacao_validacao_coord',
-    campoFim: 'fim_verificacao_validacao_coord',
-    prazoDias: null
-  },
-  {
-    chave: 'arte_finalizacao',
-    nome: 'Arte-finalização',
-    camposInicio: ['inicio_arte_final', 'inicio_cotejo_arte_final'],
-    campoFim: 'fim_cotejo_arte_final',
-    prazoDias: null
-  },
-  { chave: 'checklist_envio', nome: 'Checklist + envio', campoInicio: 'checklist', campoFim: 'data_envio_grafica', prazoDias: null }
-];
-
-function campoPreenchidoEmTodos(registros, campo) {
-  return registros.every((record) => temDataOuValor(record[campo]));
-}
-function campoPreenchidoEmAlgum(registros, campo) {
-  return registros.some((record) => temDataOuValor(record[campo]));
-}
-
-// Status de 1 etapa para 1 bloco (grupo de registros): Concluída só quando TODOS os componentes
-// do bloco têm o campo final preenchido (regra de blocos pedida); Em andamento quando pelo menos
-// 1 componente já tem início ou fim preenchido; Pendente quando nenhum componente começou
-function calcularStatusEtapaAnaliseTempo(etapa, registros) {
-  if (campoPreenchidoEmTodos(registros, etapa.campoFim)) return 'Concluída';
-
-  const camposInicio = etapa.camposInicio || (etapa.campoInicio ? [etapa.campoInicio] : [etapa.campoFim]);
-  const iniciada =
-    camposInicio.some((campo) => campoPreenchidoEmAlgum(registros, campo)) ||
-    campoPreenchidoEmAlgum(registros, etapa.campoFim);
-  return iniciada ? 'Em andamento' : 'Pendente';
-}
-
-function obterDataMinimaCampo(registros, campo) {
-  const datas = registros.map((record) => parseDataAplicacao(record[campo])).filter(Boolean);
-  return datas.reduce((menor, atual) => (!menor || atual < menor ? atual : menor), null);
-}
-function obterDataMaximaCampo(registros, campo) {
-  const datas = registros.map((record) => parseDataAplicacao(record[campo])).filter(Boolean);
-  return datas.reduce((maior, atual) => (!maior || atual > maior ? atual : maior), null);
-}
-
-// Detalha 1 etapa de 1 bloco: status + dias reais consumidos (início até a conclusão, ou até
-// hoje se ainda em andamento) + desvio em relação ao prazo padrão (só para as etapas com
-// prazoDias definido) — desvio > 0 significa que a etapa consumiu prazo extra (ver "Análise de
-// responsabilidade do prazo" do pedido)
-function calcularDetalheEtapaAnaliseTempo(etapa, registros, hoje) {
-  const status = calcularStatusEtapaAnaliseTempo(etapa, registros);
-
-  const camposInicio = etapa.camposInicio || (etapa.campoInicio ? [etapa.campoInicio] : [etapa.campoFim]);
-  const dataInicio = camposInicio
-    .map((campo) => obterDataMinimaCampo(registros, campo))
-    .filter(Boolean)
-    .reduce((menor, atual) => (!menor || atual < menor ? atual : menor), null);
-
-  const dataFim = status === 'Concluída' ? obterDataMaximaCampo(registros, etapa.campoFim) : null;
-
-  let diasReais = null;
-  if (dataInicio) {
-    const referencia = dataFim || (status === 'Em andamento' ? hoje : null);
-    if (referencia) diasReais = calcularDiasUteisEntreDatasTempo(dataInicio, referencia);
-  }
-
-  const desvio = etapa.prazoDias != null && diasReais != null ? diasReais - etapa.prazoDias : null;
-
-  return { ...etapa, status, dataInicio, dataFim, diasReais, desvio };
-}
-
-// Calcula a análise de tempo completa de 1 bloco/prova consolidado: Data limite segura, status
-// de cada etapa, etapa atual (a primeira não concluída), status geral (Dentro do
-// cronograma/Em risco/Atrasado) e a etapa que mais consumiu prazo (maior desvio positivo)
-function calcularAnaliseTempoBloco(grupo, hoje) {
-  const registros = grupo.registros;
-
-  const dataAplicacao = obterDataMinimaCampo(registros, 'data_aplicacao');
-  if (!dataAplicacao) return null;
-
-  const dataAplicacaoAjustada = ajustarAplicacaoParaDiaUtil(dataAplicacao);
-  const dataLimiteSegura = subtrairDiasUteisTempo(dataAplicacaoAjustada, ANTECEDENCIA_MINIMA_SEGURA_DIAS_UTEIS);
-
-  const etapas = ETAPAS_ANALISE_TEMPO.map((etapa) => calcularDetalheEtapaAnaliseTempo(etapa, registros, hoje));
-  const etapaAtual = etapas.find((etapa) => etapa.status !== 'Concluída') || etapas[etapas.length - 1];
-  const enviado = etapas[etapas.length - 1].status === 'Concluída';
-
-  // Se já enviado, a folga é calculada na data real do envio (desempenho histórico); se ainda
-  // em andamento, é calculada em relação a hoje (quanto falta agora)
-  const referenciaFolga = enviado ? etapas[etapas.length - 1].dataFim : hoje;
-  const diasFolga = calcularDiasUteisEntreDatasTempo(referenciaFolga, dataLimiteSegura);
-
-  let status;
-  if (diasFolga === null || diasFolga < 0) status = 'Atrasado';
-  else if (!enviado && diasFolga <= 2) status = 'Em risco';
-  else status = 'Dentro do cronograma';
-
-  const etapaGargalo =
-    etapas.filter((etapa) => etapa.desvio != null && etapa.desvio > 0).sort((a, b) => b.desvio - a.desvio)[0] || null;
-
-  return {
-    id: grupo.id,
-    modulo: safe(registros[0].modulo),
-    ano: safe(registros[0].ano),
-    dataAplicacao,
-    dataLimiteSegura,
-    etapas,
-    etapaAtual,
-    enviado,
-    status,
-    diasFolga,
-    etapaGargalo,
-    registros
-  };
-}
-
-// Consolida o recorte já filtrado em provas/blocos (mesmo padrão de ano/bloco/bloquinho de
-// Processo Editorial/Arte-finalização/Previsto vs. Realizado) e calcula a análise de tempo de
-// cada um
-function calcularBlocosAnaliseTempo(dadosFiltrados) {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-
-  const porAno = new Map(ORDEM_ANO_ESCOLAR_COORD.map((ano) => [ano, []]));
-  dadosFiltrados.forEach((record) => {
-    const numero = normalizarAnoSegmento(record.ano);
-    if (numero === null) return;
-    const chave = `${numero}º`;
-    if (!porAno.has(chave)) return;
-    porAno.get(chave).push(record);
-  });
-
-  const blocos = [];
-  porAno.forEach((registros, ano) => {
-    if (registros.length === 0) return;
-    agruparRegistrosProcessoEditorialPorAno(ano, registros).forEach((grupo) => {
-      const bloco = calcularAnaliseTempoBloco(grupo, hoje);
-      if (bloco) blocos.push(bloco);
-    });
-  });
-
-  return blocos;
-}
-
-// Popula os selects de Módulo/Ano de aplicação (dinâmicos, a partir do recorte atual) — Ano/Série
-// e Tipo de AV usam listas fixas do projeto (populadas 1x, idempotente)
-function popularFiltrosAnaliseTempo(records) {
-  populateSelectOptions(domTempo.filtroModulo, records, 'modulo');
-
-  if (domTempo.filtroAno.options.length <= 1) {
-    ORDEM_ANO_ESCOLAR_COORD.forEach((ano) => {
-      const option = document.createElement('option');
-      option.value = ano;
-      option.textContent = ano;
-      domTempo.filtroAno.appendChild(option);
-    });
-  }
-
-  if (domTempo.filtroTipoAv.options.length <= 1) {
-    ORDEM_TIPO_AV_PERFORMANCE.forEach((tipoAv) => {
-      const option = document.createElement('option');
-      option.value = tipoAv;
-      option.textContent = tipoAv;
-      domTempo.filtroTipoAv.appendChild(option);
-    });
-  }
-
-  if (domTempo.filtroAnoAplicacao.options.length <= 1) {
-    const anos = new Set();
-    records.forEach((record) => {
-      const data = parseDataAplicacao(record.data_aplicacao);
-      if (data) anos.add(data.getFullYear());
-    });
-    Array.from(anos)
-      .sort()
-      .forEach((ano) => {
-        const option = document.createElement('option');
-        option.value = String(ano);
-        option.textContent = String(ano);
-        domTempo.filtroAnoAplicacao.appendChild(option);
-      });
-  }
-}
-
-// Aplica os filtros próprios da seção — sempre ANTES da consolidação por bloco (ver
-// calcularBlocosAnaliseTempo), para não gerar contagens incorretas
-function aplicarFiltrosAnaliseTempo(dados) {
-  const { modulo, ano, segmento, tipoAv, anoAplicacao, busca } = filtrosAnaliseTempo;
-  const buscaLower = busca.trim().toLowerCase();
-
-  return dados.filter((record) => {
-    if (modulo && safe(record.modulo) !== modulo) return false;
-
-    if (ano) {
-      const numero = normalizarAnoSegmento(record.ano);
-      if (numero === null || `${numero}º` !== ano) return false;
-    }
-
-    if (segmento && identificarSegmentoPorAno(record.ano) !== segmento) return false;
-
-    if (tipoAv && normalizarTipoAvPerformance(record.tipo_av) !== tipoAv) return false;
-
-    if (anoAplicacao) {
-      const dataAplicacao = parseDataAplicacao(record.data_aplicacao);
-      if (!dataAplicacao || String(dataAplicacao.getFullYear()) !== anoAplicacao) return false;
-    }
-
-    if (buscaLower) {
-      const alvo = [record.id, record.modulo, record.ano, record.tipo_av, record.frente]
-        .map((v) => safe(v).toLowerCase())
-        .join(' ');
-      if (!alvo.includes(buscaLower)) return false;
-    }
-
-    return true;
-  });
-}
-
-// Cards do topo — sempre a partir dos blocos do recorte completo (sem o filtro de clique nos
-// cards, que só afeta a linha do tempo e a tabela — ver renderizarAnaliseTempo)
-function calcularCardsAnaliseTempo(blocos) {
-  const total = blocos.length;
-  const dentro = blocos.filter((bloco) => bloco.status === 'Dentro do cronograma').length;
-  const risco = blocos.filter((bloco) => bloco.status === 'Em risco').length;
-  const atrasada = blocos.filter((bloco) => bloco.status === 'Atrasado').length;
-
-  const contagemGargalo = new Map();
-  blocos.forEach((bloco) => {
-    if (!bloco.etapaGargalo) return;
-    contagemGargalo.set(bloco.etapaGargalo.nome, (contagemGargalo.get(bloco.etapaGargalo.nome) || 0) + 1);
-  });
-  let gargalo = '-';
-  let maiorContagem = 0;
-  contagemGargalo.forEach((quantidade, nome) => {
-    if (quantidade > maiorContagem) {
-      maiorContagem = quantidade;
-      gargalo = nome;
-    }
-  });
-
-  return { total, dentro, risco, atrasada, gargalo };
-}
-
-function atualizarCardsAnaliseTempo(blocos) {
-  const totais = calcularCardsAnaliseTempo(blocos);
-  const pct = (valor) => (totais.total ? formatarPercentualComVirgula((valor / totais.total) * 100) : '0,0');
-
-  domTempo.cardTotal.textContent = totais.total;
-  domTempo.cardDentro.textContent = `${totais.dentro} (${pct(totais.dentro)}%)`;
-  domTempo.cardRisco.textContent = `${totais.risco} (${pct(totais.risco)}%)`;
-  domTempo.cardAtrasada.textContent = `${totais.atrasada} (${pct(totais.atrasada)}%)`;
-  domTempo.cardGargalo.textContent = totais.gargalo;
-}
-
-// Texto do alerta lateral de cada linha da timeline ("Etapa atual: X · situação")
-function textoAlertaEtapaAtual(etapaAtual, statusBloco, diasFolga) {
-  if (etapaAtual.chave === 'checklist_envio' && etapaAtual.status === 'Concluída') {
-    return `Etapa atual: ${etapaAtual.nome} · concluído`;
-  }
-  if (statusBloco === 'Atrasado') {
-    const diasAtraso = diasFolga != null ? Math.abs(diasFolga) : null;
-    return `Etapa atual: ${etapaAtual.nome} · atraso de ${diasAtraso ?? '?'} dia${diasAtraso === 1 ? '' : 's'}`;
-  }
-  if (statusBloco === 'Em risco') {
-    return `Etapa atual: ${etapaAtual.nome} · em risco`;
-  }
-  return `Etapa atual: ${etapaAtual.nome} · dentro do prazo`;
-}
-
-// Detalhe expansível de 1 linha da timeline (1 tabela por ano/série, 1 linha por bloco) —
-// mostra dias previstos x realizados de cada etapa com prazo fixo e a etapa que mais impactou
-// o cronograma daquele bloco
-function montarDetalheAnoAnaliseTempo(blocosDoAno) {
-  const table = document.createElement('table');
-
-  const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
-  ['Código', 'Etapa atual', 'Dias previstos x realizados', 'Impacto no cronograma'].forEach((texto) => {
-    const th = document.createElement('th');
-    th.textContent = texto;
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  blocosDoAno.forEach((bloco) => {
-    const tr = document.createElement('tr');
-
-    const tdCod = document.createElement('td');
-    tdCod.textContent = bloco.id;
-    tr.appendChild(tdCod);
-
-    const tdEtapa = document.createElement('td');
-    tdEtapa.textContent = `${bloco.etapaAtual.nome} (${bloco.etapaAtual.status})`;
-    tr.appendChild(tdEtapa);
-
-    const tdResumo = document.createElement('td');
-    const etapasComPrazo = bloco.etapas.filter((etapa) => etapa.prazoDias != null);
-    tdResumo.textContent = etapasComPrazo.length
-      ? etapasComPrazo
-          .map((etapa) => `${etapa.nome}: ${etapa.diasReais != null ? etapa.diasReais : '-'}/${etapa.prazoDias}d`)
-          .join(' · ')
-      : '-';
-    tr.appendChild(tdResumo);
-
-    const tdImpacto = document.createElement('td');
-    tdImpacto.textContent = bloco.etapaGargalo ? `${bloco.etapaGargalo.nome} (+${bloco.etapaGargalo.desvio}d)` : '-';
-    tr.appendChild(tdImpacto);
-
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-
-  return table;
-}
-
-// Linha do tempo: 1 linha por ano/série presente no recorte, com 1 ponto por etapa do fluxo. O
-// status agregado de cada ponto considera todos os blocos daquele ano (Concluída só se TODOS os
-// blocos concluíram aquela etapa; Pendente só se NENHUM iniciou; senão Em andamento); o bloco
-// mais crítico do ano (Atrasado > Em risco > Dentro do cronograma) define o alerta lateral e
-// destaca em amarelo/vermelho o ponto da sua etapa atual. Clicar na linha expande o detalhe por
-// bloco.
-function renderizarTimelineAnaliseTempo(blocos) {
-  const container = domTempo.timeline;
-  container.innerHTML = '';
-
-  if (blocos.length === 0) {
-    container.innerHTML = '<p class="indicadores-chart-empty">Sem provas no recorte atual.</p>';
-    return;
-  }
-
-  const porAno = new Map();
-  blocos.forEach((bloco) => {
-    const numero = normalizarAnoSegmento(bloco.ano);
-    if (numero === null) return;
-    const chave = `${numero}º`;
-    if (!porAno.has(chave)) porAno.set(chave, []);
-    porAno.get(chave).push(bloco);
-  });
-
-  const PRIORIDADE_STATUS_TEMPO = { Atrasado: 3, 'Em risco': 2, 'Dentro do cronograma': 1 };
-
-  ORDEM_ANO_ESCOLAR_COORD.forEach((ano) => {
-    const blocosDoAno = porAno.get(ano);
-    if (!blocosDoAno || blocosDoAno.length === 0) return;
-
-    const blocoCritico = [...blocosDoAno].sort(
-      (a, b) => (PRIORIDADE_STATUS_TEMPO[b.status] || 0) - (PRIORIDADE_STATUS_TEMPO[a.status] || 0)
-    )[0];
-
-    const linha = document.createElement('div');
-    linha.className = 'tempo-linha-ano';
-
-    const header = document.createElement('div');
-    header.className = 'tempo-linha-ano-header';
-
-    const titulo = document.createElement('span');
-    titulo.className = 'tempo-linha-ano-titulo';
-    titulo.textContent = `${ano} ano`;
-    header.appendChild(titulo);
-
-    const alerta = document.createElement('span');
-    let classeAlerta = 'tempo-linha-ano-alerta--dentro';
-    if (blocoCritico.status === 'Atrasado') classeAlerta = 'tempo-linha-ano-alerta--atraso';
-    else if (blocoCritico.status === 'Em risco') classeAlerta = 'tempo-linha-ano-alerta--risco';
-    else if (blocoCritico.etapaAtual.chave === 'checklist_envio' && blocoCritico.etapaAtual.status === 'Concluída') {
-      classeAlerta = 'tempo-linha-ano-alerta--concluido';
-    }
-    alerta.className = `tempo-linha-ano-alerta ${classeAlerta}`;
-    alerta.textContent = textoAlertaEtapaAtual(blocoCritico.etapaAtual, blocoCritico.status, blocoCritico.diasFolga);
-    header.appendChild(alerta);
-
-    linha.appendChild(header);
-
-    const pontos = document.createElement('div');
-    pontos.className = 'tempo-linha-ano-pontos';
-
-    ETAPAS_ANALISE_TEMPO.forEach((etapa) => {
-      const statusPorBloco = blocosDoAno.map(
-        (bloco) => bloco.etapas.find((e) => e.chave === etapa.chave).status
-      );
-
-      let classeCor = 'tempo-dot--pendente';
-      if (statusPorBloco.every((status) => status === 'Concluída')) classeCor = 'tempo-dot--concluida';
-      else if (statusPorBloco.some((status) => status !== 'Pendente')) classeCor = 'tempo-dot--andamento';
-
-      if (blocoCritico.etapaAtual.chave === etapa.chave) {
-        if (blocoCritico.status === 'Atrasado') classeCor = 'tempo-dot--atraso';
-        else if (blocoCritico.status === 'Em risco') classeCor = 'tempo-dot--risco';
-      }
-
-      const ponto = document.createElement('div');
-      ponto.className = 'tempo-ponto';
-
-      const marcador = document.createElement('span');
-      marcador.className = `tempo-ponto-marcador ${classeCor}`;
-      ponto.appendChild(marcador);
-
-      const label = document.createElement('span');
-      label.className = 'tempo-ponto-label';
-      label.textContent = etapa.nome;
-      ponto.appendChild(label);
-
-      pontos.appendChild(ponto);
-    });
-
-    linha.appendChild(pontos);
-
-    const detalhe = document.createElement('div');
-    detalhe.className = 'tempo-linha-ano-detalhe';
-    detalhe.hidden = true;
-    detalhe.appendChild(montarDetalheAnoAnaliseTempo(blocosDoAno));
-    linha.appendChild(detalhe);
-
-    linha.addEventListener('click', () => {
-      detalhe.hidden = !detalhe.hidden;
-    });
-
-    container.appendChild(linha);
-  });
-}
-
-// Duração padrão (dias úteis) usada no cronograma reverso para etapas sem prazo fixo (Processo
-// editorial/Validação da assinatura/Arte-finalização/Checklist + envio) — só para desenhar uma
-// janela razoável dentro do espaço restante até a Data limite segura; não altera a regra de
-// status/desvio dessas etapas (que continuam sem prazo fixo, ver ETAPAS_ANALISE_TEMPO)
-const DURACAO_PADRAO_ETAPA_SEM_PRAZO_DIAS_UTEIS = 2;
-
-// Monta o cronograma reverso das etapas POSTERIORES à etapa atual de 1 bloco: parte da Data
-// limite segura (quando a última etapa, Checklist + envio, precisa estar concluída) e distribui
-// as janelas de trás para frente — etapas com prazo fixo (Assinatura) usam esse prazo; as demais
-// usam a duração padrão — até a etapa logo depois da etapa atual. Retorna um array já em ordem
-// cronológica (mais próxima primeiro): [{ etapa, dataInicio, dataFim }, ...].
-function montarCronogramaRestanteAnaliseTempo(bloco) {
-  const indiceAtual = ETAPAS_ANALISE_TEMPO.findIndex((etapa) => etapa.chave === bloco.etapaAtual.chave);
-  const etapasRestantes = ETAPAS_ANALISE_TEMPO.slice(indiceAtual + 1);
-  if (etapasRestantes.length === 0 || !bloco.dataLimiteSegura) return [];
-
-  const janelas = [];
-  let fimDaEtapa = bloco.dataLimiteSegura;
-
-  [...etapasRestantes].reverse().forEach((etapa) => {
-    const duracao = etapa.prazoDias != null ? etapa.prazoDias : DURACAO_PADRAO_ETAPA_SEM_PRAZO_DIAS_UTEIS;
-    const inicioDaEtapa = duracao > 1 ? subtrairDiasUteisTempo(fimDaEtapa, duracao - 1) : fimDaEtapa;
-
-    janelas.unshift({ etapa, dataInicio: inicioDaEtapa, dataFim: fimDaEtapa });
-
-    fimDaEtapa = subtrairDiasUteisTempo(inicioDaEtapa, 1);
-  });
-
-  return janelas;
-}
-
-// Constrói a célula "Cronograma restante até o envio": "Fluxo concluído" quando a etapa atual já
-// é Checklist + envio (ou o bloco já foi enviado); senão 1 mini-bloco por etapa restante, com o
-// nome em destaque e a janela "início até fim" — mesmo padrão de leitura pedido
-function montarCelulaCronogramaRestante(bloco) {
-  if (bloco.enviado || bloco.etapaAtual.chave === 'checklist_envio') {
-    const concluido = document.createElement('span');
-    concluido.className = 'tempo-cronograma-concluido';
-    concluido.textContent = 'Fluxo concluído';
-    return concluido;
-  }
-
-  const janelas = montarCronogramaRestanteAnaliseTempo(bloco);
-  if (janelas.length === 0) {
-    const semDados = document.createElement('span');
-    semDados.textContent = 'Sem etapas pendentes';
-    return semDados;
-  }
-
-  const lista = document.createElement('div');
-  lista.className = 'tempo-cronograma-restante';
-
-  janelas.forEach(({ etapa, dataInicio, dataFim }) => {
-    const item = document.createElement('div');
-    item.className = 'tempo-cronograma-etapa';
-
-    const nome = document.createElement('span');
-    nome.className = 'tempo-cronograma-etapa-nome';
-    nome.textContent = etapa.nome;
-    item.appendChild(nome);
-
-    const datas = document.createElement('span');
-    datas.className = 'tempo-cronograma-etapa-datas';
-    datas.textContent = `${formatarDataAplicacaoExibicao(dataInicio)} até ${formatarDataAplicacaoExibicao(dataFim)}`;
-    item.appendChild(datas);
-
-    lista.appendChild(item);
-  });
-
-  return lista;
-}
-
-// Texto objetivo da coluna "Impacto no cronograma": etapa-gargalo com o desvio (dias além do
-// previsto), ou "Dentro da margem"/"Sem impacto atual" quando não há nenhuma etapa com desvio
-function textoImpactoCronogramaAnaliseTempo(bloco) {
-  if (bloco.etapaGargalo) return `${bloco.etapaGargalo.nome} (+${bloco.etapaGargalo.desvio}d)`;
-  if (bloco.status === 'Dentro do cronograma') return 'Dentro da margem';
-  return 'Sem impacto atual';
-}
-
-// Tabela "Detalhamento do cronograma" — 1 linha por prova/bloco consolidado: em que etapa está,
-// o caminho restante (com janelas de datas) até o envio final, e o impacto no cronograma
-function renderizarTabelaDetalheAnaliseTempo(blocos) {
-  const tbody = domTempo.tabelaDetalheBody;
-  tbody.innerHTML = '';
-
-  const fragment = document.createDocumentFragment();
-
-  blocos.forEach((bloco) => {
-    const tr = document.createElement('tr');
-
-    const tdCod = document.createElement('td');
-    tdCod.textContent = bloco.id;
-    tr.appendChild(tdCod);
-
-    const tdEtapa = document.createElement('td');
-    tdEtapa.textContent = `${bloco.etapaAtual.nome} (${bloco.etapaAtual.status})`;
-    tr.appendChild(tdEtapa);
-
-    const tdCronograma = document.createElement('td');
-    tdCronograma.appendChild(montarCelulaCronogramaRestante(bloco));
-    tr.appendChild(tdCronograma);
-
-    const tdImpacto = document.createElement('td');
-    tdImpacto.textContent = textoImpactoCronogramaAnaliseTempo(bloco);
-    tr.appendChild(tdImpacto);
-
-    fragment.appendChild(tr);
-  });
-
-  tbody.appendChild(fragment);
-}
-
-// Alterna o filtro de status ao clicar/ativar (Enter/Espaço) um dos 3 cards clicáveis: clicar no
-// card já ativo remove o filtro; clicar em outro card troca o filtro ativo (mesmo padrão de
-// alternarFiltroStatusPrevistoRealizado)
-function alternarFiltroStatusAnaliseTempo(status) {
-  filtroStatusAnaliseTempo = filtroStatusAnaliseTempo === status ? null : status;
-  renderizarAnaliseTempo();
-}
-
-function atualizarIndicadorFiltroStatusAnaliseTempo() {
-  domTempo.cardDentroWrapper.classList.toggle('card-active-filter', filtroStatusAnaliseTempo === 'Dentro do cronograma');
-  domTempo.cardDentroWrapper.setAttribute('aria-pressed', String(filtroStatusAnaliseTempo === 'Dentro do cronograma'));
-
-  domTempo.cardRiscoWrapper.classList.toggle('card-active-filter', filtroStatusAnaliseTempo === 'Em risco');
-  domTempo.cardRiscoWrapper.setAttribute('aria-pressed', String(filtroStatusAnaliseTempo === 'Em risco'));
-
-  domTempo.cardAtrasadaWrapper.classList.toggle('card-active-filter', filtroStatusAnaliseTempo === 'Atrasado');
-  domTempo.cardAtrasadaWrapper.setAttribute('aria-pressed', String(filtroStatusAnaliseTempo === 'Atrasado'));
-
-  domTempo.filtroStatusChipWrapper.hidden = !filtroStatusAnaliseTempo;
-  if (filtroStatusAnaliseTempo) {
-    domTempo.filtroStatusChipTexto.textContent = `Status: ${filtroStatusAnaliseTempo === 'Atrasado' ? 'Atrasadas' : filtroStatusAnaliseTempo}`;
-  }
-}
-
-domTempo.cardDentroWrapper.addEventListener('click', () => alternarFiltroStatusAnaliseTempo('Dentro do cronograma'));
-domTempo.cardRiscoWrapper.addEventListener('click', () => alternarFiltroStatusAnaliseTempo('Em risco'));
-domTempo.cardAtrasadaWrapper.addEventListener('click', () => alternarFiltroStatusAnaliseTempo('Atrasado'));
-[domTempo.cardDentroWrapper, domTempo.cardRiscoWrapper, domTempo.cardAtrasadaWrapper].forEach((wrapper) => {
-  wrapper.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    wrapper.click();
-  });
-});
-domTempo.filtroStatusChipRemover.addEventListener('click', () => {
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
-});
-
-// Orquestrador da seção: base = filteredRecords (mesmo recorte global de todas as outras abas) +
-// filtros próprios (Módulo/Ano-Série/Segmento/Tipo de AV/Ano de aplicação/busca) — ordem: 1)
-// filtros principais, 2) consolidação por bloco + cálculo de status (calcularBlocosAnaliseTempo),
-// 3) filtro de status do card clicado, se houver, 4) atualiza cards/timeline/tabela
-function renderizarAnaliseTempo() {
-  popularFiltrosAnaliseTempo(filteredRecords);
-  atualizarIndicadorFiltroStatusAnaliseTempo();
-
-  const dadosFiltrados = aplicarFiltrosAnaliseTempo(filteredRecords);
-  const blocosBase = calcularBlocosAnaliseTempo(dadosFiltrados);
-
-  if (blocosBase.length === 0) {
-    domTempo.emptyGeral.hidden = false;
-    domTempo.emptyGeral.textContent =
-      filteredRecords.length === 0
-        ? 'Nenhum dado disponível para o filtro selecionado.'
-        : 'Nenhuma prova com data de aplicação válida no recorte atual.';
-    domTempo.conteudo.hidden = true;
-    domTempo.timeline.innerHTML = '';
-    domTempo.tabelaDetalheBody.innerHTML = '';
-    return;
-  }
-
-  const blocos = filtroStatusAnaliseTempo
-    ? blocosBase.filter((bloco) => bloco.status === filtroStatusAnaliseTempo)
-    : blocosBase;
-
-  if (blocos.length === 0) {
-    domTempo.emptyGeral.hidden = false;
-    domTempo.emptyGeral.textContent = `Nenhuma prova classificada como "${filtroStatusAnaliseTempo}" no recorte atual.`;
-    domTempo.conteudo.hidden = true;
-    domTempo.timeline.innerHTML = '';
-    domTempo.tabelaDetalheBody.innerHTML = '';
-    return;
-  }
-
-  domTempo.emptyGeral.hidden = true;
-  domTempo.conteudo.hidden = false;
-
-  atualizarCardsAnaliseTempo(blocosBase);
-  renderizarTimelineAnaliseTempo(blocos);
-  renderizarTabelaDetalheAnaliseTempo(blocos);
-}
-
-domTempo.filtroModulo.addEventListener('change', () => {
-  filtrosAnaliseTempo.modulo = domTempo.filtroModulo.value;
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
-});
-domTempo.filtroAno.addEventListener('change', () => {
-  filtrosAnaliseTempo.ano = domTempo.filtroAno.value;
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
-});
-domTempo.filtroSegmento.addEventListener('change', () => {
-  filtrosAnaliseTempo.segmento = domTempo.filtroSegmento.value;
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
-});
-domTempo.filtroTipoAv.addEventListener('change', () => {
-  filtrosAnaliseTempo.tipoAv = domTempo.filtroTipoAv.value;
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
-});
-domTempo.filtroAnoAplicacao.addEventListener('change', () => {
-  filtrosAnaliseTempo.anoAplicacao = domTempo.filtroAnoAplicacao.value;
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
-});
-domTempo.filtroBusca.addEventListener('input', () => {
-  filtrosAnaliseTempo.busca = domTempo.filtroBusca.value;
-  filtroStatusAnaliseTempo = null;
-  renderizarAnaliseTempo();
 });
 
 // Navegação interna da aba Assinatura Coordenador: Acompanhamento <-> Indicadores (mesmo
@@ -13688,6 +12926,39 @@ function populateGPATipoAvOptions(containerEl, dados) {
 // Aplica os filtros da seção GPA (Módulo, Ano, Tipo de AV, busca geral) sobre dadosGPA — a
 // busca procura em mod/ano/av/gpa (o link/referência do arquivo também é pesquisável, ex.: para
 // achar por parte do nome do arquivo)
+// Código exibido na tabela GPA: MÓDULO-AVALIAÇÃO-ANO (ex.: M3-AV1-6º, M4-REC-SEM-1º).
+// Aceita os nomes da BD_GPA (mod/av) e os normalizados (modulo/tipo_av).
+function montarCodigoGPA(registro) {
+  return [
+    safe(registro.mod || registro.modulo),
+    safe(registro.av || registro.tipo_av),
+    safe(registro.ano)
+  ]
+    .filter(Boolean)
+    .join('-');
+}
+
+// Ordenação da tabela: Módulo → Avaliação (AV1, AV2, 2º CHAMADA, REC-SEM, REC-FIM) → Ano
+// (ordem pedagógica 6º–9º e depois 1º–3º)
+function ordenarRegistrosGPA(dados) {
+  const posicaoAv = (registro) => {
+    const pos = ORDEM_TIPO_AV_PERFORMANCE.indexOf(normalizarTipoAvPerformance(registro.av || registro.tipo_av));
+    return pos === -1 ? ORDEM_TIPO_AV_PERFORMANCE.length : pos;
+  };
+  const posicaoAno = (registro) => {
+    const numero = normalizarAnoSegmento(registro.ano);
+    if (numero === null) return 99;
+    return numero >= 6 ? numero - 6 : numero + 4;
+  };
+
+  return [...dados].sort(
+    (a, b) =>
+      safe(a.mod || a.modulo).localeCompare(safe(b.mod || b.modulo), 'pt-BR', { numeric: true }) ||
+      posicaoAv(a) - posicaoAv(b) ||
+      posicaoAno(a) - posicaoAno(b)
+  );
+}
+
 function aplicarFiltrosGPA(dados) {
   const modulo = gpaSelectFilters.modulo.value;
   const busca = safe(gpaFilterBusca.value).toLowerCase();
@@ -13698,7 +12969,7 @@ function aplicarFiltrosGPA(dados) {
     if (!passaFiltroMultiplo(safe(registro.av), filtrosGPA.tiposAv)) return false;
 
     if (busca) {
-      const camposBusca = [registro.mod, registro.ano, registro.av, registro.gpa];
+      const camposBusca = [montarCodigoGPA(registro), registro.mod, registro.ano, registro.av, registro.gpa];
       const matchesBusca = camposBusca.some((valor) => safe(valor).toLowerCase().includes(busca));
       if (!matchesBusca) return false;
     }
@@ -13807,16 +13078,18 @@ function renderizarTabelaGPA(dados) {
   gpaTableWrapper.hidden = false;
 
   const fragment = document.createDocumentFragment();
-  dados.forEach((registro) => {
+  ordenarRegistrosGPA(dados).forEach((registro) => {
     const tr = document.createElement('tr');
 
-    [safe(registro.mod), safe(registro.ano), safe(registro.av)].forEach((valor) => {
-      const td = document.createElement('td');
-      td.textContent = valor || '-';
-      tr.appendChild(td);
-    });
+    const tdCodigo = document.createElement('td');
+    tdCodigo.className = 'gpa-codigo-cell';
+    tdCodigo.textContent = montarCodigoGPA(registro) || '-';
+    tdCodigo.dataset.label = 'Código';
+    tr.appendChild(tdCodigo);
 
-    tr.appendChild(criarCelulaAcessoGPA(registro));
+    const tdAcesso = criarCelulaAcessoGPA(registro);
+    tdAcesso.dataset.label = 'Acesso';
+    tr.appendChild(tdAcesso);
 
     fragment.appendChild(tr);
   });
@@ -14254,6 +13527,10 @@ const RELATORIO_ELABORADOR_PRINT_CSS = `
     margin-bottom: 18px;
   }
 
+  .report-kpis--5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
   .report-kpi {
     border: 1px solid #d7dfeb;
     border-radius: 10px;
@@ -14444,8 +13721,9 @@ const RELATORIO_ELABORADOR_PRINT_CSS = `
 // modal/dashboard por trás. Fluxo esperado: captura o innerHTML de #elaborador-report-print-area,
 // abre uma aba/janela em branco, escreve um HTML mínimo com esse conteúdo + o CSS isolado acima,
 // espera renderizar e só então chama print() (e fecha a janela em seguida).
-function imprimirRelatorioElaborador() {
-  const reportArea = document.getElementById('elaborador-report-print-area');
+// Genérica: usada pelos relatórios do elaborador e do coordenador (mesmo CSS de impressão)
+function imprimirAreaRelatorio(areaId, tituloJanela) {
+  const reportArea = document.getElementById(areaId);
 
   if (!reportArea || reportArea.hidden) {
     alert('Gere o relatório antes de imprimir.');
@@ -14467,7 +13745,7 @@ function imprimirRelatorioElaborador() {
     <html lang="pt-BR">
     <head>
       <meta charset="UTF-8">
-      <title>Relatório de Desempenho do Elaborador</title>
+      <title>${tituloJanela}</title>
       <!-- Resolve caminhos relativos (ex.: a logo em assets/logo/logo-sgge.png) contra a URL
            da página principal — essa janela é um documento novo/vazio (window.open('', ...)),
            então um <img src="assets/..."> sem isso tentaria carregar a partir de about:blank -->
@@ -14491,6 +13769,10 @@ function imprimirRelatorioElaborador() {
   }, 500);
 }
 
+function imprimirRelatorioElaborador() {
+  imprimirAreaRelatorio('elaborador-report-print-area', 'Relatório de Desempenho do Elaborador');
+}
+
 btnImprimirRelatorioElaborador.addEventListener('click', imprimirRelatorioElaborador);
 
 // Se a prévia já estiver visível e o usuário trocar um filtro, atualiza a prévia na hora; se
@@ -14500,6 +13782,231 @@ Object.values(relatorioElaboradorFiltros).forEach((select) => {
     if (!relatorioElaboradorPreview.hidden) {
       gerarRelatorioElaborador();
     }
+  });
+});
+
+// ======================================================================
+// Relatório do coordenador (Indicadores — Coordenador): mesma estrutura do relatório do
+// elaborador, analisando a 1ª Validação — só registros com prazo_coord e devolutiva_coord
+// preenchidos; dias = devolutiva_coord - prazo_coord (negativo = antecipada, 0 = no prazo,
+// positivo = fora do prazo). Reaproveita populateRelatorioAvaliacaoOptions,
+// classificarSegmentoRelatorioElaborador, criarCelulaRanking, renderDiasAtrasoDetalhado e
+// imprimirAreaRelatorio.
+// ======================================================================
+
+const btnRelatorioCoordenador = document.getElementById('btnRelatorioCoordenador');
+const relatorioCoordenadorModalBackdrop = document.getElementById('relatorioCoordenadorModalBackdrop');
+const btnImprimirRelatorioCoordenador = document.getElementById('btnImprimirRelatorioCoordenador');
+const relatorioCoordenadorPreview = document.getElementById('coordenador-report-print-area');
+const relatorioCoordenadorVazio = document.getElementById('relatorioCoordenadorVazio');
+const relatorioCoordenadorFiltros = {
+  coordenador: document.getElementById('filterRelCoordCoordenador'),
+  segmento: document.getElementById('filterRelCoordSegmento'),
+  ano: document.getElementById('filterRelCoordAno'),
+  disciplina: document.getElementById('filterRelCoordDisciplina'),
+  modulo: document.getElementById('filterRelCoordModulo'),
+  avaliacao: document.getElementById('filterRelCoordAvaliacao')
+};
+
+function calcularDiasRelatorioCoordenador(record) {
+  const prazo = parseBrDate(record.prazo_coord);
+  const devolutiva = parseBrDate(record.devolutiva_coord);
+  if (!prazo || !devolutiva) return null;
+  return Math.round((devolutiva.getTime() - prazo.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function aplicarFiltrosRelatorioCoordenador(dados) {
+  const { coordenador, segmento, ano, disciplina, modulo, avaliacao } = Object.fromEntries(
+    Object.entries(relatorioCoordenadorFiltros).map(([chave, select]) => [chave, select.value])
+  );
+
+  return dados.filter((record) => {
+    if (coordenador && safe(record.coordenador) !== coordenador) return false;
+    if (segmento && classificarSegmentoRelatorioElaborador(record.ano) !== segmento) return false;
+    if (ano && safe(record.ano) !== ano) return false;
+    if (disciplina && safe(record.frente) !== disciplina) return false;
+    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (avaliacao && safe(record.tipo_av) !== avaliacao) return false;
+    return true;
+  });
+}
+
+// Resumo de uma lista de devolutivas ({ record, dias }): base comum dos cards e da tabela
+function resumirDevolutivasRelatorioCoordenador(devolutivas) {
+  const total = devolutivas.length;
+  const foraPrazo = devolutivas.filter((d) => d.dias > 0).length;
+  const somaDias = devolutivas.reduce((soma, d) => soma + d.dias, 0);
+  return {
+    total,
+    noPrazo: total - foraPrazo,
+    foraPrazo,
+    taxaAtraso: total ? (foraPrazo / total) * 100 : 0,
+    mediaDias: total ? somaDias / total : 0,
+    maiorAtraso: devolutivas.reduce((maior, d) => Math.max(maior, d.dias), 0)
+  };
+}
+
+function calcularRecorrenciaRelatorioCoordenador(devolutivas) {
+  const porCoordenador = new Map();
+  devolutivas.forEach((d) => {
+    const nome = safe(d.record.coordenador) || 'Não informado';
+    if (!porCoordenador.has(nome)) porCoordenador.set(nome, []);
+    porCoordenador.get(nome).push(d);
+  });
+
+  return Array.from(porCoordenador, ([coordenador, itens]) => ({
+    coordenador,
+    ...resumirDevolutivasRelatorioCoordenador(itens)
+  })).sort(
+    (a, b) =>
+      b.foraPrazo - a.foraPrazo ||
+      b.taxaAtraso - a.taxaAtraso ||
+      a.coordenador.localeCompare(b.coordenador, 'pt-BR')
+  );
+}
+
+function formatarDiasRelatorioCoordenador(valor) {
+  return valor === 0 ? '0 dias' : `${formatarDiasComVirgula(valor)} dias`;
+}
+
+function renderizarRecorrenciaRelatorioCoordenador(linhas) {
+  const tbody = document.getElementById('relCoordRecorrenciaBody');
+  tbody.innerHTML = '';
+
+  const fragment = document.createDocumentFragment();
+  linhas.forEach((linha, indice) => {
+    const tr = document.createElement('tr');
+    tr.appendChild(criarCelulaRanking(indice + 1));
+    [
+      linha.coordenador,
+      linha.total,
+      linha.foraPrazo,
+      `${formatarPercentualComVirgula(linha.taxaAtraso)}%`,
+      formatarDiasRelatorioCoordenador(linha.mediaDias),
+      `${linha.maiorAtraso} dias`
+    ].forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = valor;
+      tr.appendChild(td);
+    });
+    fragment.appendChild(tr);
+  });
+  tbody.appendChild(fragment);
+}
+
+// 1 linha por devolutiva, do maior atraso para o menor (desempate por coordenador)
+function renderizarDetalhadaRelatorioCoordenador(devolutivas) {
+  const tbody = document.getElementById('relCoordTabelaBody');
+  tbody.innerHTML = '';
+
+  const linhas = [...devolutivas].sort(
+    (a, b) =>
+      b.dias - a.dias ||
+      safe(a.record.coordenador).localeCompare(safe(b.record.coordenador), 'pt-BR')
+  );
+
+  const fragment = document.createDocumentFragment();
+  linhas.forEach(({ record, dias }) => {
+    const tr = document.createElement('tr');
+    [
+      safe(record.modulo),
+      safe(record.ano),
+      safe(record.tipo_av),
+      safe(record.frente),
+      safe(record.coordenador),
+      safe(record.prazo_coord),
+      safe(record.devolutiva_coord)
+    ].forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = valor || '-';
+      tr.appendChild(td);
+    });
+
+    const tdDias = document.createElement('td');
+    tdDias.className = 'report-delay-cell';
+    tdDias.innerHTML = renderDiasAtrasoDetalhado(dias);
+    tr.appendChild(tdDias);
+    fragment.appendChild(tr);
+  });
+  tbody.appendChild(fragment);
+}
+
+function abrirModalRelatorioCoordenador() {
+  const dados = indicadoresCoordenadorDadosBase;
+  populateSelectOptions(relatorioCoordenadorFiltros.coordenador, dados, 'coordenador', 'Todos');
+  populateSelectOptions(relatorioCoordenadorFiltros.ano, dados, 'ano', 'Todos');
+  populateSelectOptions(relatorioCoordenadorFiltros.disciplina, dados, 'frente', 'Todos');
+  populateSelectOptions(relatorioCoordenadorFiltros.modulo, dados, 'modulo', 'Todos');
+  populateRelatorioAvaliacaoOptions(relatorioCoordenadorFiltros.avaliacao, dados);
+  relatorioCoordenadorFiltros.avaliacao.options[0].textContent = 'Todos';
+
+  relatorioCoordenadorPreview.hidden = true;
+  relatorioCoordenadorVazio.hidden = true;
+  btnImprimirRelatorioCoordenador.disabled = true;
+  relatorioCoordenadorModalBackdrop.hidden = false;
+}
+
+function fecharModalRelatorioCoordenador() {
+  relatorioCoordenadorModalBackdrop.hidden = true;
+}
+
+function gerarRelatorioCoordenador() {
+  const devolutivas = aplicarFiltrosRelatorioCoordenador(indicadoresCoordenadorDadosBase)
+    .map((record) => ({ record, dias: calcularDiasRelatorioCoordenador(record) }))
+    .filter((d) => d.dias !== null);
+
+  if (devolutivas.length === 0) {
+    relatorioCoordenadorPreview.hidden = true;
+    relatorioCoordenadorVazio.hidden = false;
+    btnImprimirRelatorioCoordenador.disabled = true;
+    return;
+  }
+  relatorioCoordenadorVazio.hidden = true;
+
+  const textoFiltro = (select) =>
+    select.value ? select.options[select.selectedIndex].textContent : 'Todos';
+  document.getElementById('relCoordMetaCoordenador').textContent = textoFiltro(relatorioCoordenadorFiltros.coordenador);
+  document.getElementById('relCoordMetaSegmento').textContent = textoFiltro(relatorioCoordenadorFiltros.segmento);
+  document.getElementById('relCoordMetaAno').textContent = textoFiltro(relatorioCoordenadorFiltros.ano);
+  document.getElementById('relCoordMetaDisciplina').textContent = textoFiltro(relatorioCoordenadorFiltros.disciplina);
+  document.getElementById('relCoordMetaModulo').textContent = textoFiltro(relatorioCoordenadorFiltros.modulo);
+  document.getElementById('relCoordMetaAvaliacao').textContent = textoFiltro(relatorioCoordenadorFiltros.avaliacao);
+  document.getElementById('relCoordMetaData').textContent = formatarDataHoraAtual();
+
+  const resumo = resumirDevolutivasRelatorioCoordenador(devolutivas);
+  const pct = (qtd) => formatarPercentualComVirgula(resumo.total ? (qtd / resumo.total) * 100 : 0);
+  document.getElementById('relCoordResumoNoPrazo').textContent = `${resumo.noPrazo} (${pct(resumo.noPrazo)}%)`;
+  document.getElementById('relCoordResumoForaPrazo').textContent = `${resumo.foraPrazo} (${pct(resumo.foraPrazo)}%)`;
+  document.getElementById('relCoordResumoMediaAtraso').textContent = formatarDiasRelatorioCoordenador(resumo.mediaDias);
+  document.getElementById('relCoordResumoMaiorAtraso').textContent = `${resumo.maiorAtraso} dias`;
+
+  const recorrencia = calcularRecorrenciaRelatorioCoordenador(devolutivas);
+  const lider = recorrencia[0];
+  document.getElementById('relCoordResumoRecorrencia').textContent =
+    lider && lider.foraPrazo > 0
+      ? `${lider.coordenador} (${lider.foraPrazo} fora do prazo)`
+      : 'Nenhum atraso';
+
+  renderizarRecorrenciaRelatorioCoordenador(recorrencia);
+  renderizarDetalhadaRelatorioCoordenador(devolutivas);
+
+  relatorioCoordenadorPreview.hidden = false;
+  btnImprimirRelatorioCoordenador.disabled = false;
+}
+
+btnRelatorioCoordenador.addEventListener('click', abrirModalRelatorioCoordenador);
+document.getElementById('btnFecharRelatorioCoordenador').addEventListener('click', fecharModalRelatorioCoordenador);
+document.getElementById('btnCancelarRelatorioCoordenador').addEventListener('click', fecharModalRelatorioCoordenador);
+relatorioCoordenadorModalBackdrop.addEventListener('click', (event) => {
+  if (event.target === relatorioCoordenadorModalBackdrop) fecharModalRelatorioCoordenador();
+});
+document.getElementById('btnGerarRelatorioCoordenador').addEventListener('click', gerarRelatorioCoordenador);
+btnImprimirRelatorioCoordenador.addEventListener('click', () =>
+  imprimirAreaRelatorio('coordenador-report-print-area', 'Relatório do Coordenador — 1ª Validação')
+);
+Object.values(relatorioCoordenadorFiltros).forEach((select) => {
+  select.addEventListener('change', () => {
+    if (!relatorioCoordenadorPreview.hidden) gerarRelatorioCoordenador();
   });
 });
 
@@ -15305,3 +14812,40 @@ function iniciarAberturaPremium() {
 }
 
 iniciarAberturaPremium();
+
+// --- Menu mobile (≤ 768px): sidebar como drawer lateral ---
+// Abre pelo botão hambúrguer, fecha ao clicar no overlay, ao escolher uma aba (botões com
+// data-tab ou "Sair") e ao voltar para largura de desktop. Os botões de grupo (Processo de
+// Produção / Indicadores do Processo) só expandem o submenu, sem fechar o drawer.
+(function iniciarMenuMobile() {
+  const LARGURA_MOBILE = 768;
+  const btnMenu = document.getElementById('btnMobileMenu');
+  const sidebar = document.getElementById('sidebarNav');
+  const overlay = document.getElementById('mobileSidebarOverlay');
+  if (!btnMenu || !sidebar || !overlay) return;
+
+  function definirMenuMobileAberto(aberto) {
+    sidebar.classList.toggle('mobile-open', aberto);
+    overlay.classList.toggle('active', aberto);
+    document.body.classList.toggle('mobile-menu-aberto', aberto);
+    btnMenu.setAttribute('aria-expanded', String(aberto));
+  }
+
+  btnMenu.addEventListener('click', () => definirMenuMobileAberto(!sidebar.classList.contains('mobile-open')));
+  overlay.addEventListener('click', () => definirMenuMobileAberto(false));
+
+  sidebar.addEventListener('click', (event) => {
+    if (window.innerWidth > LARGURA_MOBILE) return;
+    if (event.target.closest('[data-tab], #btnLogout')) definirMenuMobileAberto(false);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && sidebar.classList.contains('mobile-open')) definirMenuMobileAberto(false);
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > LARGURA_MOBILE && sidebar.classList.contains('mobile-open')) {
+      definirMenuMobileAberto(false);
+    }
+  });
+})();
