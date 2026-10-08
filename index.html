@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel de Avaliações SGGE</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261008c">
 </head>
 <body>
 
@@ -237,19 +237,6 @@
           >
             <span class="sidebar-text">Previsto vs. Realizado</span>
           </button>
-          <!-- Nova seção própria (2026-09-09) — cronograma reverso a partir da data de
-               aplicação (tela/orquestrador/estado próprios: viewAnaliseTempo,
-               renderizarAnaliseTempo) -->
-          <button
-            class="sidebar-btn sidebar-subitem"
-            data-tab="indicador-tempo"
-            title="Análise de Tempo"
-            aria-label="Análise de Tempo"
-            data-icon-normal="assets/menu-lateral/icone-geral.png"
-            data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
-          >
-            <span class="sidebar-text">Análise de Tempo</span>
-          </button>
         </div>
       </div>
     </div>
@@ -266,10 +253,27 @@
     </div>
   </nav>
 
+  <!-- Fundo escuro do menu mobile (drawer): clicar fecha o menu. Oculto no desktop. -->
+  <div class="mobile-sidebar-overlay" id="mobileSidebarOverlay"></div>
+
   <div class="app-body">
 
   <header class="app-header">
     <div class="app-header-top">
+      <!-- Botão hambúrguer: só aparece em telas ≤ 768px (abre a sidebar como drawer) -->
+      <button
+        type="button"
+        class="mobile-menu-btn"
+        id="btnMobileMenu"
+        aria-label="Abrir menu"
+        aria-controls="sidebarNav"
+        aria-expanded="false"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </button>
+
       <div class="app-header-titles" id="appHeaderTitles">
         <h1>Painel de Avaliações SGGE</h1>
         <p class="subtitle">Acompanhamento do processo de avaliação</p>
@@ -790,6 +794,24 @@
           aria-pressed="false"
           hidden
         >Indicadores</button>
+
+        <!-- Botão "RELATÓRIO DO COORDENADOR" da seção Indicadores — Coordenador: mesmo padrão do
+             botão do elaborador (btnRelatorioElaborador); abre relatorioCoordenadorModalBackdrop -->
+        <button
+          type="button"
+          id="btnRelatorioCoordenador"
+          class="report-btn"
+          title="Gerar relatório do coordenador"
+          aria-label="Gerar relatório do coordenador"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M14 2v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M8 13h8M8 17h8M8 9h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>RELATÓRIO DO COORDENADOR</span>
+        </button>
 
         <!-- Filtro rápido de Módulo da seção Indicadores — Coordenador, mesmo padrão visual/
              funcional das demais seções (elab-modulo-rapido-wrapper) — fica antes do botão
@@ -1855,136 +1877,6 @@
       </div>
     </div>
 
-    <!-- "Análise de Tempo" (dentro do grupo "Indicadores do Processo", 2026-09-09) — cronograma
-         reverso: a partir de data_aplicacao - 5 dias úteis (Data limite segura), acompanha se
-         cada etapa do fluxo produtivo está dentro do prazo, em risco ou atrasada -->
-    <div id="viewAnaliseTempo" hidden>
-      <p class="indicadores-chart-empty indicadores-empty-geral" id="indTempoEmptyGeral" hidden></p>
-
-      <div id="indTempoConteudo">
-        <div class="pe-indicadores-header">
-          <h2 class="pe-indicadores-titulo">Análise de Tempo</h2>
-          <p class="pe-indicadores-subtitulo">Cronograma reverso do processo produtivo, a partir da data limite segura de envio (5 dias úteis antes da aplicação).</p>
-        </div>
-
-        <!-- Filtros: mesmo padrão de campos sempre visíveis (sem popover) da seção Previsto vs. Realizado -->
-        <div class="geral-calendario-filtros">
-          <div class="filter-field">
-            <label for="filterTempoModulo">Módulo</label>
-            <select id="filterTempoModulo">
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterTempoAno">Ano/Série</label>
-            <select id="filterTempoAno">
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterTempoSegmento">Segmento</label>
-            <select id="filterTempoSegmento">
-              <option value="">Todos</option>
-              <option value="Ensino Fundamental">Fundamental II</option>
-              <option value="Ensino Médio">Ensino Médio</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterTempoTipoAv">Tipo de AV</label>
-            <select id="filterTempoTipoAv">
-              <option value="">Todas</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterTempoAnoAplicacao">Ano de aplicação</label>
-            <select id="filterTempoAnoAplicacao">
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterTempoBusca">Busca geral</label>
-            <input type="text" id="filterTempoBusca" placeholder="Buscar por código, módulo, ano ou avaliação...">
-          </div>
-        </div>
-
-        <!-- Chip do filtro de status ativo (clique nos cards "Dentro do cronograma"/"Em
-             risco"/"Atrasadas") -->
-        <div class="indicadores-filtros-ativos" id="indTempoFiltroStatusChipWrapper" hidden>
-          <span class="indicadores-filtro-badge" id="indTempoFiltroStatusChip">
-            <span id="indTempoFiltroStatusChipTexto">Status: Atrasadas</span>
-            <button type="button" class="indicadores-filtro-badge-remover" id="indTempoFiltroStatusChipRemover" aria-label="Remover filtro de status">×</button>
-          </span>
-        </div>
-
-        <!-- Cards executivos -->
-        <div class="indicadores-resumo-grid indicadores-resumo-grid--tempo">
-          <div class="indicadores-resumo-card">
-            <span class="indicadores-resumo-label">Total de avaliações analisadas</span>
-            <span class="indicadores-resumo-value" id="indTempoCardTotal">-</span>
-            <span class="indicadores-resumo-sub">Provas/blocos no recorte atual</span>
-          </div>
-          <div class="indicadores-resumo-card indicadores-resumo-card--ok previsto-card-clickable" id="indTempoCardDentroWrapper" role="button" tabindex="0">
-            <span class="indicadores-resumo-label">Dentro do cronograma</span>
-            <span class="indicadores-resumo-value" id="indTempoCardDentro">-</span>
-            <span class="indicadores-resumo-sub">Ainda há margem até a data limite segura</span>
-          </div>
-          <div class="indicadores-resumo-card indicadores-resumo-card--laranja previsto-card-clickable" id="indTempoCardRiscoWrapper" role="button" tabindex="0">
-            <span class="indicadores-resumo-label">Em risco</span>
-            <span class="indicadores-resumo-value" id="indTempoCardRisco">-</span>
-            <span class="indicadores-resumo-sub">Restam 1 ou 2 dias úteis de folga</span>
-          </div>
-          <div class="indicadores-resumo-card indicadores-resumo-card--alerta previsto-card-clickable" id="indTempoCardAtrasadaWrapper" role="button" tabindex="0">
-            <span class="indicadores-resumo-label">Atrasadas</span>
-            <span class="indicadores-resumo-value" id="indTempoCardAtrasada">-</span>
-            <span class="indicadores-resumo-sub">Data limite segura já ultrapassada</span>
-          </div>
-          <div class="indicadores-resumo-card">
-            <span class="indicadores-resumo-label">Maior gargalo atual</span>
-            <span class="indicadores-resumo-value indicadores-resumo-value--texto" id="indTempoCardGargalo">-</span>
-            <span class="indicadores-resumo-sub">Etapa com mais ocorrências em atraso</span>
-          </div>
-        </div>
-
-        <!-- Linha do tempo por ano/série -->
-        <section class="indicadores-chart-block coord-chart-card">
-          <h3 class="indicadores-block-title">Linha do tempo por ano</h3>
-          <p class="indicadores-chart-subtitle">Acompanhe em que etapa do fluxo de produção está cada ano.</p>
-
-          <div class="tempo-legenda">
-            <span class="tempo-legenda-item"><span class="tempo-dot tempo-dot--concluida"></span>Concluída</span>
-            <span class="tempo-legenda-item"><span class="tempo-dot tempo-dot--andamento"></span>Em andamento</span>
-            <span class="tempo-legenda-item"><span class="tempo-dot tempo-dot--pendente"></span>Próxima / pendente</span>
-            <span class="tempo-legenda-item"><span class="tempo-dot tempo-dot--risco"></span>Em risco</span>
-            <span class="tempo-legenda-item"><span class="tempo-dot tempo-dot--atraso"></span>Etapa em atraso</span>
-          </div>
-
-          <div id="indTempoTimeline"></div>
-        </section>
-
-        <!-- Detalhamento do cronograma -->
-        <section class="pe-matrix-card">
-          <div class="pe-tabela-header">
-            <h2 class="pe-tabela-titulo">Detalhamento do cronograma</h2>
-            <p class="indicadores-chart-subtitle">Etapa atual e caminho restante (com janelas de datas) até o envio final de cada prova/bloco.</p>
-          </div>
-
-          <div class="table-wrapper pe-ano-table-scroll" id="indTempoDetalheTableWrapper">
-            <table class="data-table pe-ano-table tempo-detalhe-table">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Etapa atual</th>
-                  <th>Cronograma restante até o envio</th>
-                  <th>Impacto no cronograma</th>
-                </tr>
-              </thead>
-              <tbody id="indTempoDetalheTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </div>
-
     <!-- Aba Arte-finalização e Envio: acompanha a fase final do fluxo editorial (depois da
          assinatura do coordenador), mesmo padrão visual/estrutural da aba Processo Editorial -->
     <section id="arte-finalizacao-envio-section" hidden>
@@ -2215,7 +2107,7 @@
         </div>
 
         <div class="table-wrapper" id="bpTableWrapper">
-          <table class="data-table">
+          <table class="data-table bp-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -2321,12 +2213,10 @@
         </div>
 
         <div class="table-wrapper" id="gpaTableWrapper">
-          <table class="data-table">
+          <table class="data-table gpa-table">
             <thead>
               <tr>
-                <th>Módulo</th>
-                <th>Ano</th>
-                <th>Avaliação</th>
+                <th class="gpa-codigo-cell">Código</th>
                 <th class="col-acesso">Acesso</th>
               </tr>
             </thead>
@@ -2831,6 +2721,178 @@
       </div>
     </div>
 
+    <!-- Modal "Gerar relatório do coordenador" (Indicadores — Coordenador): mesma estrutura/
+         classes do relatório do elaborador, analisando a 1ª Validação (prazo_coord x
+         devolutiva_coord). Impressão pela mesma função genérica (imprimirAreaRelatorio). -->
+    <div class="geral-evento-modal-backdrop" id="relatorioCoordenadorModalBackdrop" hidden>
+      <div
+        class="report-modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="relatorioCoordenadorModalTitulo"
+      >
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharRelatorioCoordenador" aria-label="Fechar">&times;</button>
+
+        <div class="report-header">
+          <h3 class="report-title" id="relatorioCoordenadorModalTitulo">Gerar relatório do coordenador</h3>
+          <p class="report-subtitle">Análise das devolutivas da 1ª Validação, atrasos e recorrências conforme os filtros selecionados.</p>
+        </div>
+
+        <div class="report-filter-bar">
+          <div class="filter-field">
+            <label for="filterRelCoordCoordenador">Coordenador</label>
+            <select id="filterRelCoordCoordenador"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelCoordSegmento">Segmento</label>
+            <select id="filterRelCoordSegmento">
+              <option value="">Todos</option>
+              <option value="Fundamental II">Fundamental II</option>
+              <option value="Ensino Médio">Ensino Médio</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelCoordAno">Ano/Série</label>
+            <select id="filterRelCoordAno"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelCoordDisciplina">Disciplina</label>
+            <select id="filterRelCoordDisciplina"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelCoordModulo">Módulo</label>
+            <select id="filterRelCoordModulo"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filterRelCoordAvaliacao">Avaliação</label>
+            <select id="filterRelCoordAvaliacao"><option value="">Todos</option></select>
+          </div>
+        </div>
+
+        <div id="coordenador-report-print-area" class="relatorio-elaborador-preview" hidden>
+          <div class="report-print-header">
+            <div class="report-header-left">
+              <img src="assets/logo/logo-sgge.png" alt="Logo SGGE">
+            </div>
+            <h1 class="report-title">Relatório do Coordenador — 1ª Validação</h1>
+          </div>
+
+          <dl class="report-meta">
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Coordenador</dt>
+              <dd class="report-meta-value" id="relCoordMetaCoordenador">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Segmento</dt>
+              <dd class="report-meta-value" id="relCoordMetaSegmento">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Ano/Série</dt>
+              <dd class="report-meta-value" id="relCoordMetaAno">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Disciplina</dt>
+              <dd class="report-meta-value" id="relCoordMetaDisciplina">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Módulo</dt>
+              <dd class="report-meta-value" id="relCoordMetaModulo">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Avaliação</dt>
+              <dd class="report-meta-value" id="relCoordMetaAvaliacao">Todos</dd>
+            </div>
+            <div class="report-meta-item">
+              <dt class="report-meta-label">Data de geração</dt>
+              <dd class="report-meta-value" id="relCoordMetaData">-</dd>
+            </div>
+          </dl>
+
+          <div class="report-kpis report-kpis--5">
+            <div class="report-kpi ok">
+              <span class="report-kpi-label">Devolutivas no prazo</span>
+              <span class="report-kpi-value" id="relCoordResumoNoPrazo">-</span>
+            </div>
+            <div class="report-kpi danger">
+              <span class="report-kpi-label">Devolutivas fora do prazo</span>
+              <span class="report-kpi-value" id="relCoordResumoForaPrazo">-</span>
+            </div>
+            <div class="report-kpi info">
+              <span class="report-kpi-label">Média de atraso</span>
+              <span class="report-kpi-value" id="relCoordResumoMediaAtraso">-</span>
+            </div>
+            <div class="report-kpi danger">
+              <span class="report-kpi-label">Maior atraso individual</span>
+              <span class="report-kpi-value" id="relCoordResumoMaiorAtraso">-</span>
+            </div>
+            <div class="report-kpi danger">
+              <span class="report-kpi-label">Maior recorrência de atraso</span>
+              <span class="report-kpi-value" id="relCoordResumoRecorrencia">-</span>
+            </div>
+          </div>
+
+          <div class="report-section">
+            <h3 class="report-section-title">Recorrência de atraso por coordenador</h3>
+            <p class="report-section-subtitle">Detalhamento consolidado das devolutivas de cada coordenador.</p>
+
+            <div class="report-table-wrap">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th class="rank-cell">#</th>
+                    <th>Coordenador</th>
+                    <th>Volume de atividades</th>
+                    <th>Devolvidas fora do prazo</th>
+                    <th>Taxa de atraso</th>
+                    <th>Média de atraso</th>
+                    <th>Maior atraso individual</th>
+                  </tr>
+                </thead>
+                <tbody id="relCoordRecorrenciaBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="report-section">
+            <h3 class="report-section-title">Todas as devolutivas detalhadas</h3>
+            <p class="report-section-subtitle">Lista completa das devolutivas dos coordenadores</p>
+
+            <div class="report-table-wrap">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th>Módulo</th>
+                    <th>Ano</th>
+                    <th>Avaliação</th>
+                    <th>Disciplina</th>
+                    <th>Coordenador</th>
+                    <th>Prazo</th>
+                    <th>Devolutiva</th>
+                    <th>Dias de atraso</th>
+                  </tr>
+                </thead>
+                <tbody id="relCoordTabelaBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="report-closing-note">
+            Reforçamos a importância do cumprimento dos prazos estabelecidos, essencial para a organização e continuidade do fluxo de produção, bem como para garantir o bom andamento das etapas posteriores do processo.
+          </div>
+        </div>
+
+        <p class="status-message empty relatorio-elaborador-vazio" id="relatorioCoordenadorVazio" hidden>
+          Não há devolutivas para os filtros selecionados.
+        </p>
+
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarRelatorioCoordenador">Cancelar</button>
+          <button type="button" class="btn btn-outline" id="btnGerarRelatorioCoordenador">Gerar relatório</button>
+          <button type="button" class="btn btn-primary" id="btnImprimirRelatorioCoordenador" disabled>Imprimir / Salvar PDF</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Aba Coordenador: acompanhamento do envio, análise e devolutiva das avaliações -->
     <section id="viewCoordenador" hidden>
       <div id="viewCoordenadorAcompanhamento">
@@ -2844,7 +2906,7 @@
         <div class="banco-cards-grid coordenador-cards-grid" id="coordCardsGrid">
           <div class="coord-card-tooltip-wrapper" id="coordCardPendenteTooltipWrapper">
             <article
-              class="banco-card banco-card--orange"
+              class="banco-card banco-card--orange pending-send-small-card"
               data-quick-filter="pendente-envio-validacao"
               role="button"
               tabindex="0"
@@ -2853,15 +2915,15 @@
               id="coordCardPendenteEnvioArticle"
             >
               <div class="banco-card__icon banco-card__icon--orange" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                  <path d="M8 9l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M4 15v4h16v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 16V4"></path>
+                  <path d="M7 9l5-5 5 5"></path>
+                  <path d="M5 16v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"></path>
                 </svg>
               </div>
               <div class="banco-card__content">
-                <div class="banco-card__title">Pendente de envio</div>
-                <div class="banco-card__subtitle">Provas ainda não enviadas.</div>
+                <div class="banco-card__title">Pendentes de envio</div>
+                <div class="banco-card__subtitle">Não enviadas ao coordenador.</div>
               </div>
               <div class="banco-card__metric">
                 <div class="banco-card__value" id="cardCoordPendenteEnvio">-</div>
@@ -3350,6 +3412,6 @@
   <!-- Tooltip reutilizável do gráfico de performance de entrega do elaborador -->
   <div class="perf-tooltip" id="perfTooltip" hidden></div>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20261008c"></script>
 </body>
 </html>
