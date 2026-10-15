@@ -368,14 +368,15 @@ const viewResumoProducao = document.getElementById('viewResumoProducao');
 const resumoProducaoConteudo = document.getElementById('resumoProducaoConteudo');
 const resumoProducaoEmptyMessage = document.getElementById('resumoProducaoEmptyMessage');
 const resumoProducaoCardTotal = document.getElementById('resumoProducaoCardTotal');
-const resumoProducaoCardM3 = document.getElementById('resumoProducaoCardM3');
-const resumoProducaoCardM4 = document.getElementById('resumoProducaoCardM4');
 const resumoProducaoEtapasGrid = document.getElementById('resumoProducaoEtapasGrid');
-const resumoProducaoTabelaEtapasBody = document.getElementById('resumoProducaoTabelaEtapasBody');
 const resumoProducaoEtapaChipWrapper = document.getElementById('resumoProducaoEtapaChipWrapper');
 const resumoProducaoEtapaChipTexto = document.getElementById('resumoProducaoEtapaChipTexto');
 const btnFecharEtapaChipResumoProducao = document.getElementById('btnFecharEtapaChipResumoProducao');
 const resumoProducaoDetalheEtapaCard = document.getElementById('resumoProducaoDetalheEtapaCard');
+const resumoProducaoAnaliseEtapa = document.getElementById('resumoProducaoAnaliseEtapa');
+const btnVerDetalhesEtapaResumo = document.getElementById('btnVerDetalhesEtapaResumo');
+// Tabela "Detalhamento da etapa" visível? (botão "Ver detalhes" do painel "Análise da etapa")
+let detalhesEtapaResumoVisiveis = false;
 const resumoProducaoDetalheEtapaTitulo = document.getElementById('resumoProducaoDetalheEtapaTitulo');
 const resumoProducaoDetalheEtapaBody = document.getElementById('resumoProducaoDetalheEtapaBody');
 const resumoDetalheEtapaStatusWrapper = document.getElementById('resumoDetalheEtapaStatusWrapper');
@@ -387,6 +388,13 @@ const filterResumoTipoAv = document.getElementById('filterResumoTipoAv');
 const filterResumoAnoSerie = document.getElementById('filterResumoAnoSerie');
 const filterResumoSegmento = document.getElementById('filterResumoSegmento');
 const filterResumoBusca = document.getElementById('filterResumoBusca');
+const resumoProducaoGraficoModulos = document.getElementById('resumoProducaoGraficoModulos');
+const resumoAnoRapidoWrapper = document.getElementById('resumoAnoRapidoWrapper');
+const resumoModuloRapidoWrapper = document.getElementById('resumoModuloRapidoWrapper');
+const resumoFilterPopoverWrapper = document.getElementById('resumoFilterPopoverWrapper');
+const btnAbrirFiltrosResumo = document.getElementById('btnAbrirFiltrosResumo');
+const resumoFiltersPopover = document.getElementById('resumoFiltersPopover');
+const resumoFilterBadge = document.getElementById('resumoFilterBadge');
 
 // Etapa de card clicada (destaca o card + mostra a tabela "Detalhamento da etapa" abaixo);
 // null = nenhuma etapa selecionada. Mesmo padrão de alternância de filtroCardArteFinalizacao.
@@ -1134,6 +1142,14 @@ function trocarAba(nomeAba) {
   dom.bancoProvasVazio.hidden = nomeAba !== 'banco-provas';
   // "Resumo da Produção": seção própria (BD_SGGE), não é alias de outra aba, só alterna o hidden
   viewResumoProducao.hidden = nomeAba !== 'resumo-producao';
+  // Filtros rápidos Ano/Módulo + funil do Resumo da Produção, no cabeçalho
+  const ehAbaResumoProducao = nomeAba === 'resumo-producao';
+  resumoAnoRapidoWrapper.hidden = !ehAbaResumoProducao;
+  resumoModuloRapidoWrapper.hidden = !ehAbaResumoProducao;
+  resumoFilterPopoverWrapper.hidden = !ehAbaResumoProducao;
+  if (!ehAbaResumoProducao) {
+    fecharPopoverFiltrosResumoProducao();
+  }
   // "GPA": seção própria (BD_MACRO2), não é alias de outra aba, só alterna o hidden
   viewGPA.hidden = nomeAba !== 'gpa';
   if (nomeAba !== 'gpa') {
@@ -12092,10 +12108,6 @@ domPrevisto.filtroBusca.addEventListener('input', () => {
 // false = conta linha a linha da planilha, sem nenhuma consolidação. Só Processo Editorial e
 // Arte-finalização e Envio usam bloco; Elaboração/1ª Validação/Assinatura do Coordenador contam
 // por registro.
-// `tooltip` traz título/subtítulo do tooltip do card (ver
-// calcularProgressoEtapaPorTipoAv/renderizarLinhasProgressoEtapaResumoProducao) — mesmo modelo
-// visual das demais tooltips "Progresso de ... por avaliação" do painel (barras por tipo de AV),
-// não mais um texto explicativo.
 const ETAPAS_RESUMO_PRODUCAO = [
   {
     chave: 'elaboracao',
@@ -12103,9 +12115,16 @@ const ETAPAS_RESUMO_PRODUCAO = [
     usaBloco: false,
     camposInicio: ['data_encomenda'],
     campoFim: 'devolutiva_encomenda',
-    tooltip: {
-      titulo: 'Progresso de elaboração por avaliação',
-      subtitulo: 'Percentual de avaliações concluídas na elaboração por tipo de avaliação.'
+    // "Atrasadas" (linha a linha): mesma regra do card "Pendentes atrasadas" da Elaboração
+    atrasada: (r) => !safe(r.devolutiva_encomenda) && Boolean(safe(r.prazo_encomenda)) && isDateOverdue(r.prazo_encomenda),
+    // Partição própria do card/tabela (só Elaboração): Concluídas = com devolutiva; Atrasadas =
+    // sem devolutiva e prazo vencido; Pendentes no prazo = sem devolutiva e prazo não vencido;
+    // Em andamento = sem devolutiva e sem prazo. As 4 somam o Total.
+    rotuloPendentes: 'Pendentes no prazo',
+    classificar: (r) => {
+      if (safe(r.devolutiva_encomenda)) return 'completed';
+      if (!safe(r.prazo_encomenda)) return 'in-progress';
+      return isDateOverdue(r.prazo_encomenda) ? 'late' : 'pending';
     }
   },
   {
@@ -12114,10 +12133,8 @@ const ETAPAS_RESUMO_PRODUCAO = [
     usaBloco: false,
     camposInicio: ['data_envio_coord'],
     campoFim: 'devolutiva_coord',
-    tooltip: {
-      titulo: 'Progresso de 1ª validação por avaliação',
-      subtitulo: 'Percentual de avaliações concluídas na 1ª validação por tipo de avaliação.'
-    }
+    // "Atrasadas": mesma regra do card "Validações atrasadas" da 1ª Validação
+    atrasada: (r) => identificarStatusCoordenador(r) === 'Prazo atrasado'
   },
   {
     chave: 'processo_editorial',
@@ -12132,11 +12149,7 @@ const ETAPAS_RESUMO_PRODUCAO = [
       'inicio_aplicacao_leitura',
       'inicio_ctj'
     ],
-    campoFim: 'fim_ctj',
-    tooltip: {
-      titulo: 'Progresso do processo editorial por avaliação',
-      subtitulo: 'Percentual de avaliações concluídas no processo editorial por tipo de avaliação.'
-    }
+    campoFim: 'fim_ctj'
   },
   {
     chave: 'assinatura_coordenador',
@@ -12144,10 +12157,8 @@ const ETAPAS_RESUMO_PRODUCAO = [
     usaBloco: false,
     camposInicio: ['envio_assinatura_coord'],
     campoFim: 'devolutiva_assinatura_coord',
-    tooltip: {
-      titulo: 'Progresso de assinatura por avaliação',
-      subtitulo: 'Percentual de avaliações assinadas pelo coordenador por tipo de avaliação.'
-    }
+    // "Atrasadas": mesma regra de atraso da seção Assinatura do Coordenador
+    atrasada: (r) => calcularStatusAssinatura(r) === 'Assinatura atrasada'
   },
   {
     chave: 'arte_finalizacao_envio',
@@ -12161,11 +12172,7 @@ const ETAPAS_RESUMO_PRODUCAO = [
       'checklist',
       'data_checklist'
     ],
-    campoFim: 'data_envio_grafica',
-    tooltip: {
-      titulo: 'Progresso de arte-finalização e envio por avaliação',
-      subtitulo: 'Percentual de avaliações enviadas para gráfica por tipo de avaliação.'
-    }
+    campoFim: 'data_envio_grafica'
   }
 ];
 
@@ -12233,16 +12240,21 @@ function calcularResumoEtapasProducao(grupos, dadosFiltrados) {
     let pendentes = 0;
 
     itens.forEach((item) => {
-      const status = calcularStatusEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim);
+      const status = etapa.classificar
+        ? etapa.classificar(item.registros[0])
+        : calcularStatusEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim);
       if (status === 'completed') concluidas += 1;
       else if (status === 'in-progress') andamento += 1;
-      else pendentes += 1;
+      else if (status === 'pending') pendentes += 1;
+      // 'late' (Elaboração): fica só em Atrasadas, fora de Pendentes
     });
 
     const total = itens.length;
     const progresso = total > 0 ? (concluidas / total) * 100 : 0;
+    // Só Elaboração, 1ª Validação e Assinatura do Coordenador (linha a linha); demais = null ("-")
+    const atrasadas = etapa.atrasada ? dadosFiltrados.filter(etapa.atrasada).length : null;
 
-    return { ...etapa, total, concluidas, andamento, pendentes, progresso };
+    return { ...etapa, total, concluidas, andamento, pendentes, atrasadas, progresso };
   });
 }
 
@@ -12259,8 +12271,9 @@ function calcularCardsResumoProducao(grupos) {
 // popularFiltrosPrevistoRealizado (Tipo de AV e Ano-Série com opções
 // fixas na ordem pedagógica; Módulo e Ano de aplicação derivados dos dados)
 function popularFiltrosResumoProducao(records) {
-  populateSelectOptions(filterResumoModulo, records, 'modulo');
-  populateAnoAplicacaoOptions(filterResumoAnoAplicacao, records, 'Todos');
+  // Filtros rápidos do cabeçalho: opção vazia mostra "Módulo"/"Ano" (mesmo padrão das outras seções)
+  populateSelectOptions(filterResumoModulo, records, 'modulo', 'Módulo');
+  populateAnoAplicacaoOptions(filterResumoAnoAplicacao, records, 'Ano');
 
   if (filterResumoAnoSerie.options.length <= 1) {
     ORDEM_ANO_ESCOLAR_COORD.forEach((ano) => {
@@ -12318,6 +12331,7 @@ function aplicarFiltrosResumoProducao(dados, ignorarModulo = false) {
 // alternarFiltroCardArteFinalizacao.
 function alternarEtapaResumoProducao(chave) {
   etapaSelecionadaResumoProducao = etapaSelecionadaResumoProducao === chave ? null : chave;
+  detalhesEtapaResumoVisiveis = false; // ao trocar de etapa, volta a mostrar só os gráficos
   renderizarResumoProducao();
 }
 
@@ -12351,92 +12365,79 @@ function obterUltimaDataEtapaResumoProducao(registrosDoBloco, camposInicio, camp
 // Renderiza os 3 cards executivos superiores
 function renderizarCardsResumoProducao(totais) {
   resumoProducaoCardTotal.textContent = totais.total;
-  resumoProducaoCardM3.textContent = totais.m3;
-  resumoProducaoCardM4.textContent = totais.m4;
 }
 
-// Calcula, por tipo de AV normalizado, o progresso de UMA etapa (mesmo padrão de
-// calcularProgressoValidacaoPorTipoAv/calcularProgressoEnvioGraficaPorTipoAv já usados nas
-// demais tooltips "Progresso de ... por avaliação" do painel): usa os mesmos itens do card
-// (obterItensEtapaResumoProducao — bloco ou linha a linha, conforme etapa.usaBloco) e a mesma
-// regra de conclusão do card (todos os registros do item com etapa.campoFim preenchido). Mantém
-// sempre as 5 avaliações fixas (mesmo com total 0), para preservar o padrão visual.
-function calcularProgressoEtapaPorTipoAv(etapa, grupos, dadosFiltrados) {
-  const itens = obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados);
-  const totais = new Map(ORDEM_TIPO_AV_PERFORMANCE.map((tipo) => [tipo, { total: 0, concluidas: 0 }]));
-
-  itens.forEach((item) => {
-    const tipo = normalizarTipoAvPerformance(item.tipoAv);
-    if (!totais.has(tipo)) return;
-    const grupoTotais = totais.get(tipo);
-    grupoTotais.total += 1;
-    if (item.registros.every((record) => temDataOuValor(record[etapa.campoFim]))) grupoTotais.concluidas += 1;
-  });
-
-  return ORDEM_TIPO_AV_PERFORMANCE.map((tipo) => {
-    const { total, concluidas } = totais.get(tipo);
-    return {
-      tipoAv: tipo,
-      total,
-      concluidas,
-      percentual: total > 0 ? (concluidas / total) * 100 : 0
-    };
-  });
+// Avanço médio pelo fluxo: média simples das % de progresso das 5 etapas (mesma conta dos cards
+// de etapa, calcularResumoEtapasProducao — cada etapa com sua granularidade, bloco ou linha)
+function calcularAvancoMedioFluxoResumo(grupos, dados) {
+  if (!dados.length) return 0;
+  const etapas = calcularResumoEtapasProducao(grupos, dados);
+  return etapas.reduce((soma, etapa) => soma + etapa.progresso, 0) / etapas.length;
 }
 
-// Preenche o container da tooltip de um card de etapa com 1 linha por tipo de AV (label + barra
-// de progresso + "concluídas de total · percentual") — mesmo padrão visual/funcional das demais
-// tooltips "Progresso de ... por avaliação" do sistema (ver
-// renderizarLinhasTooltipProgressoValidacao/renderizarTooltipEnviadasGraficaArteFinalizacaoEnvio),
-// só que puramente informativa (sem clique para filtrar), pois esta seção não tem um filtro
-// global "Filtrar por avaliação".
-function renderizarLinhasProgressoEtapaResumoProducao(container, linhas) {
-  container.innerHTML = '';
+// Gráfico-resumo ao lado do card "Total de Avaliações": Global = média das % das 5 etapas do
+// recorte atual (as mesmas exibidas nos cards); Módulo 3/Módulo 4 = a mesma média calculada só
+// com os registros de cada módulo (respeitando os demais filtros ativos)
+function renderizarGraficoResumoModulos(grupos, dadosFiltrados) {
+  const doModulo = (modulo) => {
+    const dados = dadosFiltrados.filter((r) => safe(r.modulo) === modulo);
+    return calcularAvancoMedioFluxoResumo(agruparTodosOsRegistrosProcessoEditorial(dados), dados);
+  };
 
-  linhas.forEach((linha) => {
-    const row = document.createElement('div');
-    row.className = 'coord-tooltip-row';
-    row.title =
-      `${linha.tipoAv}: ${linha.concluidas} de ${linha.total} concluídas ` +
-      `(${formatarPercentualComVirgula(linha.percentual)}%)`;
+  const global = calcularAvancoMedioFluxoResumo(grupos, dadosFiltrados);
+  const modulos = [
+    { nome: 'MÓDULO 3', valor: doModulo('M3'), classe: 'm3' },
+    { nome: 'MÓDULO 4', valor: doModulo('M4'), classe: 'm4' }
+  ];
 
-    const label = document.createElement('span');
-    label.className = 'coord-tooltip-label';
-    label.textContent = linha.tipoAv;
+  const r = 42;
+  const circ = 2 * Math.PI * r;
+  const preenchido = (global / 100) * circ;
 
-    const track = document.createElement('div');
-    track.className = 'coord-tooltip-bar-track';
-    const fill = document.createElement('div');
-    fill.className = 'coord-tooltip-bar-fill';
-    fill.style.width = `${linha.percentual}%`;
-    track.appendChild(fill);
-
-    const valor = document.createElement('span');
-    valor.className = 'coord-tooltip-value';
-    valor.textContent = `${linha.concluidas} de ${linha.total} · ${formatarPercentualComVirgula(linha.percentual)}%`;
-
-    row.appendChild(label);
-    row.appendChild(track);
-    row.appendChild(valor);
-
-    container.appendChild(row);
-  });
+  resumoProducaoGraficoModulos.innerHTML = `
+    <div class="resumo-modulos-global">
+      <span class="resumo-modulos-global-titulo">Global</span>
+      <div class="resumo-modulos-donut">
+        <svg viewBox="0 0 100 100" width="104" height="104" role="img" aria-label="Global: ${formatarPercentualComVirgula(global)}%">
+          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#e8eef5" stroke-width="12"/>
+          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#1d4f86" stroke-width="12" stroke-linecap="round"
+            stroke-dasharray="${preenchido.toFixed(2)} ${circ.toFixed(2)}" transform="rotate(-90 50 50)"
+            ${global === 0 ? 'stroke-opacity="0"' : ''}/>
+        </svg>
+        <span class="resumo-modulos-donut-valor">${formatarPercentualComVirgula(global)}%</span>
+      </div>
+    </div>
+    <div class="resumo-modulos-barras">
+      ${modulos
+        .map(
+          (m) => `<div class="resumo-modulos-linha">
+            <span class="resumo-modulos-nome">${m.nome}</span>
+            <div class="resumo-modulos-barra-linha">
+              <div class="resumo-modulos-track"><div class="resumo-modulos-fill resumo-modulos-fill--${m.classe}" style="width:${m.valor}%"></div></div>
+              <strong class="resumo-modulos-pct">${formatarPercentualComVirgula(m.valor)}%</strong>
+            </div>
+          </div>`
+        )
+        .join('')}
+    </div>`;
 }
-
-// Fecha qualquer tooltip de etapa aberto por clique/toque quando o usuário clica fora do card —
-// mesmo padrão (fechar ao clicar fora) já usado pelas demais tooltips analíticas do sistema.
-// Registrado 1 única vez (fora da função de render, que recria os cards a cada chamada).
-document.addEventListener('click', (event) => {
-  if (event.target.closest('.stage-card')) return;
-  document.querySelectorAll('.stage-tooltip.is-visible').forEach((el) => el.classList.remove('is-visible'));
-});
 
 // Renderiza o grid de cards por etapa (clicáveis: mesmo padrão pe-card[data-quick-filter]/
-// is-quick-active já usado em Processo Editorial/Arte-finalização e Envio — só o conteúdo
-// interno do card é próprio desta seção). Cada card também recebe o ícone "ⓘ" + tooltip
-// "Progresso de ... por avaliação" (barras por tipo de AV, mesmo modelo das demais tooltips do
-// painel) no canto superior direito — `grupos`/`dadosFiltrados` alimentam essa tooltip
-// (calcularProgressoEtapaPorTipoAv), sem afetar os números do próprio card.
+// is-quick-active já usado em Processo Editorial/Arte-finalização e Envio). Sem tooltip: o
+// clique no card abre o painel "Análise da etapa".
+// Ícones SVG inline das linhas de métrica dos cards de etapa (cor via currentColor)
+const ICONES_METRICA_RESUMO_ETAPA = (() => {
+  const svg = (conteudo) =>
+    `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${conteudo}</svg>`;
+  return {
+    total: svg('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/>'),
+    success: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    warning: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+    pending: svg('<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18" cy="12" r="1.2" fill="currentColor"/>'),
+    danger: svg('<path d="M12 3.5l9 16H3z"/><path d="M12 10v4"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/>')
+  };
+})();
+
 function renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados) {
   resumoProducaoEtapasGrid.innerHTML = '';
 
@@ -12451,64 +12452,50 @@ function renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados) {
     card.classList.toggle('is-quick-active', ativo);
     card.setAttribute('aria-pressed', String(ativo));
 
-    // Tooltip "Progresso de ... por avaliação": sem ícone "i" visível no card (removido a
-    // pedido) — continua aberta por hover/focus no próprio card, via
-    // .stage-card:hover/.stage-card:focus-within .stage-tooltip (CSS já existente).
-    const tooltip = document.createElement('div');
-    tooltip.className = 'stage-tooltip';
-    tooltip.id = `stageTooltip-${etapa.chave}`;
-    tooltip.setAttribute('role', 'tooltip');
-
-    const tooltipTitulo = document.createElement('h4');
-    tooltipTitulo.className = 'coord-tooltip-title';
-    tooltipTitulo.textContent = etapa.tooltip.titulo;
-
-    const tooltipSubtitulo = document.createElement('p');
-    tooltipSubtitulo.className = 'coord-tooltip-subtitle';
-    tooltipSubtitulo.textContent = etapa.tooltip.subtitulo;
-
-    const tooltipChart = document.createElement('div');
-    tooltipChart.className = 'coord-tooltip-chart';
-    renderizarLinhasProgressoEtapaResumoProducao(
-      tooltipChart,
-      calcularProgressoEtapaPorTipoAv(etapa, grupos, dadosFiltrados)
-    );
-
-    tooltip.appendChild(tooltipTitulo);
-    tooltip.appendChild(tooltipSubtitulo);
-    tooltip.appendChild(tooltipChart);
+    card.classList.add('summary-stage-card');
 
     const header = document.createElement('div');
-    header.className = 'resumo-etapa-card-header';
+    header.className = 'summary-stage-card-header';
     const nome = document.createElement('span');
-    nome.className = 'resumo-etapa-card-nome';
+    nome.className = 'summary-stage-card-title';
     nome.textContent = etapa.nome;
     const progresso = document.createElement('span');
-    progresso.className = 'resumo-etapa-card-progresso';
+    progresso.className = 'summary-stage-card-percent';
     progresso.textContent = `${formatarPercentualComVirgula(etapa.progresso)}%`;
     header.appendChild(nome);
     header.appendChild(progresso);
 
     const track = document.createElement('div');
-    track.className = 'resumo-etapa-progress-track';
+    track.className = 'summary-stage-progress';
     const fill = document.createElement('div');
-    fill.className = 'resumo-etapa-progress-fill';
+    fill.className = 'summary-stage-progress-fill';
     fill.style.width = `${etapa.progresso}%`;
     track.appendChild(fill);
 
+    // 1 linha por métrica: ícone circular + rótulo + valor colorido (Atrasadas só nas etapas
+    // com regra de atraso — etapa.atrasadas !== null)
+    const metricas = [
+      { tipo: 'total', rotulo: 'Total', valor: etapa.total },
+      { tipo: 'success', rotulo: 'Concluídas', valor: etapa.concluidas },
+      { tipo: 'warning', rotulo: 'Em andamento', valor: etapa.andamento },
+      { tipo: 'pending', rotulo: etapa.rotuloPendentes || 'Pendentes', valor: etapa.pendentes },
+      ...(etapa.atrasadas !== null ? [{ tipo: 'danger', rotulo: 'Atrasadas', valor: etapa.atrasadas }] : [])
+    ];
     const stats = document.createElement('div');
-    stats.className = 'resumo-etapa-card-stats';
-    stats.innerHTML = `
-      <span>Total: <strong>${etapa.total}</strong></span>
-      <span class="resumo-stat--concluida">Concluídas: <strong>${etapa.concluidas}</strong></span>
-      <span class="resumo-stat--andamento">Em andamento: <strong>${etapa.andamento}</strong></span>
-      <span class="resumo-stat--pendente">Pendentes: <strong>${etapa.pendentes}</strong></span>
-    `;
+    stats.className = 'summary-stage-metrics';
+    stats.innerHTML = metricas
+      .map(
+        (m) => `<div class="summary-stage-metric">
+          <span class="summary-stage-metric-icon summary-stage-icon-${m.tipo}" aria-hidden="true">${ICONES_METRICA_RESUMO_ETAPA[m.tipo]}</span>
+          <span class="summary-stage-metric-label">${m.rotulo}</span>
+          <strong class="summary-stage-metric-value ${m.tipo}">${m.valor}</strong>
+        </div>`
+      )
+      .join('');
 
     card.appendChild(header);
     card.appendChild(track);
     card.appendChild(stats);
-    card.appendChild(tooltip);
 
     card.addEventListener('click', () => alternarEtapaResumoProducao(etapa.chave));
     card.addEventListener('keydown', (event) => {
@@ -12522,32 +12509,261 @@ function renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados) {
   });
 }
 
-// Renderiza a tabela "Detalhamento por etapa" — repete os mesmos dados dos cards em formato direto
-function renderizarTabelaEtapasResumoProducao(etapas) {
-  resumoProducaoTabelaEtapasBody.innerHTML = '';
-  const fragment = document.createDocumentFragment();
 
-  etapas.forEach((etapa) => {
-    const tr = document.createElement('tr');
+// ---------------------------------------------------------------------------------------------
+// Painel "Análise da etapa" (clique num card de etapa): mesmos itens da tabela "Detalhamento da
+// etapa" (obterItensEtapaResumoProducao — bloco ou linha a linha conforme a etapa), já com os
+// filtros da seção aplicados.
+// ---------------------------------------------------------------------------------------------
 
-    const tdNome = document.createElement('td');
-    tdNome.textContent = etapa.nome;
-    tr.appendChild(tdNome);
+// Título dinâmico do gráfico por tipo de avaliação, conforme a etapa
+const TITULO_AVALIACAO_ANALISE_ETAPA = {
+  elaboracao: 'Entregas por avaliação',
+  primeira_validacao: 'Validações por avaliação',
+  processo_editorial: 'Avaliações por tipo',
+  assinatura_coordenador: 'Assinaturas por avaliação',
+  arte_finalizacao_envio: 'Envios por avaliação'
+};
 
-    [etapa.total, etapa.concluidas, etapa.andamento, etapa.pendentes].forEach((valor) => {
-      const td = document.createElement('td');
-      td.textContent = valor;
-      tr.appendChild(td);
+// Título dinâmico do gráfico por ano/série, conforme a etapa
+const TITULO_ANO_ANALISE_ETAPA = {
+  elaboracao: 'Entregas por ano/série',
+  primeira_validacao: 'Validações por ano/série',
+  processo_editorial: 'Avaliações por ano/série',
+  assinatura_coordenador: 'Assinaturas por ano/série',
+  arte_finalizacao_envio: 'Envios por ano/série'
+};
+
+// Avanço por categoria: para cada chave, total de itens, concluídos (status da etapa =
+// "Concluída", mesmo status do painel) e percentual. ordem = chaves fixas na ordem pedida;
+// incluirZeros mantém as chaves fixas sem dados (total 0 → 0%)
+function calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, chaveDoItem, ordem = [], incluirZeros = false) {
+  const mapa = new Map();
+  if (incluirZeros) ordem.forEach((chave) => mapa.set(chave, { total: 0, concluidas: 0 }));
+  itens.forEach((item) => {
+    // chaveDoItem pode devolver várias chaves (ex.: disciplinas de um bloco): o item conta 1
+    // vez em cada chave distinta, com o status do próprio item
+    const concluido = classificarItemAnaliseEtapa(etapa, item) === 'completed';
+    new Set([].concat(chaveDoItem(item)).map((c) => c || 'Não informado')).forEach((chave) => {
+      if (!mapa.has(chave)) mapa.set(chave, { total: 0, concluidas: 0 });
+      const linha = mapa.get(chave);
+      linha.total += 1;
+      if (concluido) linha.concluidas += 1;
     });
-
-    const tdProgresso = document.createElement('td');
-    tdProgresso.textContent = `${formatarPercentualComVirgula(etapa.progresso)}%`;
-    tr.appendChild(tdProgresso);
-
-    fragment.appendChild(tr);
   });
+  const fixos = ordem.filter((chave) => mapa.has(chave));
+  const extras = [...mapa.keys()]
+    .filter((chave) => !ordem.includes(chave))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+  return [...fixos, ...extras].map((chave) => {
+    const { total, concluidas } = mapa.get(chave);
+    return { rotulo: chave, total, concluidas, percentual: total > 0 ? (concluidas / total) * 100 : 0 };
+  });
+}
 
-  resumoProducaoTabelaEtapasBody.appendChild(fragment);
+// Barras de progresso horizontais: rótulo | trilha cinza com preenchimento = % concluído |
+// "concluídas de total — %"
+function htmlBarrasAvancoAnaliseEtapa(linhas, classeExtra = '') {
+  if (!linhas.some((l) => l.total > 0)) return htmlVazioAnaliseEtapa();
+  return `<div class="stage-chart-progress ${classeExtra}">${linhas
+    .map(
+      (l) => `<div class="stage-chart-progress-row" title="${escaparTextoSvg(l.rotulo)}: ${l.concluidas} de ${l.total} concluídas">
+        <span class="stage-chart-progress-label">${escaparTextoSvg(l.rotulo)}</span>
+        <div class="stage-chart-progress-track"><div class="stage-chart-progress-fill" style="width:${l.percentual}%"></div></div>
+        <span class="stage-chart-progress-valor"><strong>${l.concluidas}</strong> de ${l.total} — <strong>${formatarPercentualComVirgula(l.percentual)}%</strong></span>
+      </div>`
+    )
+    .join('')}</div>`;
+}
+
+const CORES_STATUS_ANALISE_ETAPA = {
+  completed: '#16a34a',
+  'in-progress': '#ea580c',
+  pending: '#94a3b8',
+  late: '#dc2626'
+};
+
+// Status de um item para o gráfico "Distribuição por status" — categorias sem sobreposição:
+// Elaboração usa a partição própria (etapa.classificar); nas etapas com regra de atraso
+// (etapa.atrasada), um item atrasado sai de "Em andamento"/"Pendentes" e entra em "Atrasadas"
+function classificarItemAnaliseEtapa(etapa, item) {
+  if (etapa.classificar) return etapa.classificar(item.registros[0]);
+  const status = calcularStatusEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim);
+  if (status !== 'completed' && etapa.atrasada && item.registros.some(etapa.atrasada)) return 'late';
+  return status;
+}
+
+// Conta valores em ordem fixa (ordemPreferida primeiro, depois os demais em ordem alfabética)
+// incluirZeros = true mantém todas as chaves de ordemPreferida, mesmo sem dados (valor 0)
+function contarPorChaveAnaliseEtapa(valores, ordemPreferida = [], incluirZeros = false) {
+  const contagem = new Map();
+  valores.forEach((valor) => {
+    const chave = valor || 'Não informado';
+    contagem.set(chave, (contagem.get(chave) || 0) + 1);
+  });
+  if (incluirZeros) ordemPreferida.forEach((chave) => contagem.set(chave, contagem.get(chave) || 0));
+  const fixos = ordemPreferida.filter((chave) => contagem.has(chave));
+  const extras = [...contagem.keys()]
+    .filter((chave) => !ordemPreferida.includes(chave))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+  return [...fixos, ...extras].map((chave) => ({ rotulo: chave, qtd: contagem.get(chave) }));
+}
+
+function htmlVazioAnaliseEtapa() {
+  return '<p class="stage-chart-empty">Sem dados para exibir</p>';
+}
+
+function htmlDonutAnaliseEtapa(fatias) {
+  const total = fatias.reduce((soma, f) => soma + f.qtd, 0);
+  if (!total) return htmlVazioAnaliseEtapa();
+  const r = 40;
+  const circ = 2 * Math.PI * r;
+  let deslocamento = 0;
+  const arcos = fatias
+    .filter((f) => f.qtd > 0)
+    .map((f) => {
+      const tamanho = (f.qtd / total) * circ;
+      const arco = `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${f.cor}" stroke-width="16"
+        stroke-dasharray="${tamanho.toFixed(2)} ${(circ - tamanho).toFixed(2)}"
+        stroke-dashoffset="${(-deslocamento).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
+      deslocamento += tamanho;
+      return arco;
+    })
+    .join('');
+  const legenda = fatias
+    .map(
+      (f) => `<li><span class="stage-chart-swatch" style="background:${f.cor}"></span>${escaparTextoSvg(f.rotulo)}
+        <strong>${f.qtd}</strong> <small>(${formatarPercentualComVirgula((f.qtd / total) * 100)}%)</small></li>`
+    )
+    .join('');
+  return `<div class="stage-chart-donut">
+    <div class="stage-chart-donut-svg">
+      <svg viewBox="0 0 100 100" width="150" height="150" role="img" aria-label="Distribuição por status">
+        <circle cx="50" cy="50" r="${r}" fill="none" stroke="#e8eef5" stroke-width="16"/>${arcos}
+      </svg>
+      <span class="stage-chart-donut-total"><strong>${total}</strong><small>itens</small></span>
+    </div>
+    <ul class="stage-chart-legend">${legenda}</ul>
+  </div>`;
+}
+
+function htmlBarrasHorizontaisAnaliseEtapa(linhas, cor = '#0b315f', classeExtra = '') {
+  if (!linhas.length) return htmlVazioAnaliseEtapa();
+  const maximo = Math.max(...linhas.map((l) => l.qtd));
+  return `<div class="stage-chart-hbars ${classeExtra}">${linhas
+    .map(
+      (l) => `<div class="stage-chart-hbar">
+        <span class="stage-chart-hbar-label" title="${escaparTextoSvg(l.rotulo)}">${escaparTextoSvg(l.rotulo)}</span>
+        <div class="stage-chart-hbar-track"><div class="stage-chart-hbar-fill" style="width:${(l.qtd / maximo) * 100}%;background:${cor}"></div></div>
+        <strong class="stage-chart-hbar-valor">${l.qtd}</strong>
+      </div>`
+    )
+    .join('')}</div>`;
+}
+
+// Disciplina do gráfico "Progresso por disciplina": tira a numeração final e unifica as
+// variações de Educação Física ("EDUCACAO FISICA", "EDUCAÇÃOFÍSICA", "ED. FÍSICA", "ED FISICA"…)
+function normalizarDisciplinaProgressoAnaliseEtapa(frente) {
+  const disciplina = removerNumeracaoFinalDisciplina(frente);
+  const chave = removerAcentos(disciplina).toUpperCase().replace(/[^A-Z]/g, '');
+  // "ED" + qualquer abreviação + "FISICA" (EDFISICA, EDUCFISICA, EDUCACAOFISICA…); "FÍSICA" sozinha não entra
+  if (/^ED[A-Z]*FISICA$/.test(chave)) return 'EDUCAÇÃO FÍSICA';
+  return disciplina;
+}
+
+function renderizarAnaliseEtapaResumoProducao(etapa, resumoEtapa, itens) {
+  resumoProducaoAnaliseEtapa.hidden = false;
+  document.getElementById('resumoProducaoAnaliseEtapaTitulo').textContent = `Análise da etapa: ${etapa.nome}`;
+
+  // Indicadores: os mesmos números do card da etapa (calcularResumoEtapasProducao)
+  const rotuloPendentes = etapa.rotuloPendentes || 'Pendentes';
+  const kpis = [
+    { rotulo: 'Total', valor: resumoEtapa ? resumoEtapa.total : itens.length, tipo: 'total' },
+    { rotulo: 'Concluídas', valor: resumoEtapa ? resumoEtapa.concluidas : '-', tipo: 'success' },
+    { rotulo: 'Em andamento', valor: resumoEtapa ? resumoEtapa.andamento : '-', tipo: 'warning' },
+    { rotulo: rotuloPendentes, valor: resumoEtapa ? resumoEtapa.pendentes : '-', tipo: 'pending' },
+    { rotulo: 'Atrasadas', valor: resumoEtapa && resumoEtapa.atrasadas !== null ? resumoEtapa.atrasadas : '-', tipo: 'danger' }
+  ];
+  document.getElementById('resumoProducaoAnaliseEtapaKpis').innerHTML = kpis
+    .map(
+      (k) => `<div class="stage-analysis-kpi stage-analysis-kpi--${k.tipo}">
+        <span class="stage-analysis-kpi-label">${k.rotulo}</span>
+        <strong class="stage-analysis-kpi-valor">${k.valor}</strong>
+      </div>`
+    )
+    .join('');
+
+  // 1) Distribuição por status (categorias sem sobreposição — ver classificarItemAnaliseEtapa)
+  const porStatus = { completed: 0, 'in-progress': 0, pending: 0, late: 0 };
+  itens.forEach((item) => {
+    porStatus[classificarItemAnaliseEtapa(etapa, item)] += 1;
+  });
+  const fatias = [
+    { rotulo: 'Concluídas', qtd: porStatus.completed, cor: CORES_STATUS_ANALISE_ETAPA.completed },
+    { rotulo: 'Em andamento', qtd: porStatus['in-progress'], cor: CORES_STATUS_ANALISE_ETAPA['in-progress'] },
+    { rotulo: rotuloPendentes, qtd: porStatus.pending, cor: CORES_STATUS_ANALISE_ETAPA.pending },
+    ...(etapa.atrasada ? [{ rotulo: 'Atrasadas', qtd: porStatus.late, cor: CORES_STATUS_ANALISE_ETAPA.late }] : [])
+  ];
+
+  // 2) Módulo, 3) Avaliação, 4) Ano/Série — 1 contagem por item
+  const porModulo = contarPorChaveAnaliseEtapa(itens.map((i) => safe(i.modulo)), ['M1', 'M2', 'M3', 'M4']);
+  // Avanço (concluídas de total) por avaliação e por ano/série. Avaliação: sempre as 5 fixas
+  // (com 0 quando não houver dados) — "2ºCHAM"/"2CHAM"/... já chegam como "2º CHAMADA" via
+  // normalizarTipoAvPerformance
+  const porAvaliacao = calcularAvancoPorCategoriaAnaliseEtapa(
+    etapa,
+    itens,
+    (i) => normalizarTipoAvPerformance(i.tipoAv),
+    ORDEM_TIPO_AV_PERFORMANCE,
+    true
+  );
+  const porAno = calcularAvancoPorCategoriaAnaliseEtapa(
+    etapa,
+    itens,
+    (i) => {
+      const numero = normalizarAnoSegmento(i.ano);
+      return numero === null ? safe(i.ano) : `${numero}º`;
+    },
+    ORDEM_ANO_ESCOLAR_COORD
+  );
+
+  // 5) Avanço por disciplina (sem numeração final + variações de Educação Física unificadas):
+  // um bloco que reúne várias disciplinas conta 1 vez em cada uma, com o status do bloco.
+  // Todas as disciplinas do recorte (sem limite), por total decrescente e depois nome.
+  const porDisciplina = calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, (i) =>
+    i.registros.map((r) => normalizarDisciplinaProgressoAnaliseEtapa(r.frente))
+  ).sort((a, b) => b.total - a.total || a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
+
+  const graficos = [
+    { titulo: 'Distribuição por status', html: htmlDonutAnaliseEtapa(fatias) },
+    { titulo: 'Quantidade por módulo', html: htmlBarrasHorizontaisAnaliseEtapa(porModulo, '#0b315f') },
+    {
+      titulo: TITULO_AVALIACAO_ANALISE_ETAPA[etapa.chave] || 'Quantidade por avaliação',
+      subtitulo: 'Concluídas de total — % concluído',
+      html: htmlBarrasAvancoAnaliseEtapa(porAvaliacao)
+    },
+    {
+      titulo: TITULO_ANO_ANALISE_ETAPA[etapa.chave] || 'Distribuição por ano/série',
+      subtitulo: 'Concluídas de total — % concluído',
+      html: htmlBarrasAvancoAnaliseEtapa(porAno)
+    },
+    {
+      titulo: 'Progresso por disciplina',
+      subtitulo: 'Concluídas de total — % concluído',
+      html: htmlBarrasAvancoAnaliseEtapa(porDisciplina, 'stage-chart-progress--disciplina'),
+      largo: true
+    }
+  ];
+
+  document.getElementById('resumoProducaoAnaliseEtapaGraficos').innerHTML = graficos
+    .map(
+      (g) => `<div class="stage-chart-card${g.largo ? ' stage-chart-card--largo' : ''}">
+        <h3 class="stage-chart-title">${g.titulo}</h3>
+        ${g.subtitulo ? `<p class="stage-chart-subtitle">${g.subtitulo}</p>` : ''}
+        ${g.html}
+      </div>`
+    )
+    .join('');
 }
 
 // Mostra/esconde o chip "Filtro ativo: <etapa> ×" e a tabela "Detalhamento da etapa" conforme a
@@ -12557,9 +12773,10 @@ function renderizarTabelaEtapasResumoProducao(etapas) {
 // "Status" do cabeçalho (.stage-detail-header) aparece nas 5 etapas; quando um status específico
 // está selecionado, restringe só esta tabela — não afeta os cards, a tabela "Detalhamento por
 // etapa" nem os demais filtros da seção.
-function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados) {
+function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados, etapasCalculadas = []) {
   if (!etapaSelecionadaResumoProducao) {
     resumoProducaoEtapaChipWrapper.hidden = true;
+    resumoProducaoAnaliseEtapa.hidden = true;
     resumoProducaoDetalheEtapaCard.hidden = true;
     resumoProducaoDetalheEtapaBody.innerHTML = '';
     return;
@@ -12571,7 +12788,16 @@ function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados) {
   resumoProducaoEtapaChipWrapper.hidden = false;
   resumoProducaoEtapaChipTexto.textContent = `Filtro ativo: ${etapa.nome}`;
 
-  resumoProducaoDetalheEtapaCard.hidden = false;
+  // Conteúdo principal: painel analítico (gráficos). A tabela abaixo só aparece em "Ver detalhes".
+  renderizarAnaliseEtapaResumoProducao(
+    etapa,
+    etapasCalculadas.find((e) => e.chave === etapa.chave),
+    obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados)
+  );
+
+  resumoProducaoDetalheEtapaCard.hidden = !detalhesEtapaResumoVisiveis;
+  btnVerDetalhesEtapaResumo.textContent = detalhesEtapaResumoVisiveis ? 'Ocultar detalhes' : 'Ver detalhes';
+  btnVerDetalhesEtapaResumo.setAttribute('aria-expanded', String(detalhesEtapaResumoVisiveis));
   resumoProducaoDetalheEtapaTitulo.textContent = `Detalhamento da etapa — ${etapa.nome}`;
   filterResumoDetalheEtapaStatus.value = filtroStatusDetalheEtapaResumoProducao;
 
@@ -12642,18 +12868,14 @@ function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados) {
 // selecionada, a tabela de detalhamento por avaliação daquela etapa.
 function renderizarResumoProducao() {
   popularFiltrosResumoProducao(filteredRecords);
+  atualizarIndicadorFiltrosResumoProducao();
 
   const dadosFiltrados = aplicarFiltrosResumoProducao(filteredRecords);
-
-  // Cards M3/M4: mesmos filtros da seção, exceto Módulo, com a mesma consolidação por bloco
-  const cardsSemModulo = calcularCardsResumoProducao(
-    agruparTodosOsRegistrosProcessoEditorial(aplicarFiltrosResumoProducao(filteredRecords, true))
-  );
 
   if (dadosFiltrados.length === 0) {
     resumoProducaoEmptyMessage.hidden = false;
     resumoProducaoConteudo.hidden = true;
-    renderizarCardsResumoProducao({ total: 0, m3: cardsSemModulo.m3, m4: cardsSemModulo.m4 });
+    renderizarCardsResumoProducao({ total: 0 });
     return;
   }
   resumoProducaoEmptyMessage.hidden = true;
@@ -12663,16 +12885,12 @@ function renderizarResumoProducao() {
   // pelas etapas com etapa.usaBloco = true (Processo Editorial/Arte-finalização e Envio)
   const grupos = agruparTodosOsRegistrosProcessoEditorial(dadosFiltrados);
 
-  renderizarCardsResumoProducao({
-    total: calcularCardsResumoProducao(grupos).total,
-    m3: cardsSemModulo.m3,
-    m4: cardsSemModulo.m4,
-  });
+  renderizarCardsResumoProducao({ total: calcularCardsResumoProducao(grupos).total });
+  renderizarGraficoResumoModulos(grupos, dadosFiltrados);
 
   const etapas = calcularResumoEtapasProducao(grupos, dadosFiltrados);
   renderizarEtapasResumoProducao(etapas, grupos, dadosFiltrados);
-  renderizarTabelaEtapasResumoProducao(etapas);
-  renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados);
+  renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados, etapas);
 }
 
 filterResumoAnoAplicacao.addEventListener('change', () => {
@@ -12698,6 +12916,73 @@ filterResumoSegmento.addEventListener('change', () => {
 filterResumoBusca.addEventListener('input', () => {
   filtrosResumoProducao.busca = filterResumoBusca.value;
   renderizarResumoProducao();
+});
+
+// --- Popover "Filtros avançados" do Resumo da Produção (mesmo padrão dos demais popovers do
+// cabeçalho). Os campos aplicam na hora (mesmos listeners acima); "Aplicar filtros" só fecha.
+function atualizarIndicadorFiltrosResumoProducao() {
+  const totalAtivos = ['tipoAv', 'anoSerie', 'segmento', 'busca'].filter(
+    (chave) => safe(filtrosResumoProducao[chave]) !== ''
+  ).length;
+  resumoFilterBadge.hidden = totalAtivos === 0;
+  resumoFilterBadge.textContent = totalAtivos;
+  btnAbrirFiltrosResumo.classList.toggle('has-active-filters', totalAtivos > 0);
+}
+
+function abrirPopoverFiltrosResumoProducao() {
+  resumoFiltersPopover.hidden = false;
+  btnAbrirFiltrosResumo.classList.add('is-active');
+  btnAbrirFiltrosResumo.setAttribute('aria-expanded', 'true');
+  btnAbrirFiltrosResumo.querySelector('.filter-header-btn-icon').src = btnAbrirFiltrosResumo.dataset.iconAtivo;
+}
+
+function fecharPopoverFiltrosResumoProducao() {
+  resumoFiltersPopover.hidden = true;
+  btnAbrirFiltrosResumo.classList.remove('is-active');
+  btnAbrirFiltrosResumo.setAttribute('aria-expanded', 'false');
+  btnAbrirFiltrosResumo.querySelector('.filter-header-btn-icon').src = btnAbrirFiltrosResumo.dataset.iconNormal;
+}
+
+// Limpa Tipo de AV/Ano-Série/Segmento/Busca e também Ano/Módulo do cabeçalho
+function limparFiltrosResumoProducao() {
+  [filterResumoAnoAplicacao, filterResumoModulo, filterResumoTipoAv, filterResumoAnoSerie, filterResumoSegmento].forEach(
+    (select) => (select.value = '')
+  );
+  filterResumoBusca.value = '';
+  filtrosResumoProducao = { anoAplicacao: '', modulo: '', tipoAv: '', anoSerie: '', segmento: '', busca: '' };
+  renderizarResumoProducao();
+}
+
+btnAbrirFiltrosResumo.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (resumoFiltersPopover.hidden) abrirPopoverFiltrosResumoProducao();
+  else fecharPopoverFiltrosResumoProducao();
+});
+document.getElementById('btnFecharFiltrosResumo').addEventListener('click', fecharPopoverFiltrosResumoProducao);
+document.getElementById('btnFecharFiltrosResumoRodape').addEventListener('click', fecharPopoverFiltrosResumoProducao);
+document.getElementById('btnAplicarFiltrosResumo').addEventListener('click', fecharPopoverFiltrosResumoProducao);
+document.getElementById('btnLimparFiltrosResumo').addEventListener('click', limparFiltrosResumoProducao);
+document.addEventListener('click', (event) => {
+  if (!resumoFiltersPopover.hidden && !resumoFilterPopoverWrapper.contains(event.target)) {
+    fecharPopoverFiltrosResumoProducao();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !resumoFiltersPopover.hidden) fecharPopoverFiltrosResumoProducao();
+});
+// Mesmo fallback de ícone dos demais botões de filtro
+btnAbrirFiltrosResumo.querySelector('.filter-header-btn-icon').addEventListener('error', (event) => {
+  if (event.target.src !== btnAbrirFiltrosResumo.dataset.iconNormal) {
+    event.target.src = btnAbrirFiltrosResumo.dataset.iconNormal;
+  }
+});
+// "Ver detalhes" / "Ocultar detalhes": mostra a tabela "Detalhamento da etapa" abaixo do painel
+btnVerDetalhesEtapaResumo.addEventListener('click', () => {
+  detalhesEtapaResumoVisiveis = !detalhesEtapaResumoVisiveis;
+  renderizarResumoProducao();
+  if (detalhesEtapaResumoVisiveis) {
+    resumoProducaoDetalheEtapaCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
 btnFecharEtapaChipResumoProducao.addEventListener('click', () => {
   etapaSelecionadaResumoProducao = null;
@@ -13207,34 +13492,77 @@ function populateRelatorioAvaliacaoOptions(selectEl, dados) {
   }
 }
 
+// Opções [{ value, label }] com os valores únicos (brutos) de um campo, em ordem alfabética
+function opcoesUnicasRelatorioElaborador(dados, campo) {
+  return Array.from(new Set(dados.map((r) => safe(r[campo])).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+    .map((valor) => ({ value: valor, label: valor }));
+}
+
+// Opções de "Avaliação" na ordem fixa AV1 → AV2 → 2º CHAM → REC-SEM → REC-FIM (mesma ordem/
+// rótulos de populateRelatorioAvaliacaoOptions)
+function opcoesAvaliacaoRelatorioElaborador(dados) {
+  const rotulos = { AV1: 'AV1', AV2: 'AV2', '2º CHAMADA': '2º CHAM', 'REC-SEM': 'REC-SEM', 'REC-FIM': 'REC-FIM' };
+  const posicao = (valor) => {
+    const pos = ORDEM_TIPO_AV_PERFORMANCE.indexOf(normalizarTipoAvPerformance(valor));
+    return pos === -1 ? ORDEM_TIPO_AV_PERFORMANCE.length : pos;
+  };
+  return Array.from(new Set(dados.map((r) => safe(r.tipo_av)).filter(Boolean)))
+    .sort((a, b) => posicao(a) - posicao(b))
+    .map((valor) => ({ value: valor, label: rotulos[normalizarTipoAvPerformance(valor)] || valor }));
+}
+
+// Popula os filtros multisseleção do modal, preservando o que já estava marcado (só os valores
+// que continuam existindo no recorte atual)
 function populateRelatorioElaboradorFiltros(dados) {
-  populateSelectOptions(relatorioElaboradorFiltros.elaborador, dados, 'elaborador', 'Todos');
-  populateSelectOptions(relatorioElaboradorFiltros.coordenador, dados, 'coordenador', 'Todos');
-  populateSelectOptions(relatorioElaboradorFiltros.modulo, dados, 'modulo', 'Todos');
-  populateSelectOptions(relatorioElaboradorFiltros.disciplina, dados, 'frente', 'Todas');
-  populateRelatorioAvaliacaoOptions(relatorioElaboradorFiltros.avaliacao, dados);
+  const opcoesPorFiltro = {
+    elaborador: opcoesUnicasRelatorioElaborador(dados, 'elaborador'),
+    coordenador: opcoesUnicasRelatorioElaborador(dados, 'coordenador'),
+    segmento: [
+      { value: 'Fundamental II', label: 'Fundamental II' },
+      { value: 'Ensino Médio', label: 'Ensino Médio' }
+    ],
+    disciplina: opcoesUnicasRelatorioElaborador(dados, 'frente'),
+    modulo: opcoesUnicasRelatorioElaborador(dados, 'modulo'),
+    avaliacao: opcoesAvaliacaoRelatorioElaborador(dados)
+  };
+
+  Object.entries(opcoesPorFiltro).forEach(([chave, opcoes]) => {
+    const container = relatorioElaboradorFiltros[chave];
+    const valoresValidos = opcoes.map((opcao) => opcao.value);
+    const selecionados = lerGrupoCheckbox(container).filter((valor) => valoresValidos.includes(valor));
+    renderizarGrupoCheckbox(container, opcoes, selecionados);
+  });
 }
 
 // Aplica os filtros próprios do relatório (Elaborador/Coordenador/Segmento/Disciplina/Módulo/
-// Avaliação) sobre indicadoresDadosBase — Disciplina compara pelo valor bruto da coluna `frente`
-// (sem normalizarNomeDisciplina) e Segmento compara pela classificação derivada do `ano`
+// Avaliação) sobre indicadoresDadosBase — OU dentro de cada campo, E entre campos; campo sem
+// nada marcado = Todos (passaFiltroMultiplo). Disciplina compara pelo valor bruto de `frente`
+// e Segmento pela classificação derivada do `ano`
 function aplicarFiltrosRelatorioElaborador(dados) {
-  const elaborador = relatorioElaboradorFiltros.elaborador.value;
-  const coordenador = relatorioElaboradorFiltros.coordenador.value;
-  const segmento = relatorioElaboradorFiltros.segmento.value;
-  const disciplina = relatorioElaboradorFiltros.disciplina.value;
-  const modulo = relatorioElaboradorFiltros.modulo.value;
-  const avaliacao = relatorioElaboradorFiltros.avaliacao.value;
+  const selecionados = Object.fromEntries(
+    Object.entries(relatorioElaboradorFiltros).map(([chave, container]) => [chave, lerGrupoCheckbox(container)])
+  );
 
   return dados.filter((record) => {
-    if (elaborador && safe(record.elaborador) !== elaborador) return false;
-    if (coordenador && safe(record.coordenador) !== coordenador) return false;
-    if (segmento && classificarSegmentoRelatorioElaborador(record.ano) !== segmento) return false;
-    if (disciplina && safe(record.frente) !== disciplina) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
-    if (avaliacao && safe(record.tipo_av) !== avaliacao) return false;
+    if (!passaFiltroMultiplo(safe(record.elaborador), selecionados.elaborador)) return false;
+    if (!passaFiltroMultiplo(safe(record.coordenador), selecionados.coordenador)) return false;
+    if (!passaFiltroMultiplo(classificarSegmentoRelatorioElaborador(record.ano), selecionados.segmento)) return false;
+    if (!passaFiltroMultiplo(safe(record.frente), selecionados.disciplina)) return false;
+    if (!passaFiltroMultiplo(safe(record.modulo), selecionados.modulo)) return false;
+    if (!passaFiltroMultiplo(safe(record.tipo_av), selecionados.avaliacao)) return false;
     return true;
   });
+}
+
+// Texto do filtro no cabeçalho do relatório: "Todos"/"Todas", o rótulo único, ou a lista dos
+// rótulos selecionados separados por vírgula
+function textoFiltroRelatorioElaborador(container, textoTodos) {
+  const rotulos = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map((input) => {
+    const item = input.closest('.elab-filter-checkbox-item');
+    return item ? item.querySelector('span').textContent : input.value;
+  });
+  return rotulos.length ? rotulos.join(', ') : textoTodos;
 }
 
 function abrirModalRelatorioElaborador() {
@@ -13385,20 +13713,17 @@ function gerarRelatorioElaborador() {
   const resumo = calcularResumoAtrasos(dadosFiltrados);
 
   document.getElementById('relatorioMetaElaborador').textContent =
-    relatorioElaboradorFiltros.elaborador.value || 'Todos';
+    textoFiltroRelatorioElaborador(relatorioElaboradorFiltros.elaborador, 'Todos');
   document.getElementById('relatorioMetaCoordenador').textContent =
-    relatorioElaboradorFiltros.coordenador.value || 'Todos';
+    textoFiltroRelatorioElaborador(relatorioElaboradorFiltros.coordenador, 'Todos');
   document.getElementById('relatorioMetaSegmento').textContent =
-    relatorioElaboradorFiltros.segmento.value || 'Todos';
+    textoFiltroRelatorioElaborador(relatorioElaboradorFiltros.segmento, 'Todos');
   document.getElementById('relatorioMetaDisciplina').textContent =
-    relatorioElaboradorFiltros.disciplina.value || 'Todas';
+    textoFiltroRelatorioElaborador(relatorioElaboradorFiltros.disciplina, 'Todas');
   document.getElementById('relatorioMetaModulo').textContent =
-    relatorioElaboradorFiltros.modulo.value || 'Todos';
-
-  const selectAvaliacao = relatorioElaboradorFiltros.avaliacao;
-  document.getElementById('relatorioMetaAvaliacao').textContent = selectAvaliacao.value
-    ? selectAvaliacao.options[selectAvaliacao.selectedIndex].textContent
-    : 'Todas';
+    textoFiltroRelatorioElaborador(relatorioElaboradorFiltros.modulo, 'Todos');
+  document.getElementById('relatorioMetaAvaliacao').textContent =
+    textoFiltroRelatorioElaborador(relatorioElaboradorFiltros.avaliacao, 'Todas');
   document.getElementById('relatorioMetaData').textContent = formatarDataHoraAtual();
 
   document.getElementById('relatorioResumoEntreguesPrazo').textContent =
@@ -13700,6 +14025,147 @@ const RELATORIO_ELABORADOR_PRINT_CSS = `
     color: #15803d;
   }
 
+  .badge-pendente-atrasada {
+    background-color: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .report-section.report-section--compacto {
+    margin-top: 4px;
+  }
+
+  .report-section--compacto .report-section-title {
+    margin-bottom: 6px;
+  }
+
+  .report-charts-section {
+    margin-top: 14px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Detalhamento por coordenador sempre começa na 2ª página (a 1ª fica com tabela + gráficos) */
+  .report-coord-detail-section {
+    margin-top: 0;
+    page-break-before: always;
+    break-before: page;
+  }
+
+  .report-coord-block {
+    margin-top: 8px;
+    border: 1px solid #d7dfeb;
+    border-left: 4px solid #0b315f;
+    border-radius: 8px;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-coord-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #e8eef7;
+    page-break-after: avoid;
+    break-after: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-coord-block-name {
+    color: #0b315f;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .report-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .report-chart-card {
+    border: 1px solid #d7dfeb;
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-chart-title {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #123a6d;
+  }
+
+  .report-chart-pie {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .report-chart-pie svg {
+    width: 140px;
+    height: 140px;
+  }
+
+  .report-chart-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  .report-chart-swatch {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    margin-right: 5px;
+    vertical-align: middle;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-chart-body svg {
+    max-width: 100%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-total-row td {
+    background: #e8eef7;
+    color: #0b315f;
+    font-weight: 800;
+    border-top: 2px solid #0b315f;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-title-wrap {
+    flex: 1;
+    text-align: center;
+  }
+
+  .report-title-wrap .report-section-subtitle {
+    margin: 2px 0 0;
+  }
+
+  .report-title-wrap .report-generated-at {
+    font-weight: 800;
+    color: #c1121f;
+  }
+
   .text-left {
     text-align: left !important;
   }
@@ -13777,8 +14243,9 @@ btnImprimirRelatorioElaborador.addEventListener('click', imprimirRelatorioElabor
 
 // Se a prévia já estiver visível e o usuário trocar um filtro, atualiza a prévia na hora; se
 // ainda não gerou nada, só espera o clique em "Gerar relatório"
-Object.values(relatorioElaboradorFiltros).forEach((select) => {
-  select.addEventListener('change', () => {
+// (o evento "change" dos checkboxes sobe até o container do grupo)
+Object.values(relatorioElaboradorFiltros).forEach((container) => {
+  container.addEventListener('change', () => {
     if (!relatorioElaboradorPreview.hidden) {
       gerarRelatorioElaborador();
     }
@@ -14009,6 +14476,564 @@ Object.values(relatorioCoordenadorFiltros).forEach((select) => {
     if (!relatorioCoordenadorPreview.hidden) gerarRelatorioCoordenador();
   });
 });
+
+// ======================================================================
+// Relatório de pendentes atrasadas por elaborador (Elaboração — card "Pendentes atrasadas"): mesma base
+// (obterRegistrosFiltradosElaborador, com os filtros ativos da aba) e mesma regra do card
+// (devolutiva vazia + prazo preenchido e vencido). Dias de atraso = hoje - prazo
+// (diferencaParaPrazo, a mesma da coluna "Dias" da tabela principal).
+// ======================================================================
+
+const relatorioPendentesModalBackdrop = document.getElementById('relatorioPendentesModalBackdrop');
+const relatorioPendentesPreview = document.getElementById('pendentes-report-print-area');
+const relatorioPendentesVazio = document.getElementById('relatorioPendentesVazio');
+const btnImprimirRelatorioPendentes = document.getElementById('btnImprimirRelatorioPendentes');
+const btnCopiarRelatorioPendentes = document.getElementById('btnCopiarRelatorioPendentes');
+let relatorioPendentesResumoTexto = '';
+
+function calcularRelatorioPendentesAtrasadas() {
+  const itens = obterRegistrosFiltradosElaborador()
+    .filter((r) => !safe(r.devolutiva_encomenda) && safe(r.prazo_encomenda) && isDateOverdue(r.prazo_encomenda))
+    .map((record) => ({ record, dias: diferencaParaPrazo(record) }))
+    .sort((a, b) => b.dias - a.dias || safe(a.record.elaborador).localeCompare(safe(b.record.elaborador), 'pt-BR'));
+
+  const total = itens.length;
+  const maiorAtraso = itens.reduce((maior, item) => Math.max(maior, item.dias), 0);
+  const mediaAtraso = total ? itens.reduce((soma, item) => soma + item.dias, 0) / total : 0;
+
+  const porElaborador = new Map();
+  itens.forEach(({ record }) => {
+    const nome = safe(record.elaborador) || 'Não informado';
+    porElaborador.set(nome, (porElaborador.get(nome) || 0) + 1);
+  });
+  const [liderNome, liderQtd] =
+    Array.from(porElaborador).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))[0] || [];
+
+  return { itens, total, maiorAtraso, mediaAtraso, liderNome, liderQtd };
+}
+
+// Disciplina sem a numeração final ("FÍSICA 1" → "FÍSICA")
+function removerNumeracaoFinalDisciplina(frente) {
+  return safe(frente).replace(/\s*\d+$/, '').trim();
+}
+
+function segmentoRelatorioPendentes(ano) {
+  const segmento = classificarSegmentoRelatorioElaborador(ano);
+  if (segmento === 'Ensino Médio') return 'Médio';
+  if (segmento === 'Fundamental II') return 'Fund II';
+  return '';
+}
+
+function formatarDiasSingularPlural(dias) {
+  return `${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+}
+
+// Agrupa as pendências atrasadas por módulo + responsável (campoPessoa: elaborador ou
+// coordenador) + disciplina tratada; o segmento não separa linhas — quando o grupo tem
+// registros dos dois segmentos, vira "Fund II/Médio"
+// unirMatematica (só no relatório do coordenador): MATEMÁTICA e MATEMÁTICA BÁSICA viram sempre
+// "MAT/MAT BÁS." antes do agrupamento (tabela e gráfico de barras usam esse rótulo)
+function consolidarRelatorioPendentes(itens, campoPessoa = 'elaborador', { unirMatematica = false } = {}) {
+  const grupos = new Map();
+  itens.forEach(({ record, dias }) => {
+    let disciplina = removerNumeracaoFinalDisciplina(record.frente);
+    if (unirMatematica && ['MATEMATICA', 'MATEMATICA BASICA'].includes(removerAcentos(disciplina).toUpperCase())) {
+      disciplina = 'MAT/MAT BÁS.';
+    }
+    // Ciências e Biologia caem no mesmo grupo; o rótulo só vira "CIÊNCIAS/BIOLOGIA" quando o
+    // grupo tiver as duas (ver disciplinas abaixo)
+    const ehCienciasBiologia = ['CIENCIAS', 'BIOLOGIA'].includes(removerAcentos(disciplina).toUpperCase());
+    const linha = {
+      modulo: safe(record.modulo),
+      pessoa: safe(record[campoPessoa]) || 'Não informado'
+    };
+    const chave = [linha.modulo, linha.pessoa, ehCienciasBiologia ? 'CIÊNCIAS/BIOLOGIA' : disciplina].join('|');
+    if (!grupos.has(chave)) {
+      grupos.set(chave, { ...linha, disciplinas: new Set(), segmentos: new Set(), total: 0, maior: 0, soma: 0 });
+    }
+    const grupo = grupos.get(chave);
+    grupo.disciplinas.add(disciplina);
+    const segmento = segmentoRelatorioPendentes(record.ano);
+    if (segmento) grupo.segmentos.add(segmento);
+    grupo.total += 1;
+    grupo.maior = Math.max(grupo.maior, dias);
+    grupo.soma += dias;
+  });
+
+  return Array.from(grupos.values())
+    .map(({ disciplinas, segmentos, ...grupo }) => ({
+      ...grupo,
+      disciplina: disciplinas.size > 1 ? 'CIÊNCIAS/BIOLOGIA' : [...disciplinas][0],
+      segmento: segmentos.size > 1 ? 'Fund II/Médio' :[...segmentos][0] || '',
+      media: grupo.soma / grupo.total
+    }))
+    .sort(
+      (a, b) =>
+        b.total - a.total ||
+        b.maior - a.maior ||
+        a.pessoa.localeCompare(b.pessoa, 'pt-BR')
+    );
+}
+
+const CORES_SEGMENTO_RELATORIO_PENDENTES = { 'Fund II': '#0b315f', Médio: '#3b82c4' };
+
+function escaparTextoSvg(texto) {
+  return String(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Pizza "Distribuição por segmento": conta cada avaliação atrasada pelo segmento do próprio
+// registro (assim as linhas "Fund II/Médio" são repartidas corretamente entre os dois)
+function svgPizzaSegmentoPendentes(itens, unidade = ['avaliação', 'avaliações']) {
+  const fatias = ['Fund II', 'Médio']
+    .map((segmento) => ({
+      segmento,
+      qtd: itens.filter(({ record }) => segmentoRelatorioPendentes(record.ano) === segmento).length
+    }))
+    .filter((f) => f.qtd > 0);
+  const total = fatias.reduce((soma, f) => soma + f.qtd, 0);
+  if (!total) return '<p class="report-chart-empty">Sem dados de segmento.</p>';
+
+  const cx = 90;
+  const cy = 90;
+  const r = 80;
+  let angulo = -Math.PI / 2;
+  const formas = fatias.map((f) => {
+    const cor = CORES_SEGMENTO_RELATORIO_PENDENTES[f.segmento];
+    if (f.qtd === total) return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${cor}"/>`;
+    const fim = angulo + (f.qtd / total) * Math.PI * 2;
+    const ponto = (a) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
+    const grande = fim - angulo > Math.PI ? 1 : 0;
+    const d = `M ${cx} ${cy} L ${ponto(angulo)} A ${r} ${r} 0 ${grande} 1 ${ponto(fim)} Z`;
+    angulo = fim;
+    return `<path d="${d}" fill="${cor}" stroke="#fff" stroke-width="2"/>`;
+  });
+
+  const legenda = fatias
+    .map((f) => {
+      const pct = formatarPercentualComVirgula((f.qtd / total) * 100);
+      return `<li><span class="report-chart-swatch" style="background:${CORES_SEGMENTO_RELATORIO_PENDENTES[f.segmento]}"></span>
+        <strong>${f.segmento}</strong>: ${f.qtd} ${f.qtd === 1 ? unidade[0] : unidade[1]} (${pct}%)</li>`;
+    })
+    .join('');
+
+  return `<div class="report-chart-pie">
+    <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Distribuição por segmento">${formas.join('')}</svg>
+    <ul class="report-chart-legend">${legenda}</ul>
+  </div>`;
+}
+
+// Barras "Disciplinas x quantidade": soma o total de avaliações atrasadas das linhas
+// consolidadas por disciplina, com o mesmo rótulo exibido na tabela
+// campo = propriedade da linha consolidada usada no eixo X ('disciplina' ou 'pessoa')
+function svgBarrasDisciplinasPendentes(linhas, campo = 'disciplina') {
+  const porDisciplina = new Map();
+  linhas.forEach((l) => {
+    const disciplina = l[campo] || 'Não informado';
+    porDisciplina.set(disciplina, (porDisciplina.get(disciplina) || 0) + l.total);
+  });
+  const barras = Array.from(porDisciplina, ([disciplina, qtd]) => ({ disciplina, qtd })).sort(
+    (a, b) => b.qtd - a.qtd || a.disciplina.localeCompare(b.disciplina, 'pt-BR')
+  );
+  if (!barras.length) return '<p class="report-chart-empty">Sem dados de disciplina.</p>';
+
+  const maximo = Math.max(...barras.map((b) => b.qtd));
+  const passo = 44;
+  const margemEsquerda = 80; // espaço para o rótulo inclinado da 1ª barra
+  const largura = Math.max(320, margemEsquerda + barras.length * passo + 10);
+  const topo = 18;
+  const alturaArea = 150;
+  const base = topo + alturaArea;
+  const altura = base + 90;
+
+  const elementos = barras.map((b, i) => {
+    const h = (b.qtd / maximo) * alturaArea;
+    const x = margemEsquerda + i * passo;
+    const centro = x + 14;
+    return `<rect x="${x}" y="${(base - h).toFixed(2)}" width="28" height="${h.toFixed(2)}" rx="3" fill="#0b315f"/>
+      <text x="${centro}" y="${(base - h - 4).toFixed(2)}" text-anchor="middle" font-size="11" font-weight="700" fill="#0b315f">${b.qtd}</text>
+      <text x="${centro}" y="${base + 12}" text-anchor="end" font-size="10" fill="#334155" transform="rotate(-40 ${centro} ${base + 12})">${escaparTextoSvg(b.disciplina)}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${largura} ${altura}" width="100%" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Disciplinas x quantidade de avaliações atrasadas">
+    <line x1="${margemEsquerda - 8}" y1="${base}" x2="${largura - 6}" y2="${base}" stroke="#cbd5e1"/>
+    ${elementos.join('')}
+  </svg>`;
+}
+
+// unidadePizza = [singular, plural] da legenda da pizza ("entregas" no relatório do elaborador)
+function renderizarGraficosRelatorioPendentes(
+  itens,
+  linhas,
+  idPizza = 'relPendGraficoSegmento',
+  idBarras = 'relPendGraficoDisciplinas',
+  unidadePizza = ['avaliação', 'avaliações'],
+  campoBarras = 'disciplina'
+) {
+  document.getElementById(idPizza).innerHTML = svgPizzaSegmentoPendentes(itens, unidadePizza);
+  document.getElementById(idBarras).innerHTML = svgBarrasDisciplinasPendentes(linhas, campoBarras);
+}
+
+function formatarMediaDiasConsolidada(media) {
+  const texto = formatarMediaAtrasoGrafico(media);
+  return `${texto} ${texto === '1' ? 'dia' : 'dias'}`;
+}
+
+// Avaliações atrasadas por segmento, contadas nos registros individuais (mesma regra da
+// pizza) — linhas "Fund II/Médio" entram repartidas e a soma bate com o total geral
+function contarItensPorSegmentoPendentes(itens, segmento) {
+  return itens.filter(({ record }) => segmentoRelatorioPendentes(record.ano) === segmento).length;
+}
+
+// Monta a tabela consolidada (linhas + linha TOTAL) dos relatórios de pendências. rotuloPessoa
+// = [singular, plural] (ex.: ['elaborador', 'elaboradores']). textoMediaGeral = média sobre
+// todos os registros individuais (não a média das médias dos grupos)
+function montarTabelaConsolidadaPendencias(tbody, itens, linhas, rotuloPessoa, textoMediaGeral) {
+  tbody.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  const adicionarLinha = (celulas, maior, textoMedia, classe) => {
+    const tr = document.createElement('tr');
+    if (classe) tr.className = classe;
+    celulas.forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = valor || '-';
+      tr.appendChild(td);
+    });
+    [formatarDiasSingularPlural(maior), textoMedia].forEach((valor) => {
+      const td = document.createElement('td');
+      td.className = 'report-delay-cell delay-positive';
+      td.textContent = valor;
+      tr.appendChild(td);
+    });
+    fragment.appendChild(tr);
+  };
+
+  linhas.forEach((linha) => {
+    adicionarLinha(
+      [linha.modulo, linha.pessoa, linha.disciplina, linha.segmento, linha.total],
+      linha.maior,
+      formatarMediaDiasConsolidada(linha.media)
+    );
+  });
+
+  const qtdPessoas = new Set(linhas.map((l) => l.pessoa)).size;
+  const qtdDisciplinas = new Set(linhas.map((l) => l.disciplina).filter(Boolean)).size;
+  adicionarLinha(
+    [
+      'TOTAL',
+      `${qtdPessoas} ${qtdPessoas === 1 ? rotuloPessoa[0] : rotuloPessoa[1]}`,
+      `${qtdDisciplinas} ${qtdDisciplinas === 1 ? 'disciplina' : 'disciplinas'}`,
+      `Fund II: ${contarItensPorSegmentoPendentes(itens, 'Fund II')} | Médio: ${contarItensPorSegmentoPendentes(itens, 'Médio')}`,
+      linhas.reduce((soma, l) => soma + l.total, 0)
+    ],
+    linhas.reduce((maior, l) => Math.max(maior, l.maior), 0),
+    textoMediaGeral,
+    'report-total-row'
+  );
+  tbody.appendChild(fragment);
+  return { qtdPessoas, qtdDisciplinas };
+}
+
+function textoPendencias(qtd) {
+  return `${qtd} ${qtd === 1 ? 'pendência' : 'pendências'}`;
+}
+
+function gerarRelatorioPendentesAtrasadas() {
+  const { itens, total, maiorAtraso, mediaAtraso, liderNome, liderQtd } = calcularRelatorioPendentesAtrasadas();
+  const hoje = formatarDataHoraAtual().replace(' ', ' às '); // "13/10/2026 às 16:25"
+
+  relatorioPendentesPreview.hidden = total === 0;
+  relatorioPendentesVazio.hidden = total !== 0;
+  btnImprimirRelatorioPendentes.disabled = total === 0;
+  btnCopiarRelatorioPendentes.disabled = total === 0;
+  if (total === 0) {
+    relatorioPendentesResumoTexto = '';
+    return;
+  }
+
+  const textoMaior = `${maiorAtraso} dias`;
+  const textoMedia = `${formatarDiasComVirgula(mediaAtraso)} dias`;
+
+  document.getElementById('relPendMetaData').textContent = hoje;
+
+  const linhas = consolidarRelatorioPendentes(itens);
+  montarTabelaConsolidadaPendencias(
+    document.getElementById('relPendTabelaBody'),
+    itens,
+    linhas,
+    ['elaborador', 'elaboradores'],
+    textoMedia
+  );
+
+  renderizarGraficosRelatorioPendentes(itens, linhas, undefined, undefined, ['entrega', 'entregas']);
+
+  relatorioPendentesResumoTexto = [
+    'Relatório de pendentes atrasadas por elaborador',
+    `Gerado em: ${hoje}`,
+    '',
+    `Total pendente atrasado: ${total}`,
+    `Maior atraso: ${textoMaior}`,
+    `Média de atraso: ${textoMedia}`,
+    `Elaborador com mais pendências: ${liderNome} — ${textoPendencias(liderQtd)}`,
+    '',
+    'Itens pendentes atrasados:',
+    ...itens.map(
+      ({ record, dias }, indice) =>
+        `${indice + 1}. ${[
+          record.modulo,
+          record.ano,
+          record.frente,
+          record.tipo_av,
+          record.elaborador,
+          record.prazo_encomenda
+        ]
+          .map((valor) => safe(valor) || '-')
+          .join(' | ')} | +${dias} dias`
+    )
+  ].join('\n');
+}
+
+function abrirModalRelatorioPendentes() {
+  gerarRelatorioPendentesAtrasadas();
+  btnCopiarRelatorioPendentes.textContent = 'Copiar resumo';
+  relatorioPendentesModalBackdrop.hidden = false;
+}
+
+function fecharModalRelatorioPendentes() {
+  relatorioPendentesModalBackdrop.hidden = true;
+}
+
+async function copiarResumoRelatorioPendentes() {
+  if (!relatorioPendentesResumoTexto) return;
+  try {
+    await navigator.clipboard.writeText(relatorioPendentesResumoTexto);
+    btnCopiarRelatorioPendentes.textContent = 'Resumo copiado!';
+  } catch (erro) {
+    alert('Não foi possível copiar o resumo para a área de transferência.');
+  }
+}
+
+document.getElementById('btnRelatorioPendentesAtrasadas').addEventListener('click', abrirModalRelatorioPendentes);
+document.getElementById('btnFecharRelatorioPendentes').addEventListener('click', fecharModalRelatorioPendentes);
+document.getElementById('btnCancelarRelatorioPendentes').addEventListener('click', fecharModalRelatorioPendentes);
+relatorioPendentesModalBackdrop.addEventListener('click', (event) => {
+  if (event.target === relatorioPendentesModalBackdrop) fecharModalRelatorioPendentes();
+});
+btnCopiarRelatorioPendentes.addEventListener('click', copiarResumoRelatorioPendentes);
+btnImprimirRelatorioPendentes.addEventListener('click', () =>
+  imprimirAreaRelatorio('pendentes-report-print-area', 'Relatório de pendentes atrasadas por elaborador')
+);
+
+// ======================================================================
+// Relatório de Pendências por Coordenador (1ª Validação — card "Validações atrasadas"): mesma
+// base (obterRegistrosFiltradosCoordenador, com os filtros ativos da aba) e mesma regra do card
+// (status "Prazo atrasado": enviada ao coordenador, sem devolutiva, prazo_coord vencido). Dias
+// de atraso = hoje - prazo_coord (calcularDiasCoordenador). Reaproveita a consolidação, a
+// tabela e os gráficos do relatório de pendências por elaborador.
+// ======================================================================
+
+const relatorioPendCoordModalBackdrop = document.getElementById('relatorioPendCoordModalBackdrop');
+const relatorioPendCoordPreview = document.getElementById('pendencias-coord-report-print-area');
+const relatorioPendCoordVazio = document.getElementById('relatorioPendCoordVazio');
+const btnImprimirRelatorioPendCoord = document.getElementById('btnImprimirRelatorioPendCoord');
+const btnCopiarRelatorioPendCoord = document.getElementById('btnCopiarRelatorioPendCoord');
+let relatorioPendCoordResumoTexto = '';
+
+function gerarRelatorioPendenciasCoordenador() {
+  const itens = obterRegistrosFiltradosCoordenador()
+    .filter((record) => identificarStatusCoordenador(record) === 'Prazo atrasado')
+    .map((record) => ({ record, dias: calcularDiasCoordenador(record) }));
+  const total = itens.length;
+  const hoje = formatarDataHoraAtual().replace(' ', ' às ');
+
+  relatorioPendCoordPreview.hidden = total === 0;
+  relatorioPendCoordVazio.hidden = total !== 0;
+  btnImprimirRelatorioPendCoord.disabled = total === 0;
+  btnCopiarRelatorioPendCoord.disabled = total === 0;
+  if (total === 0) {
+    relatorioPendCoordResumoTexto = '';
+    return;
+  }
+
+  const maiorAtraso = itens.reduce((maior, item) => Math.max(maior, item.dias), 0);
+  const textoMedia = `${formatarDiasComVirgula(itens.reduce((soma, item) => soma + item.dias, 0) / total)} dias`;
+
+  document.getElementById('relPendCoordMetaData').textContent = hoje;
+
+  const linhas = consolidarRelatorioPendentes(itens, 'coordenador', { unirMatematica: true });
+  const { qtdPessoas, qtdDisciplinas } = montarTabelaConsolidadaPendencias(
+    document.getElementById('relPendCoordTabelaBody'),
+    itens,
+    linhas,
+    ['coordenador', 'coordenadores'],
+    textoMedia
+  );
+  renderizarGraficosRelatorioPendentes(
+    itens,
+    linhas,
+    'relPendCoordGraficoSegmento',
+    'relPendCoordGraficoDisciplinas',
+    ['validação', 'validações'],
+    'pessoa' // barras: Coordenador x quantidade de validações atrasadas
+  );
+
+  const blocosCoordenador = agruparValidacoesAtrasadasPorCoordenador(itens);
+  renderizarDetalhamentoPendCoord(blocosCoordenador);
+
+  relatorioPendCoordResumoTexto = [
+    'Relatório de Pendências por Coordenador',
+    '',
+    `Gerado em: ${hoje}`,
+    '',
+    `Total de validações atrasadas: ${total}`,
+    `Maior atraso: ${formatarDiasSingularPlural(maiorAtraso)}`,
+    `Média de atraso: ${textoMedia}`,
+    `Coordenadores envolvidos: ${qtdPessoas}`,
+    `Disciplinas envolvidas: ${qtdDisciplinas}`,
+    `Segmentos: Fund II: ${contarItensPorSegmentoPendentes(itens, 'Fund II')} | Médio: ${contarItensPorSegmentoPendentes(itens, 'Médio')}`,
+    '',
+    'Principais pendências:',
+    ...linhas.map(
+      (l, indice) =>
+        `${indice + 1}. ${[
+          l.modulo || '-',
+          l.pessoa,
+          l.disciplina || '-',
+          l.segmento || '-',
+          l.total,
+          formatarDiasSingularPlural(l.maior),
+          formatarMediaDiasConsolidada(l.media)
+        ].join(' | ')}`
+    ),
+    '',
+    'Detalhamento por coordenador:',
+    ...blocosCoordenador.flatMap((bloco) => [
+      '',
+      `${bloco.coordenador} — ${bloco.registros.length} ${bloco.registros.length === 1 ? 'validação atrasada' : 'validações atrasadas'}`,
+      ...bloco.registros.map(
+        (record) =>
+          `- ${[record.modulo, record.ano, record.tipo_av, record.frente].map((v) => safe(v) || '-').join(' | ')} | Prazo: ${safe(record.prazo_coord) || '-'} | ${formatarDiasSingularPlural(calcularDiasCoordenador(record))}`
+      )
+    ])
+  ].join('\n');
+}
+
+// Detalhamento por coordenador: blocos ordenados por total (desc) e nome; dentro de cada um,
+// prazo mais antigo primeiro, depois módulo, avaliação e disciplina (disciplina original)
+function agruparValidacoesAtrasadasPorCoordenador(itens) {
+  const porCoordenador = new Map();
+  itens.forEach(({ record }) => {
+    const nome = safe(record.coordenador) || 'Não informado';
+    if (!porCoordenador.has(nome)) porCoordenador.set(nome, []);
+    porCoordenador.get(nome).push(record);
+  });
+
+  const comparar = (a, b) => safe(a).localeCompare(safe(b), 'pt-BR', { numeric: true });
+  // Ano na ordem pedagógica 6º → 9º, 1º → 3º (anos fora da lista vão para o fim)
+  const ordemAno = (ano) => {
+    const numero = normalizarAnoSegmento(ano);
+    const indice = ORDEM_ANO_ESCOLAR_COORD.indexOf(numero === null ? safe(ano) : `${numero}º`);
+    return indice === -1 ? ORDEM_ANO_ESCOLAR_COORD.length : indice;
+  };
+  return Array.from(porCoordenador, ([coordenador, registros]) => ({
+    coordenador,
+    registros: registros.sort(
+      (a, b) =>
+        (parseBrDate(a.prazo_coord)?.getTime() ?? 0) - (parseBrDate(b.prazo_coord)?.getTime() ?? 0) ||
+        comparar(a.modulo, b.modulo) ||
+        ordemAno(a.ano) - ordemAno(b.ano) ||
+        comparar(a.tipo_av, b.tipo_av) ||
+        comparar(a.frente, b.frente)
+    )
+  })).sort((a, b) => b.registros.length - a.registros.length || a.coordenador.localeCompare(b.coordenador, 'pt-BR'));
+}
+
+function renderizarDetalhamentoPendCoord(blocos) {
+  const container = document.getElementById('relPendCoordDetalhamento');
+  container.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+
+  blocos.forEach(({ coordenador, registros }) => {
+    const bloco = document.createElement('div');
+    bloco.className = 'report-coord-block';
+
+    const cabecalho = document.createElement('div');
+    cabecalho.className = 'report-coord-block-header';
+    const nome = document.createElement('strong');
+    nome.className = 'report-coord-block-name';
+    nome.textContent = coordenador;
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-pendente-atrasada';
+    badge.textContent = `Total de validações atrasadas: ${registros.length}`;
+    cabecalho.append(nome, badge);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'report-table-wrap report-coord-block-table';
+    const tabela = document.createElement('table');
+    tabela.className = 'report-table';
+    tabela.innerHTML =
+      '<thead><tr><th>Módulo</th><th>Ano</th><th>Avaliação</th><th>Disciplina</th><th>Prazo</th><th>Total de dias atrasado</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    registros.forEach((record) => {
+      const tr = document.createElement('tr');
+      [record.modulo, record.ano, record.tipo_av, record.frente, record.prazo_coord].forEach((valor) => {
+        const td = document.createElement('td');
+        td.textContent = safe(valor) || '-';
+        tr.appendChild(td);
+      });
+      // Hoje - prazo_coord (mesma conta da tabela consolidada)
+      const tdDias = document.createElement('td');
+      tdDias.className = 'report-delay-cell delay-positive';
+      tdDias.textContent = formatarDiasSingularPlural(calcularDiasCoordenador(record));
+      tr.appendChild(tdDias);
+      tbody.appendChild(tr);
+    });
+    tabela.appendChild(tbody);
+    wrap.appendChild(tabela);
+
+    bloco.append(cabecalho, wrap);
+    fragment.appendChild(bloco);
+  });
+
+  container.appendChild(fragment);
+}
+
+function abrirModalRelatorioPendCoord() {
+  gerarRelatorioPendenciasCoordenador();
+  btnCopiarRelatorioPendCoord.textContent = 'Copiar resumo';
+  relatorioPendCoordModalBackdrop.hidden = false;
+}
+
+function fecharModalRelatorioPendCoord() {
+  relatorioPendCoordModalBackdrop.hidden = true;
+}
+
+async function copiarResumoRelatorioPendCoord() {
+  if (!relatorioPendCoordResumoTexto) return;
+  try {
+    await navigator.clipboard.writeText(relatorioPendCoordResumoTexto);
+    btnCopiarRelatorioPendCoord.textContent = 'Resumo copiado!';
+  } catch (erro) {
+    alert('Não foi possível copiar o resumo para a área de transferência.');
+  }
+}
+
+// O botão fica dentro do card "Validações atrasadas", que é um filtro rápido: impede que o
+// clique/teclado no botão também alterne o filtro do card
+const btnRelatorioPendCoord = document.getElementById('btnRelatorioPendenciasCoordenador');
+btnRelatorioPendCoord.addEventListener('click', (event) => {
+  event.stopPropagation();
+  abrirModalRelatorioPendCoord();
+});
+btnRelatorioPendCoord.addEventListener('keydown', (event) => event.stopPropagation());
+document.getElementById('btnFecharRelatorioPendCoord').addEventListener('click', fecharModalRelatorioPendCoord);
+document.getElementById('btnCancelarRelatorioPendCoord').addEventListener('click', fecharModalRelatorioPendCoord);
+relatorioPendCoordModalBackdrop.addEventListener('click', (event) => {
+  if (event.target === relatorioPendCoordModalBackdrop) fecharModalRelatorioPendCoord();
+});
+btnCopiarRelatorioPendCoord.addEventListener('click', copiarResumoRelatorioPendCoord);
+btnImprimirRelatorioPendCoord.addEventListener('click', () =>
+  imprimirAreaRelatorio('pendencias-coord-report-print-area', 'Relatório de Pendências por Coordenador')
+);
 
 // --- Eventos ---
 

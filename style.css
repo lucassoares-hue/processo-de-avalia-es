@@ -1236,6 +1236,189 @@ body {
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.14);
 }
 
+/* Botão "Relatório de pendentes" no canto superior direito do cabeçalho "Devoluções (Prazos)" */
+.stat-group-header:has(.stat-group-report-btn) {
+  position: relative;
+}
+
+.stat-group-report-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stat-group-report-btn:hover,
+.stat-group-report-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Botão "Relatório de atrasos" dentro do card "Validações atrasadas" (1ª Validação): mesmo
+   formato de pílula do botão do relatório de pendências por elaborador, em tons de vermelho */
+.card-report-btn {
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid #b91c1c;
+  border-radius: 999px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.card-report-btn:hover,
+.card-report-btn:focus-visible {
+  background: #fee2e2;
+}
+
+.report-title-wrap {
+  flex: 1;
+  text-align: center;
+}
+
+.report-title-wrap .report-section-subtitle {
+  margin: 2px 0 0;
+}
+
+.report-title-wrap .report-generated-at {
+  font-weight: 800;
+  color: #c1121f;
+}
+
+/* Relatório de pendentes atrasadas: tabela logo abaixo do cabeçalho e linha TOTAL */
+.report-section.report-section--compacto {
+  padding: 0 0 4px;
+  margin-top: 0;
+}
+
+.report-section--compacto .report-section-title {
+  margin-bottom: 6px;
+}
+
+.report-charts-section {
+  margin-top: 14px;
+}
+
+/* Detalhamento das validações atrasadas por coordenador (Relatório de Pendências por Coordenador) */
+.report-coord-detail-section {
+  margin-top: 14px;
+}
+
+.report-coord-block {
+  margin-top: 10px;
+  border: 1px solid #dbe4ef;
+  border-left: 4px solid #0b315f;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.report-coord-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #e8eef7;
+}
+
+.report-coord-block-name {
+  color: #0b315f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.report-coord-block-table {
+  overflow-x: auto;
+}
+
+.report-coord-block-table .report-table {
+  margin: 0;
+}
+
+.report-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.report-chart-card {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.report-chart-title {
+  margin: 0 0 8px;
+  color: #0b315f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-chart-pie {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.report-chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: #0f172a;
+  display: grid;
+  gap: 6px;
+}
+
+.report-chart-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.report-chart-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .report-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-total-row td {
+  background: #e8eef7;
+  color: #0b315f;
+  font-weight: 800;
+  border-top: 2px solid #0b315f;
+}
+
+.badge-pendente-atrasada {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
 .stat-group-header--blue {
   background: linear-gradient(120deg, var(--group-blue-start), var(--group-blue-end));
 }
@@ -5231,93 +5414,6 @@ body {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
-/* Ícone "ⓘ" + tooltip explicativo de cada card de etapa (Resumo por etapa do processo) —
-   .stage-card é a própria .resumo-etapa-card (ver renderizarEtapasResumoProducao); reaproveita
-   position:relative já definida acima. */
-.stage-info-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--ind-cinza-borda, #d7e1ee);
-  border-radius: 999px;
-  background: #ffffff;
-  color: var(--ind-azul-escuro, #0b376d);
-  font-size: 13px;
-  font-weight: 800;
-  font-style: italic;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-
-.stage-info-btn:hover,
-.stage-info-btn:focus-visible {
-  background: var(--ind-azul-suave, #eaf2fb);
-  outline: none;
-}
-
-/* Modelo "progresso por avaliação" (barras), mesmo padrão visual/estrutural das demais
-   tooltips analíticas do sistema (.coord-analytic-tooltip/.coord-tooltip-*, ex.: "Progresso de
-   assinatura por avaliação" da Arte-finalização e Envio) — .stage-tooltip só cuida do
-   posicionamento/abertura (âncora no card, hover/focus/toque), o conteúdo interno (título,
-   subtítulo, linhas com barra) usa as classes coord-tooltip-* já existentes, sem CSS duplicado. */
-.stage-tooltip {
-  position: absolute;
-  top: 42px;
-  right: 12px;
-  width: 320px;
-  max-width: calc(100vw - 40px);
-  background: #ffffff;
-  border: 1px solid var(--ind-cinza-borda, #d9e3ef);
-  border-radius: 12px;
-  box-shadow: 0 14px 34px rgba(15, 35, 65, 0.18);
-  padding: 14px 16px;
-  z-index: 9999;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-
-.stage-card:hover .stage-tooltip,
-.stage-card:focus-within .stage-tooltip,
-.stage-tooltip.is-visible {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-/* Barra roxa, igual ao modelo de referência ("Progresso de assinatura por avaliação" da
-   Arte-finalização e Envio, #afeAssinadasTooltipChart) em vez do laranja padrão das tooltips de
-   pendência */
-.stage-tooltip .coord-tooltip-bar-fill {
-  background: #7c3aed;
-}
-
-@media (max-width: 768px) {
-  /* Sem hover em touch: a tooltip só aparece com .is-visible (toque no ícone) — display:none
-     evita qualquer exibição indesejada mesmo que :focus-within/:hover disparem opacity/visibility
-     acima (display não é afetado por essas regras) */
-  .stage-tooltip {
-    position: static;
-    width: 100%;
-    margin-top: 10px;
-    display: none;
-  }
-
-  .stage-tooltip.is-visible {
-    display: block;
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-  }
-}
-
 .resumo-etapa-card-header {
   display: flex;
   align-items: baseline;
@@ -5376,6 +5472,585 @@ body {
 
 .resumo-stat--pendente strong {
   color: var(--ind-texto-secundario, #6b7280);
+}
+
+/* Resumo da Produção: só o card "Total de Avaliações" (M3/M4 removidos) — largura de um card
+   comum, sem colunas vazias ao lado */
+.indicadores-resumo-grid.resumo-producao-total-grid {
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+/* Gráfico-resumo Global (rosca) + Módulo 3/Módulo 4 (barras), ao lado do Total de Avaliações */
+.resumo-modulos-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: #ffffff;
+  border: 1px solid var(--ind-cinza-borda, #dbe5f1);
+  border-top: 3px solid var(--ind-azul-principal, #1f4775);
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  padding: 14px 22px;
+}
+
+.resumo-modulos-global {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.resumo-modulos-global-titulo {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.resumo-modulos-donut {
+  position: relative;
+  width: 104px;
+  height: 104px;
+}
+
+.resumo-modulos-donut-valor {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 900;
+  color: #0b315f;
+}
+
+.resumo-modulos-barras {
+  flex: 1;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.resumo-modulos-nome {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+  letter-spacing: 0.03em;
+  margin-bottom: 5px;
+}
+
+.resumo-modulos-barra-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resumo-modulos-track {
+  flex: 1;
+  height: 12px;
+  background: #e8eef5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.resumo-modulos-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.resumo-modulos-fill--m3 { background: #16a34a; }
+.resumo-modulos-fill--m4 { background: #1d4f86; }
+
+.resumo-modulos-pct {
+  min-width: 52px;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 900;
+  color: #0b315f;
+}
+
+@media (max-width: 700px) {
+  .indicadores-resumo-grid.resumo-producao-total-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resumo-modulos-card {
+    gap: 18px;
+    padding: 14px 16px;
+  }
+}
+
+/* Painel "Análise da etapa" (Resumo da Produção — clique num card de etapa) */
+.stage-analysis-card {
+  margin-bottom: 20px;
+}
+
+.stage-analysis-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.stage-analysis-toggle {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.stage-analysis-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.stage-analysis-kpi {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-top: 3px solid #1d4f86;
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stage-analysis-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stage-analysis-kpi-valor {
+  font-size: 20px;
+  font-weight: 900;
+  color: #0b315f;
+}
+
+.stage-analysis-kpi--success { border-top-color: #16a34a; }
+.stage-analysis-kpi--success .stage-analysis-kpi-valor { color: #059669; }
+.stage-analysis-kpi--warning { border-top-color: #ea580c; }
+.stage-analysis-kpi--warning .stage-analysis-kpi-valor { color: #ea580c; }
+.stage-analysis-kpi--pending { border-top-color: #94a3b8; }
+.stage-analysis-kpi--pending .stage-analysis-kpi-valor { color: #475569; }
+.stage-analysis-kpi--danger { border-top-color: #dc2626; }
+.stage-analysis-kpi--danger .stage-analysis-kpi-valor { color: #dc2626; }
+
+.stage-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stage-chart-card {
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.stage-chart-card--largo {
+  grid-column: 1 / -1;
+}
+
+.stage-chart-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0b315f;
+}
+
+.stage-chart-subtitle {
+  margin: -4px 0 8px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.stage-chart-empty {
+  margin: 12px 0;
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.stage-chart-donut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stage-chart-donut-svg {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+
+.stage-chart-donut-total {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #0b315f;
+  line-height: 1.1;
+}
+
+.stage-chart-donut-total strong { font-size: 22px; font-weight: 900; }
+.stage-chart-donut-total small { font-size: 11px; color: #64748b; }
+
+.stage-chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.stage-chart-legend small { color: #64748b; }
+
+.stage-chart-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.stage-chart-hbars {
+  display: grid;
+  gap: 8px;
+}
+
+.stage-chart-hbar {
+  display: grid;
+  grid-template-columns: minmax(70px, 140px) minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.stage-chart-hbar-label {
+  color: #334155;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage-chart-hbar-track {
+  height: 12px;
+  background: #e8eef5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.stage-chart-hbar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.stage-chart-hbar-valor {
+  text-align: right;
+  color: #0b315f;
+  font-weight: 900;
+}
+
+.stage-chart-vbars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  height: 150px;
+  padding-top: 2px;
+}
+
+.stage-chart-vbar {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.stage-chart-vbar-valor {
+  font-size: 12px;
+  font-weight: 900;
+  color: #0b315f;
+}
+
+/* Trilha transparente: só a barra real aparece (sem bloco cinza-claro confundindo com dado) */
+.stage-chart-vbar-track {
+  flex: 1;
+  width: 100%;
+  max-width: 64px;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.stage-chart-vbar-fill {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+}
+
+.stage-chart-vbar-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin-top: 2px;
+}
+
+/* Gráficos de avanço por avaliação e por ano/série: barra = % concluído + "X de Y — Z%" */
+.stage-chart-progress {
+  display: grid;
+  gap: 9px;
+}
+
+.stage-chart-progress-row {
+  display: grid;
+  grid-template-columns: minmax(44px, 90px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.stage-chart-progress-label {
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-chart-progress-track {
+  height: 16px;
+  background: #e8eef5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.stage-chart-progress-fill {
+  height: 100%;
+  background: #0b315f;
+  border-radius: 6px;
+}
+
+.stage-chart-progress-valor {
+  color: #475569;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 110px;
+}
+
+.stage-chart-progress-valor strong {
+  color: #0b315f;
+  font-weight: 900;
+}
+
+/* Progresso por disciplina: nomes mais longos, coluna de rótulo mais larga */
+.stage-chart-progress--disciplina .stage-chart-progress-row {
+  grid-template-columns: minmax(90px, 220px) minmax(0, 1fr) auto;
+}
+
+@media (max-width: 560px) {
+  .stage-chart-progress-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .stage-chart-progress--disciplina .stage-chart-progress-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .stage-chart-progress-valor {
+    grid-column: 2;
+    text-align: left;
+    min-width: 0;
+  }
+}
+
+/* "Distribuição por ano/série": ranking horizontal com barras mais espessas */
+.stage-chart-hbars--ranking {
+  gap: 7px;
+}
+
+.stage-chart-hbars--ranking .stage-chart-hbar {
+  grid-template-columns: 40px minmax(0, 1fr) 44px;
+  font-size: 13px;
+}
+
+.stage-chart-hbars--ranking .stage-chart-hbar-track {
+  height: 18px;
+  border-radius: 6px;
+}
+
+.stage-chart-hbars--ranking .stage-chart-hbar-fill {
+  border-radius: 6px;
+}
+
+.stage-chart-hbars--ranking .stage-chart-hbar-valor {
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .stage-analysis-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stage-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .stage-analysis-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Cards "Resumo por etapa do processo" — modelo com ícones por linha e divisórias. Classes
+   próprias (summary-stage-*), aplicadas junto de .resumo-etapa-card (clique/tooltip mantidos) */
+#resumoProducaoEtapasGrid.resumo-etapas-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.resumo-etapa-card.summary-stage-card {
+  gap: 0;
+  background: #ffffff;
+  border: 1px solid #d8e3ef;
+  border-top: 4px solid #1d4f86;
+  border-radius: 14px;
+  padding: 16px 16px 10px;
+  box-shadow: 0 10px 24px rgba(15, 35, 65, 0.08);
+}
+
+.summary-stage-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.summary-stage-card-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #101828;
+  line-height: 1.25;
+}
+
+.summary-stage-card-percent {
+  font-size: 19px;
+  font-weight: 900;
+  color: #0b4f9c;
+  white-space: nowrap;
+}
+
+.summary-stage-progress {
+  height: 10px;
+  background: #e8eef5;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.summary-stage-progress-fill {
+  height: 100%;
+  background: #1d4f86;
+  border-radius: 999px;
+}
+
+.summary-stage-metrics {
+  display: grid;
+}
+
+.summary-stage-metric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #edf1f6;
+  font-size: 14px;
+  color: #5b6b82;
+}
+
+.summary-stage-metric-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.summary-stage-metric-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-stage-metric-value {
+  font-weight: 900;
+  color: #17365d;
+}
+
+.summary-stage-metric-value.success { color: #059669; }
+.summary-stage-metric-value.warning { color: #ea580c; }
+.summary-stage-metric-value.danger { color: #dc2626; }
+
+.summary-stage-icon-total { background: #eef3f9; color: #1d4f86; }
+.summary-stage-icon-success { background: #e8f8ef; color: #059669; }
+.summary-stage-icon-warning { background: #fff1e6; color: #ea580c; }
+.summary-stage-icon-pending { background: #eef3f8; color: #64748b; }
+.summary-stage-icon-danger { background: #feecec; color: #dc2626; }
+
+@media (max-width: 1400px) {
+  #resumoProducaoEtapasGrid.resumo-etapas-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  #resumoProducaoEtapasGrid.resumo-etapas-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  #resumoProducaoEtapasGrid.resumo-etapas-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* "Atrasadas" (Elaboração, 1ª Validação e Assinatura do Coordenador) — vermelho de atraso */
+.resumo-stat--atrasada,
+.resumo-stat--atrasada strong,
+.resumo-cell--atrasada {
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 @media (max-width: 700px) {
