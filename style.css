@@ -1261,6 +1261,454 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Menu "Relatórios" (Elaboração → Devoluções (Prazos)): position:fixed, posicionado via JS */
+.report-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 240px;
+  background: #ffffff;
+  border: 1px solid #d8e3ef;
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(15, 35, 65, 0.18);
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+
+.report-menu[hidden] {
+  display: none;
+}
+
+.report-menu-item {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #17365c;
+  cursor: pointer;
+}
+
+.report-menu-item:hover,
+.report-menu-item:focus-visible {
+  background: #eaf2fb;
+  outline: none;
+}
+
+/* Modal de seleção do relatório individual por elaborador */
+.report-modal-content.report-modal-content--selecao {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.elab-individual-selecao {
+  display: grid;
+  gap: 12px;
+  padding: 4px 24px 8px;
+}
+
+.elab-individual-selecao select {
+  width: 100%;
+  min-height: 190px;
+}
+
+/* Lista de elaboradores do relatório individual (nome + botão de WhatsApp por linha) */
+.elab-ind-lista-rotulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+}
+
+.elab-ind-lista {
+  border: 1px solid #d8e3ef;
+  border-radius: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.elab-ind-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 2px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.elab-ind-item:last-child {
+  border-bottom: none;
+}
+
+.elab-ind-item.is-selected {
+  background: #eaf2fb;
+}
+
+.elab-ind-item-nome {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 8px;
+  font-size: 13px;
+  color: #17365c;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.elab-ind-item.is-selected .elab-ind-item-nome {
+  font-weight: 700;
+}
+
+.elab-ind-item-whats {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #bbf7d0;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #15803d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.elab-ind-item-whats:hover,
+.elab-ind-item-whats:focus-visible {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.elab-ind-item-whats.is-sem-contato {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* Modal "Enviar relatório pelo WhatsApp" */
+.envio-whatsapp-corpo {
+  display: grid;
+  gap: 10px;
+  padding: 4px 24px 8px;
+}
+
+.envio-whatsapp-corpo textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid #d8e3ef;
+  border-radius: 8px;
+}
+
+.envio-whatsapp-sem-contato {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.envio-whatsapp-status {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.envio-whatsapp-status--ok { color: #15803d; }
+.envio-whatsapp-status--erro { color: #b91c1c; }
+
+.envio-whatsapp-nota {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.btn.btn-whatsapp {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.btn.btn-whatsapp:disabled {
+  background: #86efac;
+  border-color: #86efac;
+}
+
+/* Modal "Contatos dos elaboradores" */
+.contatos-corpo {
+  display: grid;
+  gap: 14px;
+  padding: 4px 24px 8px;
+}
+
+.contatos-modo-aviso {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contatos-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.contatos-form-acoes {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.contatos-erro {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-height: 1em;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.contatos-tabela-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.contatos-vazio {
+  color: #64748b;
+  text-align: center;
+}
+
+.contatos-editar {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .contatos-form {
+    grid-template-columns: 1fr;
+  }
+
+  .envio-whatsapp-corpo,
+  .contatos-corpo {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* "Gerar todos os PDFs" (lote de Relatórios de Cobrança) */
+.btn-lote-cobranca {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lote-cobranca-progresso {
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.lote-cobranca-status {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0b315f;
+  overflow-wrap: anywhere;
+}
+
+.lote-cobranca-barra {
+  height: 10px;
+  background: #e8eef5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lote-cobranca-barra-fill {
+  height: 100%;
+  width: 0;
+  background: #1d4f86;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.lote-cobranca-resultado {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+/* Relatório individual por elaborador */
+.report-elab-nome {
+  margin: 4px 0 2px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0b315f;
+}
+
+/* "Relatório de Cobrança": 4 indicadores, tabela zebrada, alerta amarelo e orientações azuis */
+.report-kpis.report-kpis--cobranca {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.report-kpis--cobranca .cobranca-kpi {
+  min-height: 0;
+  padding: 10px 12px;
+  gap: 4px;
+  border-top-color: #b91c1c;
+}
+
+.report-kpis--cobranca .report-kpi-value {
+  font-size: 20px;
+}
+
+.cobranca-kpi-valor--vermelho {
+  color: #b91c1c !important;
+}
+
+.report-kpis--cobranca .cobranca-kpi--situacao {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-top-color: #b91c1c;
+}
+
+.cobranca-kpi-icone {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cobranca-kpi-situacao {
+  display: block;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.report-table--elab-ind th,
+.report-table--elab-ind td {
+  font-size: 11px;
+}
+
+.report-table--elab-ind tbody tr:nth-child(even) td {
+  background: #f4f6f9;
+}
+
+/* Prazo vencido em destaque */
+.report-table td.report-prazo-vencido {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.cobranca-alerta,
+.cobranca-orientacoes {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 12px;
+}
+
+.cobranca-alerta {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 5px solid #f59e0b;
+}
+
+.cobranca-alerta-icone {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.cobranca-alerta-texto {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.cobranca-orientacoes {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-left: 5px solid #0b315f;
+  margin-bottom: 10px;
+}
+
+.cobranca-orientacoes-icone {
+  color: #1d4ed8;
+  flex-shrink: 0;
+}
+
+.cobranca-orientacoes-titulo {
+  margin: 1px 0 6px;
+  color: #0b315f;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.cobranca-orientacoes-lista {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1f2937;
+}
+
+@media (max-width: 760px) {
+  .report-kpis.report-kpis--cobranca {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .report-table--elab-ind {
+    min-width: 760px;
+  }
+
+  .report-table-wrap:has(.report-table--elab-ind) {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 400px) {
+  .report-kpis.report-kpis--cobranca {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* Botão "Relatório de atrasos" dentro do card "Validações atrasadas" (1ª Validação): mesmo
    formato de pílula do botão do relatório de pendências por elaborador, em tons de vermelho */
 .card-report-btn {
@@ -6790,7 +7238,6 @@ body {
   font-size: 1rem;
   font-weight: 700;
   color: var(--ind-azul-escuro, #17365c);
-  text-transform: capitalize;
 }
 
 .geral-calendario-nav-btn {
@@ -7282,6 +7729,144 @@ body {
 
   .geral-calendario-eventos {
     max-height: 56px;
+  }
+}
+
+/* Resumo compacto do dia (renderizarResumoMobileDiaCalendario): só existe no mobile */
+.geral-calendario-mobile-resumo {
+  display: none;
+}
+
+/* ---- Calendário de Avaliações — versão mobile (< 768px). Desktop não muda. ---- */
+@media (max-width: 767px) {
+  .geral-calendario-body {
+    padding: 10px 8px 12px;
+  }
+
+  /* Cabeçalho do mês em uma linha: [<] Outubro de 2026 [Hoje] [>] */
+  .geral-calendario-nav {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .geral-calendario-mes-ano {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .geral-calendario-nav-btn {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+  }
+
+  .geral-calendario-nav-btn--hoje {
+    width: auto;
+    padding: 0 10px;
+  }
+
+  /* 7 colunas de exatamente 1/7 — conteúdo longo não alarga a coluna */
+  .geral-calendario-semana,
+  .geral-calendario-grade {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .geral-calendario-semana {
+    margin-bottom: 4px;
+  }
+
+  .geral-calendario-semana span {
+    font-size: 10px;
+    letter-spacing: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .geral-calendario-dia {
+    min-height: 64px;
+    min-width: 0;
+    padding: 3px;
+    gap: 2px;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .geral-calendario-dia-numero {
+    font-size: 12px;
+  }
+
+  /* No mobile, a lista completa de tags dá lugar ao resumo compacto */
+  .geral-calendario-eventos {
+    display: none;
+  }
+
+  .geral-calendario-mobile-resumo {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    padding: 2px 3px;
+    border-radius: 4px;
+    font-size: 9px;
+    line-height: 1.2;
+  }
+
+  .geral-calendario-mobile-rotulo {
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .geral-calendario-mobile-detalhe {
+    font-weight: 600;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .geral-calendario-mobile-minimo {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    font-weight: 800;
+  }
+
+  .geral-calendario-mobile-ponto {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+}
+
+/* Telas muito estreitas: só número do dia + ponto colorido + total do dia */
+@media (max-width: 380px) {
+  .geral-calendario-mobile-resumo {
+    background: transparent;
+    padding: 0;
+  }
+
+  .geral-calendario-mobile-rotulo,
+  .geral-calendario-mobile-detalhe {
+    display: none;
+  }
+
+  .geral-calendario-mobile-minimo {
+    display: inline-flex;
+    font-size: 10px;
+  }
+
+  .geral-calendario-dia {
+    min-height: 48px;
   }
 }
 

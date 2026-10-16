@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel de Avaliações SGGE</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
-<link rel="stylesheet" href="style.css?v=20261014h">
+<link rel="stylesheet" href="style.css?v=20261016g">
 </head>
 <body>
 
@@ -2338,7 +2338,15 @@
             <h2 class="stat-group-title">Devoluções (Prazos)</h2>
             <!-- Abre o relatório do card "Pendentes atrasadas" (fica no cabeçalho para não
                  disparar o filtro rápido do clique no card) -->
-            <button type="button" class="stat-group-report-btn" id="btnRelatorioPendentesAtrasadas" title="Relatório das encomendas pendentes atrasadas">Relatório de pendentes</button>
+            <!-- Menu "Relatórios": opção 1 abre o relatório geral (mesmo id/listener de antes);
+                 opção 2 abre o relatório individual por elaborador. O menu usa position:fixed
+                 (o .stat-group tem overflow:hidden e cortaria um dropdown absoluto). -->
+            <button type="button" class="stat-group-report-btn" id="btnMenuRelatoriosElab" aria-haspopup="menu" aria-expanded="false" title="Relatórios da Elaboração">Relatórios <span aria-hidden="true">▾</span></button>
+            <div class="report-menu" id="menuRelatoriosElab" role="menu" hidden>
+              <button type="button" class="report-menu-item" role="menuitem" id="btnRelatorioPendentesAtrasadas">Relatório geral de pendências</button>
+              <button type="button" class="report-menu-item" role="menuitem" id="btnRelatorioIndividualElab">Relatório individual por elaborador</button>
+              <button type="button" class="report-menu-item" role="menuitem" id="btnContatosElaboradores">Contatos dos elaboradores</button>
+            </div>
           </header>
           <div class="stat-cards stat-cards--four">
             <article class="stat-card" data-metric="cardElabEntreguesPrazo" data-quick-filter="entregues-no-prazo" role="button" tabindex="0" aria-pressed="false">
@@ -3010,6 +3018,211 @@
       </div>
     </div>
 
+    <!-- Modal de seleção do "Relatório individual por elaborador" (Elaboração → menu Relatórios) -->
+    <div class="geral-evento-modal-backdrop" id="selecaoElabIndividualBackdrop" hidden>
+      <div class="report-modal-content report-modal-content--selecao" role="dialog" aria-modal="true" aria-labelledby="selecaoElabIndividualTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharSelecaoElabIndividual" aria-label="Fechar">&times;</button>
+        <div class="report-header">
+          <h3 class="report-title" id="selecaoElabIndividualTitulo">Relatório individual por elaborador</h3>
+          <p class="report-subtitle" id="selecaoElabIndividualFiltros">-</p>
+        </div>
+        <div class="elab-individual-selecao">
+          <div class="filter-field">
+            <label for="buscaElabIndividual">Buscar elaborador</label>
+            <input type="search" id="buscaElabIndividual" placeholder="Digite parte do nome..." autocomplete="off">
+          </div>
+          <div class="filter-field">
+            <span class="elab-ind-lista-rotulo" id="rotuloListaElabIndividual">Elaborador</span>
+            <!-- Lista própria (renderizarListaElaboradoresIndividual): nome + botão de WhatsApp por linha -->
+            <div class="elab-ind-lista" id="listaElabIndividual" role="listbox" aria-labelledby="rotuloListaElabIndividual"></div>
+          </div>
+          <p class="status-message empty" id="selecaoElabIndividualVazio" hidden>Nenhum elaborador encontrado.</p>
+
+          <!-- Progresso da geração em lote ("Gerar todos os PDFs") -->
+          <div class="lote-cobranca-progresso" id="loteCobrancaProgresso" hidden aria-live="polite">
+            <p class="lote-cobranca-status" id="loteCobrancaStatus">-</p>
+            <div class="lote-cobranca-barra"><div class="lote-cobranca-barra-fill" id="loteCobrancaBarra"></div></div>
+            <p class="lote-cobranca-resultado" id="loteCobrancaResultado" hidden></p>
+          </div>
+        </div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarSelecaoElabIndividual">Cancelar</button>
+          <button type="button" class="btn btn-outline btn-lote-cobranca" id="btnGerarTodosPdfsCobranca">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19h14"/>
+            </svg>
+            Gerar todos os PDFs
+          </button>
+          <button type="button" class="btn btn-primary" id="btnGerarRelatorioElabIndividual" disabled>Gerar relatório</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal do "Relatório Individual de Pendências Atrasadas" (por elaborador): só encomendas com
+         prazo vencido e sem devolutiva; impressão por imprimirAreaRelatorio -->
+    <div class="geral-evento-modal-backdrop" id="relatorioElabIndividualBackdrop" hidden>
+      <div class="report-modal-content" role="dialog" aria-modal="true" aria-labelledby="relElabIndTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharRelatorioElabIndividual" aria-label="Fechar">&times;</button>
+
+        <div id="elab-individual-report-print-area" class="relatorio-elaborador-preview">
+          <div class="report-print-header">
+            <div class="report-header-left">
+              <img src="assets/logo/logo-sgge.png" alt="Logo SGGE">
+            </div>
+            <div class="report-title-wrap">
+              <h1 class="report-title" id="relElabIndTitulo">Relatório de Pendências em Atraso</h1>
+              <p class="report-section-subtitle">Encomendas com prazo vencido e sem devolutiva do elaborador.</p>
+              <p class="report-elab-nome" id="relElabIndNome">-</p>
+              <p class="report-section-subtitle report-generated-at">Gerado em: <span id="relElabIndData">-</span></p>
+              <p class="report-section-subtitle" id="relElabIndFiltrosLinha" hidden><span id="relElabIndFiltros"></span></p>
+            </div>
+          </div>
+
+          <div class="report-kpis report-kpis--cobranca" id="relElabIndKpis"></div>
+
+          <div class="report-section report-section--compacto">
+            <h3 class="report-section-title">Avaliações com prazo vencido</h3>
+            <div class="report-table-wrap">
+              <table class="report-table report-table--elab-ind">
+                <thead>
+                  <tr>
+                    <th>Módulo</th>
+                    <th>Ano</th>
+                    <th>Tipo de avaliação</th>
+                    <th>Disciplina</th>
+                    <th>Data da encomenda</th>
+                    <th>Prazo de entrega</th>
+                    <th>Dias de atraso</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody id="relElabIndTabelaBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Quadro de alerta (amarelo) -->
+          <div class="cobranca-alerta">
+            <span class="cobranca-alerta-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.7" fill="currentColor"/>
+              </svg>
+            </span>
+            <p class="cobranca-alerta-texto"><strong>Atenção às pendências!</strong> Os prazos de entrega das avaliações relacionadas neste relatório já foram ultrapassados, comprometendo o cumprimento do cronograma do processo de avaliação. Solicitamos a regularização das entregas com a máxima prioridade.</p>
+          </div>
+
+          <!-- Quadro de orientações (azul) -->
+          <div class="cobranca-orientacoes">
+            <span class="cobranca-orientacoes-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r="0.7" fill="currentColor"/>
+              </svg>
+            </span>
+            <div>
+              <h4 class="cobranca-orientacoes-titulo">Orientações</h4>
+              <ol class="cobranca-orientacoes-lista">
+                <li>Verifique as avaliações listadas e providencie a entrega o quanto antes.</li>
+                <li>Em caso de dúvidas, entre em contato com a Equipe Administrativa de avaliações.</li>
+                <li>A regularização dos prazos contribui para o bom andamento do processo de avaliação.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <p class="status-message empty relatorio-elaborador-vazio" id="relatorioElabIndividualVazio" hidden>
+          Este elaborador não possui pendências atrasadas nos filtros selecionados.
+        </p>
+
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarRelatorioElabIndividual">Fechar</button>
+          <button type="button" class="btn btn-outline" id="btnCopiarRelatorioElabIndividual">Copiar resumo</button>
+          <button type="button" class="btn btn-primary" id="btnImprimirRelatorioElabIndividual">Imprimir / Salvar PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal "Enviar relatório pelo WhatsApp" (envio assistido: baixa o PDF e abre wa.me com a
+         mensagem; o usuário anexa o PDF e confirma o envio no próprio WhatsApp) -->
+    <div class="geral-evento-modal-backdrop" id="envioWhatsAppBackdrop" hidden>
+      <div class="report-modal-content report-modal-content--selecao" role="dialog" aria-modal="true" aria-labelledby="envioWhatsAppTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharEnvioWhatsApp" aria-label="Fechar">&times;</button>
+        <div class="report-header">
+          <h3 class="report-title" id="envioWhatsAppTitulo">Enviar relatório pelo WhatsApp</h3>
+          <p class="report-subtitle"><strong id="envioWhatsAppNome">-</strong></p>
+          <p class="report-subtitle" id="envioWhatsAppTelefone">-</p>
+        </div>
+        <div class="envio-whatsapp-corpo">
+          <div class="envio-whatsapp-sem-contato" id="envioWhatsAppSemContato" hidden>
+            <span>Este elaborador não possui WhatsApp cadastrado.</span>
+            <button type="button" class="btn btn-outline" id="btnCadastrarContatoWhatsApp">Cadastrar / corrigir contato</button>
+          </div>
+          <div class="filter-field">
+            <label for="envioWhatsAppMensagem">Mensagem (revise antes de abrir o WhatsApp)</label>
+            <textarea id="envioWhatsAppMensagem" rows="11"></textarea>
+          </div>
+          <p class="envio-whatsapp-status" id="envioWhatsAppStatus" aria-live="polite">-</p>
+          <p class="envio-whatsapp-nota">O WhatsApp não permite anexar arquivos automaticamente por link: baixe o PDF e anexe-o na conversa antes de enviar.</p>
+        </div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarEnvioWhatsApp">Cancelar</button>
+          <button type="button" class="btn btn-outline" id="btnBaixarPdfWhatsApp" disabled>Baixar PDF</button>
+          <button type="button" class="btn btn-primary btn-whatsapp" id="btnAbrirWhatsApp" disabled>Abrir WhatsApp</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal "Contatos dos elaboradores" (cadastro de WhatsApp vinculado ao nome do elaborador da
+         BD_SGGE; salvo no Apps Script de contatos quando CONTATOS_API_URL estiver configurada) -->
+    <div class="geral-evento-modal-backdrop" id="contatosElaboradoresBackdrop" hidden>
+      <div class="report-modal-content" role="dialog" aria-modal="true" aria-labelledby="contatosElaboradoresTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharContatosElaboradores" aria-label="Fechar">&times;</button>
+        <div class="report-header">
+          <h3 class="report-title" id="contatosElaboradoresTitulo">Contatos dos elaboradores</h3>
+          <p class="report-subtitle">WhatsApp de cada elaborador para o envio do Relatório de Pendências em Atraso.</p>
+        </div>
+        <div class="contatos-corpo">
+          <p class="contatos-modo-aviso" id="contatosModoAviso" hidden>
+            Cadastro compartilhado ainda não configurado: os contatos estão sendo salvos apenas neste navegador.
+          </p>
+          <form class="contatos-form" id="formContatoElaborador">
+            <input type="hidden" id="contatoElaboradorId">
+            <div class="filter-field">
+              <label for="contatoElaboradorNome">Elaborador</label>
+              <input type="text" id="contatoElaboradorNome" list="listaNomesElaboradores" autocomplete="off" placeholder="Nome como está na base">
+              <datalist id="listaNomesElaboradores"></datalist>
+            </div>
+            <div class="filter-field">
+              <label for="contatoElaboradorTelefone">WhatsApp com DDD</label>
+              <input type="tel" id="contatoElaboradorTelefone" placeholder="(81) 99999-8888" autocomplete="off">
+            </div>
+            <div class="filter-field">
+              <label for="contatoElaboradorSituacao">Situação</label>
+              <select id="contatoElaboradorSituacao">
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+              </select>
+            </div>
+            <div class="contatos-form-acoes">
+              <button type="button" class="btn btn-secondary" id="btnNovoContatoElaborador">Limpar</button>
+              <button type="submit" class="btn btn-primary" id="btnSalvarContatoElaborador">Salvar contato</button>
+            </div>
+            <p class="contatos-erro" id="contatoElaboradorErro" aria-live="polite"></p>
+          </form>
+          <div class="report-table-wrap contatos-tabela-wrap">
+            <table class="report-table contatos-tabela">
+              <thead>
+                <tr><th>Elaborador</th><th>WhatsApp</th><th>Situação</th><th></th></tr>
+              </thead>
+              <tbody id="contatosElaboradoresBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnFecharContatosElaboradoresRodape">Fechar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal "Relatório de Pendências por Coordenador" (1ª Validação — card Validações
          atrasadas): mesma estrutura do relatório de pendências por elaborador. Impressão pela
          função genérica imprimirAreaRelatorio. -->
@@ -3610,6 +3823,6 @@
   <!-- Tooltip reutilizável do gráfico de performance de entrega do elaborador -->
   <div class="perf-tooltip" id="perfTooltip" hidden></div>
 
-  <script src="script.js?v=20261014h"></script>
+  <script src="script.js?v=20261016g"></script>
 </body>
 </html>

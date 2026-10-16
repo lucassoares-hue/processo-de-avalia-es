@@ -1496,8 +1496,10 @@ function populateAnoAplicacaoOptions(selectEl, records, placeholderLabel = 'Ano'
 }
 
 // "julho de 2026"
+// "Outubro de 2026" (só a inicial do mês em maiúscula — o "de" fica minúsculo)
 function formatarMesAno(data) {
-  return `${NOMES_MESES_PT_BR[data.getMonth()]} de ${data.getFullYear()}`;
+  const mes = NOMES_MESES_PT_BR[data.getMonth()];
+  return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} de ${data.getFullYear()}`;
 }
 
 // "dd/mm/aaaa" a partir de um objeto Date já validado — usado para exibir data_aplicacao de
@@ -1722,6 +1724,50 @@ function renderizarResumoDiaCalendario(grupo, onClick) {
   return tag;
 }
 
+// Sigla curta do tipo de AV para o resumo mobile do calendário (só apresentação; os dados e o
+// modal continuam com o nome completo)
+const SIGLAS_TIPO_AV_CALENDARIO_MOBILE = {
+  AV1: 'AV1',
+  AV2: 'AV2',
+  '2º CHAMADA': '2CH',
+  'REC-SEM': 'RSEM',
+  'REC-FIM': 'RFIM'
+};
+
+// Resumo compacto do dia, exibido só no mobile (CSS esconde a lista completa de tags e mostra
+// este bloco): indicador colorido do 1º grupo + "M3 · 2CH" + "16 avaliações" (1 grupo) ou
+// "+N tipos" (vários grupos). O toque no dia abre o mesmo modal com o detalhamento completo.
+function renderizarResumoMobileDiaCalendario(grupos) {
+  const primeiro = grupos[0];
+  const resumo = document.createElement('div');
+  resumo.className = `geral-calendario-mobile-resumo ${obterClasseCorEventoCalendario(primeiro.tipoAv)}`;
+
+  const rotulo = document.createElement('span');
+  rotulo.className = 'geral-calendario-mobile-rotulo';
+  const sigla = SIGLAS_TIPO_AV_CALENDARIO_MOBILE[primeiro.tipoAv] || primeiro.tipoAv;
+  rotulo.textContent = `${primeiro.modulo} · ${sigla}`;
+
+  const detalhe = document.createElement('span');
+  detalhe.className = 'geral-calendario-mobile-detalhe';
+  if (grupos.length > 1) {
+    const extras = grupos.length - 1;
+    detalhe.textContent = `+${extras} tipo${extras === 1 ? '' : 's'}`;
+  } else {
+    detalhe.textContent = formatarTotalAvaliacoes(contarAvaliacoesConsolidadas(primeiro.registros));
+  }
+
+  // Versão mínima (telas muito estreitas): só um ponto colorido + total consolidado do dia
+  const minimo = document.createElement('span');
+  minimo.className = 'geral-calendario-mobile-minimo';
+  const ponto = document.createElement('span');
+  ponto.className = 'geral-calendario-mobile-ponto';
+  const totalDia = grupos.reduce((soma, g) => soma + contarAvaliacoesConsolidadas(g.registros), 0);
+  minimo.append(ponto, document.createTextNode(String(totalDia)));
+
+  resumo.append(rotulo, detalhe, minimo);
+  return resumo;
+}
+
 // Renderiza a grade de 7 colunas com uma célula por dia (mês atual + dias de preenchimento das
 // semanas anterior/seguinte). Cada célula mostra no máximo 2 grupos (módulo + tipo de AV) com o
 // total de avaliações, e "+ X grupos" quando há mais; clicar no dia ou em qualquer resumo abre
@@ -1747,6 +1793,12 @@ function renderizarGradeCalendario(celulas) {
     if (celula.eventos.length > 0) {
       diaEl.classList.add('geral-calendario-dia--com-eventos');
       diaEl.addEventListener('click', () => abrirModalAvaliacoesDoDia(celula.data, celula.eventos));
+      diaEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          abrirModalAvaliacoesDoDia(celula.data, celula.eventos);
+        }
+      });
 
       const grupos = agruparAvaliacoesPorModuloAvaliacao(celula.eventos);
       const listaEventos = document.createElement('div');
@@ -1771,6 +1823,10 @@ function renderizarGradeCalendario(celulas) {
       }
 
       diaEl.appendChild(listaEventos);
+      diaEl.appendChild(renderizarResumoMobileDiaCalendario(grupos));
+      diaEl.setAttribute('role', 'button');
+      diaEl.setAttribute('tabindex', '0');
+      diaEl.setAttribute('aria-label', `${formatarDataAplicacaoExibicao(celula.data)}: ${grupos.map((g) => g.rotulo).join(', ')}`);
     }
 
     fragment.appendChild(diaEl);
@@ -13050,7 +13106,21 @@ if (window.location.protocol === 'file:') {
   );
 }
 
-async function loadData() {
+// Carga em andamento: cliques repetidos em qualquer "Atualizar dados" (há um por seção, e só o
+// botão principal fica desativado) reaproveitam a mesma requisição em vez de abrir outra em
+// paralelo — a API leva dezenas de segundos e respostas sobrepostas podiam chegar fora de ordem
+let cargaDadosEmAndamento = null;
+
+function loadData() {
+  if (!cargaDadosEmAndamento) {
+    cargaDadosEmAndamento = executarCargaDados().finally(() => {
+      cargaDadosEmAndamento = null;
+    });
+  }
+  return cargaDadosEmAndamento;
+}
+
+async function executarCargaDados() {
   dom.loading.hidden = false;
   dom.btnAtualizar.disabled = true;
 
@@ -14166,6 +14236,142 @@ const RELATORIO_ELABORADOR_PRINT_CSS = `
     color: #c1121f;
   }
 
+  /* Relatório individual por elaborador */
+  .report-elab-nome {
+    margin: 3px 0 2px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0b315f;
+  }
+
+  /* "Relatório de Pendências em Atraso" (relatório individual por elaborador) */
+  .report-kpis.report-kpis--cobranca {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .report-kpis--cobranca .cobranca-kpi {
+    min-height: 0;
+    padding: 8px 10px;
+    border-top: 3px solid #b91c1c;
+  }
+
+  .report-kpis--cobranca .report-kpi-label {
+    margin-bottom: 3px;
+  }
+
+  .report-kpis--cobranca .report-kpi-value {
+    font-size: 16px;
+  }
+
+  .cobranca-kpi-valor--vermelho {
+    color: #b91c1c !important;
+  }
+
+  .report-kpis--cobranca .cobranca-kpi--situacao {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fef2f2;
+    border-color: #fecaca;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .cobranca-kpi-icone {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .cobranca-kpi-situacao {
+    display: block;
+    color: #b91c1c;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .report-table--elab-ind th,
+  .report-table--elab-ind td {
+    font-size: 9.5px;
+    padding: 6px 4px;
+  }
+
+  .report-table--elab-ind tbody tr:nth-child(even) td {
+    background: #f4f6f9;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-table td.report-prazo-vencido {
+    color: #b91c1c;
+    font-weight: 700;
+  }
+
+  .cobranca-alerta,
+  .cobranca-orientacoes {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .cobranca-alerta {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-left: 5px solid #f59e0b;
+  }
+
+  .cobranca-alerta-icone { color: #d97706; flex-shrink: 0; }
+
+  .cobranca-alerta-texto {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #1f2937;
+  }
+
+  .cobranca-orientacoes {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-left: 5px solid #0b315f;
+  }
+
+  .cobranca-orientacoes-icone { color: #1d4ed8; flex-shrink: 0; }
+
+  .cobranca-orientacoes-titulo {
+    margin: 0 0 4px;
+    color: #0b315f;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .cobranca-orientacoes-lista {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #1f2937;
+  }
+
   .text-left {
     text-align: left !important;
   }
@@ -14188,6 +14394,29 @@ const RELATORIO_ELABORADOR_PRINT_CSS = `
 // abre uma aba/janela em branco, escreve um HTML mínimo com esse conteúdo + o CSS isolado acima,
 // espera renderizar e só então chama print() (e fecha a janela em seguida).
 // Genérica: usada pelos relatórios do elaborador e do coordenador (mesmo CSS de impressão)
+// Documento HTML completo de um relatório (conteúdo da área de impressão + CSS isolado de
+// impressão). Compartilhado pela janela de impressão e pela geração de PDFs em lote, para os
+// dois saírem idênticos.
+function montarDocumentoImpressaoRelatorio(reportHTML, titulo) {
+  return `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <title>${titulo}</title>
+      <!-- Resolve caminhos relativos (ex.: a logo em assets/logo/logo-sgge.png) contra a URL
+           da página principal — o documento é novo/vazio (window.open('', ...) ou iframe),
+           então um <img src="assets/..."> sem isso tentaria carregar a partir de about:blank -->
+      <base href="${window.location.href}">
+      <style>${RELATORIO_ELABORADOR_PRINT_CSS}</style>
+    </head>
+    <body>
+      <div class="print-report">${reportHTML}</div>
+    </body>
+    </html>
+  `;
+}
+
 function imprimirAreaRelatorio(areaId, tituloJanela) {
   const reportArea = document.getElementById(areaId);
 
@@ -14203,26 +14432,8 @@ function imprimirAreaRelatorio(areaId, tituloJanela) {
     return;
   }
 
-  const reportHTML = reportArea.innerHTML;
-
   printWindow.document.open();
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-      <meta charset="UTF-8">
-      <title>${tituloJanela}</title>
-      <!-- Resolve caminhos relativos (ex.: a logo em assets/logo/logo-sgge.png) contra a URL
-           da página principal — essa janela é um documento novo/vazio (window.open('', ...)),
-           então um <img src="assets/..."> sem isso tentaria carregar a partir de about:blank -->
-      <base href="${window.location.href}">
-      <style>${RELATORIO_ELABORADOR_PRINT_CSS}</style>
-    </head>
-    <body>
-      <div class="print-report">${reportHTML}</div>
-    </body>
-    </html>
-  `);
+  printWindow.document.write(montarDocumentoImpressaoRelatorio(reportArea.innerHTML, tituloJanela));
   printWindow.document.close();
 
   setTimeout(() => {
@@ -14822,6 +15033,958 @@ btnCopiarRelatorioPendentes.addEventListener('click', copiarResumoRelatorioPende
 btnImprimirRelatorioPendentes.addEventListener('click', () =>
   imprimirAreaRelatorio('pendentes-report-print-area', 'Relatório de pendentes atrasadas por elaborador')
 );
+
+// ======================================================================
+// Menu "Relatórios" do cabeçalho "Devoluções (Prazos)" (Elaboração): opção 1 = relatório geral
+// (#btnRelatorioPendentesAtrasadas, listener acima, inalterado); opção 2 = relatório individual
+// por elaborador. O menu é position:fixed, posicionado sob o botão (o .stat-group corta overflow).
+// ======================================================================
+
+const btnMenuRelatoriosElab = document.getElementById('btnMenuRelatoriosElab');
+const menuRelatoriosElab = document.getElementById('menuRelatoriosElab');
+
+function fecharMenuRelatoriosElab() {
+  menuRelatoriosElab.hidden = true;
+  btnMenuRelatoriosElab.setAttribute('aria-expanded', 'false');
+}
+
+function abrirMenuRelatoriosElab() {
+  const rect = btnMenuRelatoriosElab.getBoundingClientRect();
+  menuRelatoriosElab.hidden = false;
+  const largura = menuRelatoriosElab.offsetWidth;
+  menuRelatoriosElab.style.top = `${rect.bottom + 6}px`;
+  menuRelatoriosElab.style.left = `${Math.max(8, Math.min(rect.right - largura, window.innerWidth - largura - 8))}px`;
+  btnMenuRelatoriosElab.setAttribute('aria-expanded', 'true');
+}
+
+btnMenuRelatoriosElab.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (menuRelatoriosElab.hidden) abrirMenuRelatoriosElab();
+  else fecharMenuRelatoriosElab();
+});
+// Qualquer opção escolhida fecha o menu (o listener próprio de cada opção abre o relatório)
+menuRelatoriosElab.addEventListener('click', fecharMenuRelatoriosElab);
+document.addEventListener('click', (event) => {
+  if (!menuRelatoriosElab.hidden && !menuRelatoriosElab.contains(event.target)) fecharMenuRelatoriosElab();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !menuRelatoriosElab.hidden) fecharMenuRelatoriosElab();
+});
+window.addEventListener('resize', fecharMenuRelatoriosElab);
+window.addEventListener('scroll', fecharMenuRelatoriosElab, true);
+
+// ======================================================================
+// Relatório Individual de Pendências Atrasadas (por elaborador): SOMENTE encomendas com prazo
+// vencido e sem devolutiva. Parte exatamente da mesma lista do relatório geral
+// (calcularRelatorioPendentesAtrasadas — mesma base obterRegistrosFiltradosElaborador, com os
+// filtros ativos da Elaboração, mesma regra de atraso e mesmos dias = hoje - prazo), só que
+// filtrada por elaborador. Assim a soma dos individuais = total do relatório geral. 1 linha por
+// registro, sem consolidação por bloco.
+// ======================================================================
+
+const selecaoElabIndividualBackdrop = document.getElementById('selecaoElabIndividualBackdrop');
+const buscaElabIndividual = document.getElementById('buscaElabIndividual');
+// Elaborador selecionado na lista (antes um <select>; a lista agora é própria, com botão de
+// WhatsApp por linha — o estado continua em selectElabIndividual.value)
+const selectElabIndividual = { value: '' };
+const listaElabIndividual = document.getElementById('listaElabIndividual');
+const btnGerarRelatorioElabIndividual = document.getElementById('btnGerarRelatorioElabIndividual');
+const relatorioElabIndividualBackdrop = document.getElementById('relatorioElabIndividualBackdrop');
+const relatorioElabIndividualPreview = document.getElementById('elab-individual-report-print-area');
+const relatorioElabIndividualVazio = document.getElementById('relatorioElabIndividualVazio');
+const btnCopiarRelatorioElabIndividual = document.getElementById('btnCopiarRelatorioElabIndividual');
+const btnImprimirRelatorioElabIndividual = document.getElementById('btnImprimirRelatorioElabIndividual');
+// [{ nome, qtd }] — elaboradores com pendências atrasadas no recorte atual
+let elaboradoresAtrasadosIndividual = [];
+let relatorioElabIndividualResumoTexto = '';
+
+// "Ano: 2026 · Módulo: M4" (só os filtros rápidos aplicados; vazio quando não há nenhum)
+function textoFiltrosRelatorioElabIndividual() {
+  const partes = [];
+  if (elabSelectFilters.ano.value) partes.push(`Ano: ${elabSelectFilters.ano.value}`);
+  if (elabSelectFilters.modulo.value) partes.push(`Módulo: ${elabSelectFilters.modulo.value}`);
+  return partes.join(' · ');
+}
+
+// Pendências atrasadas do recorte (mesma lista do relatório geral), agrupadas por elaborador
+function obterPendenciasAtrasadasPorElaborador() {
+  const porElaborador = new Map();
+  calcularRelatorioPendentesAtrasadas().itens.forEach((item) => {
+    const nome = safe(item.record.elaborador) || 'Não informado';
+    if (!porElaborador.has(nome)) porElaborador.set(nome, []);
+    porElaborador.get(nome).push(item);
+  });
+  return porElaborador;
+}
+
+function renderizarListaElaboradoresIndividual() {
+  const termo = removerAcentos(safe(buscaElabIndividual.value)).toLowerCase();
+  const selecionadoAntes = selectElabIndividual.value;
+  const lista = elaboradoresAtrasadosIndividual.filter(
+    ({ nome }) => !termo || removerAcentos(nome).toLowerCase().includes(termo)
+  );
+  if (lista.some(({ nome }) => nome === selecionadoAntes)) selectElabIndividual.value = selecionadoAntes;
+  else if (lista.length === 1) selectElabIndividual.value = lista[0].nome;
+  else selectElabIndividual.value = '';
+
+  // 1 linha por elaborador: nome + quantidade (clique seleciona, duplo clique gera o relatório) e
+  // botão de WhatsApp (verde quando há contato ativo cadastrado)
+  listaElabIndividual.innerHTML = '';
+  lista.forEach(({ nome, qtd }) => {
+    const linha = document.createElement('div');
+    linha.className = 'elab-ind-item';
+    linha.classList.toggle('is-selected', nome === selectElabIndividual.value);
+
+    const opcao = document.createElement('button');
+    opcao.type = 'button';
+    opcao.className = 'elab-ind-item-nome';
+    opcao.setAttribute('role', 'option');
+    opcao.setAttribute('aria-selected', String(nome === selectElabIndividual.value));
+    opcao.textContent = `${nome} — ${qtd} atrasada${qtd === 1 ? '' : 's'}`;
+    opcao.addEventListener('click', () => {
+      selectElabIndividual.value = nome;
+      renderizarListaElaboradoresIndividual();
+    });
+    opcao.addEventListener('dblclick', () => {
+      selectElabIndividual.value = nome;
+      abrirRelatorioElabIndividual();
+    });
+
+    const contato = ContatosElaboradores.buscarPorNome(nome);
+    const temContato = Boolean(contato && contato.situacao === 'Ativo' && normalizarTelefoneWhatsApp(contato.telefone));
+    const whats = document.createElement('button');
+    whats.type = 'button';
+    whats.className = `elab-ind-item-whats${temContato ? '' : ' is-sem-contato'}`;
+    whats.title = temContato ? 'Enviar relatório pelo WhatsApp' : 'Enviar relatório pelo WhatsApp (sem contato ativo cadastrado)';
+    whats.setAttribute('aria-label', `Enviar relatório de ${nome} pelo WhatsApp`);
+    whats.innerHTML = ICONE_WHATSAPP_SVG;
+    whats.addEventListener('click', () => abrirEnvioWhatsAppElaborador(nome));
+
+    linha.append(opcao, whats);
+    listaElabIndividual.appendChild(linha);
+  });
+
+  const vazio = document.getElementById('selecaoElabIndividualVazio');
+  vazio.textContent = elaboradoresAtrasadosIndividual.length
+    ? 'Nenhum elaborador encontrado para a busca.'
+    : 'Nenhum elaborador possui pendências atrasadas nos filtros selecionados.';
+  vazio.hidden = lista.length > 0;
+  btnGerarRelatorioElabIndividual.disabled = !selectElabIndividual.value;
+}
+
+function abrirSelecaoElabIndividual() {
+  elaboradoresAtrasadosIndividual = Array.from(obterPendenciasAtrasadasPorElaborador(), ([nome, itens]) => ({
+    nome,
+    qtd: itens.length
+  })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const filtros = textoFiltrosRelatorioElabIndividual();
+  document.getElementById('selecaoElabIndividualFiltros').textContent =
+    `Elaboradores com pendências atrasadas${filtros ? ` · ${filtros}` : ''}`;
+  buscaElabIndividual.value = '';
+  selectElabIndividual.value = '';
+  renderizarListaElaboradoresIndividual();
+  // Atualiza os botões de WhatsApp quando os contatos (compartilhados) terminarem de carregar
+  ContatosElaboradores.carregar().then(renderizarListaElaboradoresIndividual).catch(() => {});
+  // Progresso de uma geração em lote anterior some ao reabrir (salvo se ainda estiver rodando)
+  if (!geracaoLoteCobrancaEmAndamento) document.getElementById('loteCobrancaProgresso').hidden = true;
+  selecaoElabIndividualBackdrop.hidden = false;
+  buscaElabIndividual.focus();
+}
+
+function fecharSelecaoElabIndividual() {
+  selecaoElabIndividualBackdrop.hidden = true;
+}
+
+function gerarRelatorioElabIndividual(elaborador) {
+  // Mesma ordenação do relatório geral: maior atraso primeiro
+  const itens = (obterPendenciasAtrasadasPorElaborador().get(elaborador) || []).sort(
+    (a, b) =>
+      b.dias - a.dias ||
+      safe(a.record.modulo).localeCompare(safe(b.record.modulo), 'pt-BR', { numeric: true })
+  );
+  const total = itens.length;
+
+  // Sem pendências: não gera PDF vazio
+  relatorioElabIndividualPreview.hidden = total === 0;
+  relatorioElabIndividualVazio.hidden = total !== 0;
+  btnCopiarRelatorioElabIndividual.disabled = total === 0;
+  btnImprimirRelatorioElabIndividual.disabled = total === 0;
+  relatorioElabIndividualResumoTexto = '';
+  if (total === 0) return;
+
+  const geradoEm = formatarDataHoraAtual().replace(' ', ' às ');
+  const filtros = textoFiltrosRelatorioElabIndividual();
+  const maiorAtraso = itens.reduce((maior, item) => Math.max(maior, item.dias), 0);
+  const textoMedia = `${formatarDiasComVirgula(itens.reduce((soma, item) => soma + item.dias, 0) / total)} dias`;
+
+  document.getElementById('relElabIndNome').textContent = elaborador;
+  document.getElementById('relElabIndData').textContent = geradoEm;
+  const linhaFiltros = document.getElementById('relElabIndFiltrosLinha');
+  linhaFiltros.hidden = !filtros;
+  document.getElementById('relElabIndFiltros').textContent = filtros;
+
+  // 4 indicadores do "Relatório de Pendências em Atraso". "Em aberto" e "Em atraso" coincidem: o relatório
+  // só lista avaliações sem devolutiva cujo prazo já venceu.
+  document.getElementById('relElabIndKpis').innerHTML = `
+    <div class="report-kpi cobranca-kpi">
+      <span class="report-kpi-label">Total de avaliações em aberto</span>
+      <span class="report-kpi-value">${total}</span>
+    </div>
+    <div class="report-kpi cobranca-kpi">
+      <span class="report-kpi-label">Total em atraso</span>
+      <span class="report-kpi-value cobranca-kpi-valor--vermelho">${total}</span>
+    </div>
+    <div class="report-kpi cobranca-kpi">
+      <span class="report-kpi-label">Maior atraso</span>
+      <span class="report-kpi-value">${formatarDiasSingularPlural(maiorAtraso)}</span>
+    </div>
+    <div class="report-kpi cobranca-kpi cobranca-kpi--situacao">
+      <span class="cobranca-kpi-icone" aria-hidden="true">!</span>
+      <div>
+        <span class="report-kpi-label">Situação</span>
+        <span class="cobranca-kpi-situacao">${total === 1 ? 'PENDÊNCIA' : 'PENDÊNCIAS'} EM ATRASO</span>
+      </div>
+    </div>`;
+
+  const tbody = document.getElementById('relElabIndTabelaBody');
+  tbody.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  itens.forEach(({ record, dias }) => {
+    const tr = document.createElement('tr');
+    // Disciplina com a identificação original da base (sem tirar numeração)
+    [
+      record.modulo,
+      record.ano,
+      normalizarTipoAvPerformance(record.tipo_av),
+      record.frente,
+      record.data_encomenda
+    ].forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = safe(valor) || '-';
+      tr.appendChild(td);
+    });
+
+    // Prazo vencido em destaque
+    const tdPrazo = document.createElement('td');
+    tdPrazo.className = 'report-prazo-vencido';
+    tdPrazo.textContent = safe(record.prazo_encomenda) || '-';
+    tr.appendChild(tdPrazo);
+
+    const tdDias = document.createElement('td');
+    tdDias.className = 'report-delay-cell delay-positive';
+    tdDias.textContent = `+${formatarDiasSingularPlural(dias)}`;
+    tr.appendChild(tdDias);
+
+    const tdSituacao = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-pendente-atrasada';
+    badge.textContent = 'EM ATRASO';
+    tdSituacao.appendChild(badge);
+    tr.appendChild(tdSituacao);
+
+    fragment.appendChild(tr);
+  });
+  tbody.appendChild(fragment);
+
+  relatorioElabIndividualResumoTexto = [
+    'Relatório de Pendências em Atraso',
+    `Elaborador: ${elaborador}`,
+    `Gerado em: ${geradoEm}`,
+    ...(filtros ? [filtros] : []),
+    '',
+    `Total de avaliações atrasadas: ${total}`,
+    `Maior atraso: ${formatarDiasSingularPlural(maiorAtraso)}`,
+    `Média de dias de atraso: ${textoMedia}`,
+    '',
+    'Pendências atrasadas:',
+    ...itens.map(
+      ({ record, dias }, indice) =>
+        `${indice + 1}. ${[record.modulo, record.ano, normalizarTipoAvPerformance(record.tipo_av), record.frente]
+          .map((v) => safe(v) || '-')
+          .join(' | ')} | Encomenda: ${safe(record.data_encomenda) || '-'} | Prazo: ${safe(record.prazo_encomenda) || '-'} | +${formatarDiasSingularPlural(dias)}`
+    ),
+    '',
+    'Atenção às pendências! Os prazos de entrega das avaliações relacionadas neste relatório já foram ultrapassados, comprometendo o cumprimento do cronograma do processo de avaliação. Solicitamos a regularização das entregas com a máxima prioridade.'
+  ].join('\n');
+}
+
+function abrirRelatorioElabIndividual() {
+  const elaborador = selectElabIndividual.value;
+  if (!elaborador) return;
+  fecharSelecaoElabIndividual();
+  gerarRelatorioElabIndividual(elaborador);
+  btnCopiarRelatorioElabIndividual.textContent = 'Copiar resumo';
+  relatorioElabIndividualBackdrop.hidden = false;
+}
+
+function fecharRelatorioElabIndividual() {
+  relatorioElabIndividualBackdrop.hidden = true;
+}
+
+async function copiarResumoRelatorioElabIndividual() {
+  if (!relatorioElabIndividualResumoTexto) return;
+  try {
+    await navigator.clipboard.writeText(relatorioElabIndividualResumoTexto);
+    btnCopiarRelatorioElabIndividual.textContent = 'Resumo copiado!';
+  } catch (erro) {
+    alert('Não foi possível copiar o resumo para a área de transferência.');
+  }
+}
+
+document.getElementById('btnRelatorioIndividualElab').addEventListener('click', abrirSelecaoElabIndividual);
+buscaElabIndividual.addEventListener('input', renderizarListaElaboradoresIndividual);
+btnGerarRelatorioElabIndividual.addEventListener('click', abrirRelatorioElabIndividual);
+document.getElementById('btnCancelarSelecaoElabIndividual').addEventListener('click', fecharSelecaoElabIndividual);
+document.getElementById('btnFecharSelecaoElabIndividual').addEventListener('click', fecharSelecaoElabIndividual);
+selecaoElabIndividualBackdrop.addEventListener('click', (event) => {
+  if (event.target === selecaoElabIndividualBackdrop) fecharSelecaoElabIndividual();
+});
+document.getElementById('btnFecharRelatorioElabIndividual').addEventListener('click', fecharRelatorioElabIndividual);
+document.getElementById('btnCancelarRelatorioElabIndividual').addEventListener('click', fecharRelatorioElabIndividual);
+relatorioElabIndividualBackdrop.addEventListener('click', (event) => {
+  if (event.target === relatorioElabIndividualBackdrop) fecharRelatorioElabIndividual();
+});
+btnCopiarRelatorioElabIndividual.addEventListener('click', copiarResumoRelatorioElabIndividual);
+
+// ======================================================================
+// PDF do "Relatório de Pendências em Atraso" (individual e em lote): o MESMO template do
+// relatório individual (área de impressão do modal, preenchida por gerarRelatorioElabIndividual)
+// é renderizado num iframe fora da tela com o mesmo documento/CSS da impressão
+// (montarDocumentoImpressaoRelatorio), paginado em folhas A4 (linhas da tabela nunca cortadas,
+// cabeçalho da tabela repetido, quadros inteiros) e cada folha vira uma imagem de 190 mm de
+// largura no jsPDF — margens de 10 mm, conteúdo centralizado. Tudo no navegador; as bibliotecas
+// (cdnjs) só são carregadas no 1º uso. Não usa html2pdf.js: ele clonava o relatório para o
+// <body> da página principal, onde o CSS do dashboard substituía o CSS de impressão e o conteúdo
+// estourava a largura capturada (era a causa do corte lateral).
+// ======================================================================
+
+const URL_LIB_JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const URL_LIB_HTML2CANVAS = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+const URL_LIB_JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+// A4 retrato com margens de 10 mm: área útil 190 × 277 mm. A folha é montada com 718 px de
+// largura (190 mm a 96 dpi); a altura útil correspondente é 277 × 718 / 190 ≈ 1046 px (folga de 6 px).
+const PDF_LARGURA_UTIL_MM = 190;
+const PDF_MARGEM_MM = 10;
+const PDF_LARGURA_PAGINA_PX = 718;
+const PDF_ALTURA_PAGINA_PX = 1040;
+const CSS_PAGINA_PDF = `
+  html, body { width: ${PDF_LARGURA_PAGINA_PX}px; margin: 0; padding: 0; background: #ffffff; }
+  .pdf-pagina { width: ${PDF_LARGURA_PAGINA_PX}px; display: flow-root; background: #ffffff; margin: 0 0 40px; overflow: hidden; }
+`;
+const btnGerarTodosPdfsCobranca = document.getElementById('btnGerarTodosPdfsCobranca');
+let geracaoLoteCobrancaEmAndamento = false;
+
+function carregarScriptExterno(url) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[data-lib="${url}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = url;
+    script.dataset.lib = url;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      script.remove();
+      reject(new Error(`Falha ao carregar ${url}`));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+async function garantirBibliotecasPdf(comZip = false) {
+  if (!window.jspdf) await carregarScriptExterno(URL_LIB_JSPDF);
+  if (!window.html2canvas) await carregarScriptExterno(URL_LIB_HTML2CANVAS);
+  if (comZip && !window.JSZip) await carregarScriptExterno(URL_LIB_JSZIP);
+  if (!window.jspdf || !window.html2canvas || (comZip && !window.JSZip)) {
+    throw new Error('Bibliotecas de PDF/ZIP indisponíveis.');
+  }
+}
+
+// "DD-MM-AAAA" da data de geração (nome dos arquivos)
+function dataArquivoLoteCobranca() {
+  const agora = new Date();
+  return `${String(agora.getDate()).padStart(2, '0')}-${String(agora.getMonth() + 1).padStart(2, '0')}-${agora.getFullYear()}`;
+}
+
+// "Ana Carolina Ramos" → "RELATORIO_PENDENCIAS_EM_ATRASO_ANA_CAROLINA_RAMOS_16-10-2026.pdf" (sem
+// acentos/caracteres inválidos); nomes repetidos após a normalização recebem sufixo _2, _3…
+function nomeArquivoPdfCobranca(elaborador, data, usados = new Set()) {
+  const base = removerAcentos(elaborador).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'ELABORADOR';
+  let nome = `RELATORIO_PENDENCIAS_EM_ATRASO_${base}_${data}.pdf`;
+  let sufixo = 2;
+  while (usados.has(nome)) nome = `RELATORIO_PENDENCIAS_EM_ATRASO_${base}_${sufixo++}_${data}.pdf`;
+  usados.add(nome);
+  return nome;
+}
+
+function criarIframePdf() {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${PDF_LARGURA_PAGINA_PX}px;height:1200px;border:0;`;
+  document.body.appendChild(iframe);
+  return iframe;
+}
+
+// Distribui os blocos do relatório em folhas (.pdf-pagina) de no máximo PDF_ALTURA_PAGINA_PX:
+// blocos comuns vão inteiros para a folha seguinte quando não cabem; o bloco com tabela é
+// dividido linha a linha, repetindo o cabeçalho da tabela (sem o título da seção) nas folhas
+// seguintes. Retorna as folhas, já dentro do documento do iframe.
+function paginarRelatorioPdf(doc, origem) {
+  const blocos = Array.from(origem.children);
+  origem.remove();
+  const paginas = [];
+  let pagina;
+  const novaPagina = () => {
+    pagina = doc.createElement('div');
+    pagina.className = 'print-report pdf-pagina';
+    doc.body.appendChild(pagina);
+    paginas.push(pagina);
+  };
+  const estoura = () => pagina.scrollHeight > PDF_ALTURA_PAGINA_PX;
+
+  novaPagina();
+  blocos.forEach((bloco) => {
+    const tbodyOriginal = bloco.querySelector('table tbody');
+    if (!tbodyOriginal) {
+      pagina.appendChild(bloco);
+      if (estoura() && pagina.children.length > 1) {
+        pagina.removeChild(bloco);
+        novaPagina();
+        pagina.appendChild(bloco);
+      }
+      return;
+    }
+
+    const linhas = Array.from(tbodyOriginal.rows);
+    const criarTrecho = (comTitulo) => {
+      const trecho = bloco.cloneNode(true);
+      trecho.querySelector('table tbody').innerHTML = '';
+      if (!comTitulo) trecho.querySelectorAll('.report-section-title').forEach((el) => el.remove());
+      return trecho;
+    };
+    let trecho = criarTrecho(true);
+    let tbody = trecho.querySelector('table tbody');
+    pagina.appendChild(trecho);
+
+    linhas.forEach((linha) => {
+      tbody.appendChild(linha);
+      if (!estoura()) return;
+      tbody.removeChild(linha);
+      if (tbody.rows.length === 0 && pagina.children.length > 1) {
+        // Nem uma linha coube junto do título: leva o início da tabela para a folha seguinte
+        pagina.removeChild(trecho);
+        novaPagina();
+        pagina.appendChild(trecho);
+      } else if (tbody.rows.length > 0) {
+        novaPagina();
+        trecho = criarTrecho(false);
+        tbody = trecho.querySelector('table tbody');
+        pagina.appendChild(trecho);
+      }
+      tbody.appendChild(linha);
+    });
+  });
+
+  return paginas.filter((p) => p.children.length > 0);
+}
+
+// Converte o HTML do relatório num PDF A4 (Blob) — ver comentário do bloco
+async function gerarPdfRelatorioCobranca(iframe, reportHTML, titulo) {
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(montarDocumentoImpressaoRelatorio(reportHTML, titulo));
+  doc.close();
+  const estiloPagina = doc.createElement('style');
+  estiloPagina.textContent = CSS_PAGINA_PDF;
+  doc.head.appendChild(estiloPagina);
+  await Promise.all(
+    Array.from(doc.images).map((img) =>
+      img.complete ? Promise.resolve() : new Promise((resolve) => { img.onload = img.onerror = resolve; })
+    )
+  );
+
+  const paginas = paginarRelatorioPdf(doc, doc.querySelector('.print-report'));
+  const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  for (let i = 0; i < paginas.length; i += 1) {
+    const canvas = await window.html2canvas(paginas[i], {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false,
+      width: PDF_LARGURA_PAGINA_PX,
+      windowWidth: PDF_LARGURA_PAGINA_PX
+    });
+    if (i > 0) pdf.addPage();
+    const alturaMm = (canvas.height * PDF_LARGURA_UTIL_MM) / canvas.width;
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', PDF_MARGEM_MM, PDF_MARGEM_MM, PDF_LARGURA_UTIL_MM, alturaMm);
+  }
+  return pdf.output('blob');
+}
+
+function baixarArquivo(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// "Imprimir / Salvar PDF" do relatório individual: gera e baixa o PDF com o mesmo gerador do
+// lote (mesmo enquadramento). Se as bibliotecas não carregarem (sem internet), cai na janela de
+// impressão do navegador, como antes.
+async function salvarPdfRelatorioElabIndividual() {
+  const elaborador = selectElabIndividual.value;
+  if (!elaborador || relatorioElabIndividualPreview.hidden) return;
+  const textoOriginal = btnImprimirRelatorioElabIndividual.textContent;
+  btnImprimirRelatorioElabIndividual.disabled = true;
+  btnImprimirRelatorioElabIndividual.textContent = 'Gerando PDF…';
+  const iframe = criarIframePdf();
+  try {
+    await garantirBibliotecasPdf();
+    const blob = await gerarPdfRelatorioCobranca(
+      iframe,
+      relatorioElabIndividualPreview.innerHTML,
+      `Relatório de Pendências em Atraso — ${elaborador}`
+    );
+    baixarArquivo(blob, nomeArquivoPdfCobranca(elaborador, dataArquivoLoteCobranca()));
+  } catch (erro) {
+    console.error('Falha ao gerar o PDF; abrindo a impressão do navegador:', erro);
+    imprimirAreaRelatorio('elab-individual-report-print-area', `Relatório de Pendências em Atraso — ${elaborador}`);
+  } finally {
+    iframe.remove();
+    btnImprimirRelatorioElabIndividual.disabled = false;
+    btnImprimirRelatorioElabIndividual.textContent = textoOriginal;
+  }
+}
+
+btnImprimirRelatorioElabIndividual.addEventListener('click', salvarPdfRelatorioElabIndividual);
+
+function atualizarProgressoLoteCobranca(texto, percentual) {
+  document.getElementById('loteCobrancaStatus').textContent = texto;
+  document.getElementById('loteCobrancaBarra').style.width = `${percentual}%`;
+}
+
+async function gerarTodosPdfsCobranca() {
+  if (geracaoLoteCobrancaEmAndamento) return;
+
+  // Mesma lista do relatório geral/individual; só elaboradores identificados
+  const porElaborador = obterPendenciasAtrasadasPorElaborador();
+  const elaboradores = Array.from(porElaborador.keys())
+    .filter((nome) => nome !== 'Não informado')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const progresso = document.getElementById('loteCobrancaProgresso');
+  const resultado = document.getElementById('loteCobrancaResultado');
+  progresso.hidden = false;
+  resultado.hidden = true;
+
+  if (elaboradores.length === 0) {
+    atualizarProgressoLoteCobranca('Nenhum elaborador possui pendências atrasadas nos filtros selecionados.', 0);
+    return;
+  }
+
+  geracaoLoteCobrancaEmAndamento = true;
+  btnGerarTodosPdfsCobranca.disabled = true;
+  btnGerarRelatorioElabIndividual.disabled = true;
+  const selecionadoAntes = selectElabIndividual.value;
+  const iframe = criarIframePdf();
+
+  const falhas = [];
+  let gerados = 0;
+  try {
+    atualizarProgressoLoteCobranca(`Preparando geração — ${elaboradores.length} elaboradores identificados…`, 0);
+    await garantirBibliotecasPdf(true);
+
+    const zip = new window.JSZip();
+    const data = dataArquivoLoteCobranca();
+    const nomesUsados = new Set();
+
+    for (let i = 0; i < elaboradores.length; i += 1) {
+      const nome = elaboradores[i];
+      atualizarProgressoLoteCobranca(
+        `Gerando relatório ${i + 1} de ${elaboradores.length} — ${nome} (${gerados} concluído${gerados === 1 ? '' : 's'})`,
+        (i / elaboradores.length) * 100
+      );
+      try {
+        gerarRelatorioElabIndividual(nome); // mesmo template do relatório individual
+        const blob = await gerarPdfRelatorioCobranca(
+          iframe,
+          relatorioElabIndividualPreview.innerHTML,
+          `Relatório de Pendências em Atraso — ${nome}`
+        );
+        zip.file(nomeArquivoPdfCobranca(nome, data, nomesUsados), blob);
+        gerados += 1;
+      } catch (erro) {
+        console.error(`Falha ao gerar o PDF de ${nome}:`, erro);
+        falhas.push(nome);
+      }
+      // Devolve o controle ao navegador entre um PDF e outro (não trava a tela)
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    if (gerados > 0) {
+      atualizarProgressoLoteCobranca(`Compactando ${gerados} PDF${gerados === 1 ? '' : 's'} no arquivo ZIP…`, 100);
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      baixarArquivo(zipBlob, `RELATORIOS_PENDENCIAS_EM_ATRASO_SGGE_${data}.zip`);
+      atualizarProgressoLoteCobranca(`Concluído: ${gerados} de ${elaboradores.length} PDFs gerados e baixados no ZIP.`, 100);
+    } else {
+      atualizarProgressoLoteCobranca('Nenhum PDF pôde ser gerado.', 100);
+    }
+    if (falhas.length) {
+      resultado.hidden = false;
+      resultado.textContent = `Falha em ${falhas.length} elaborador${falhas.length === 1 ? '' : 'es'}: ${falhas.join(', ')}. Detalhes no console do navegador.`;
+    }
+  } catch (erro) {
+    console.error('Erro na geração em lote:', erro);
+    atualizarProgressoLoteCobranca(
+      `Não foi possível gerar os PDFs: ${erro.message} Verifique a conexão (as bibliotecas de PDF/ZIP são carregadas da internet).`,
+      0
+    );
+  } finally {
+    iframe.remove();
+    geracaoLoteCobrancaEmAndamento = false;
+    btnGerarTodosPdfsCobranca.disabled = false;
+    selectElabIndividual.value = selecionadoAntes;
+    btnGerarRelatorioElabIndividual.disabled = !selectElabIndividual.value;
+  }
+}
+
+btnGerarTodosPdfsCobranca.addEventListener('click', gerarTodosPdfsCobranca);
+
+// ======================================================================
+// Contatos dos elaboradores + envio assistido do Relatório de Pendências em Atraso pelo WhatsApp
+// ======================================================================
+
+// URL do Apps Script de contatos (apps-script/contatos-elaboradores.gs, implantado à parte — NÃO
+// é a API principal). Vazio = modo local: os contatos ficam só neste navegador (aviso na tela).
+const CONTATOS_API_URL = '';
+const CHAVE_CONTATOS_LOCAL = 'sgge_contatos_elaboradores';
+
+const ICONE_WHATSAPP_SVG =
+  '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12.04 2a9.9 9.9 0 0 0-8.5 14.98L2 22l5.17-1.5A9.93 9.93 0 1 0 12.04 2Zm0 18.1a8.15 8.15 0 0 1-4.16-1.14l-.3-.18-3.07.89.9-2.99-.2-.31a8.17 8.17 0 1 1 6.83 3.73Zm4.48-6.12c-.25-.12-1.45-.71-1.67-.8-.23-.08-.39-.12-.55.13-.16.24-.63.79-.78.95-.14.17-.29.19-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.15.16-.25.25-.42.08-.16.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47c-.16 0-.43.06-.65.3-.22.25-.86.84-.86 2.05 0 1.2.88 2.37 1 2.53.12.16 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.52.59.18 1.12.16 1.55.1.47-.07 1.45-.6 1.66-1.17.2-.58.2-1.07.14-1.17-.06-.11-.22-.17-.47-.29Z"/></svg>';
+
+// Telefone brasileiro → "55DDDNUMERO" (só dígitos, com código do país); '' se inválido
+function normalizarTelefoneWhatsApp(telefone) {
+  let digitos = safe(telefone).replace(/\D/g, '').replace(/^0+/, '');
+  if (digitos.length === 10 || digitos.length === 11) digitos = `55${digitos}`;
+  return /^55\d{10,11}$/.test(digitos) ? digitos : '';
+}
+
+// "5581999998888" → "(81) 99999-8888"
+function formatarTelefoneExibicao(telefone) {
+  const d = normalizarTelefoneWhatsApp(telefone).slice(2);
+  if (!d) return safe(telefone);
+  return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+}
+
+// Chave de vínculo com o campo `elaborador` da BD_SGGE (a base não tem um id de elaborador, então
+// o vínculo é pelo nome normalizado: sem acentos, maiúsculas, espaços simples)
+function chaveNomeElaborador(nome) {
+  return removerAcentos(safe(nome)).toUpperCase().replace(/\s+/g, ' ');
+}
+
+// Armazenamento dos contatos: remoto (Apps Script de contatos, compartilhado) quando
+// CONTATOS_API_URL estiver preenchida; senão, localStorage deste navegador (provisório).
+// Contato: { id, nome, telefone, situacao: 'Ativo'|'Inativo', atualizadoEm, atualizadoPor }
+const ContatosElaboradores = (() => {
+  let contatos = [];
+  let carregado = false;
+
+  const remoto = () => Boolean(CONTATOS_API_URL);
+
+  function lerLocal() {
+    try {
+      return JSON.parse(localStorage.getItem(CHAVE_CONTATOS_LOCAL) || '[]');
+    } catch (erro) {
+      return [];
+    }
+  }
+
+  async function carregar() {
+    if (remoto()) {
+      const resposta = await fetch(`${CONTATOS_API_URL}?action=listar&t=${Date.now()}`, { cache: 'no-store' });
+      const json = await resposta.json();
+      if (!json.success) throw new Error(json.message || 'Falha ao carregar contatos.');
+      contatos = json.contatos || [];
+    } else {
+      contatos = lerLocal();
+    }
+    carregado = true;
+    return contatos;
+  }
+
+  async function salvar(contato) {
+    const usuario = (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem(CHAVE_USUARIO_LOGADO) || 'null');
+        return (u && (u.nome || u.usuario)) || '';
+      } catch (erro) {
+        return '';
+      }
+    })();
+    const registro = {
+      id: contato.id || (crypto.randomUUID ? crypto.randomUUID() : `c${Date.now()}`),
+      nome: safe(contato.nome),
+      telefone: normalizarTelefoneWhatsApp(contato.telefone),
+      situacao: contato.situacao === 'Inativo' ? 'Inativo' : 'Ativo',
+      atualizadoEm: new Date().toISOString(),
+      atualizadoPor: usuario
+    };
+    if (remoto()) {
+      // text/plain evita a pré-verificação de CORS (requisição simples aceita pelo Apps Script)
+      const resposta = await fetch(CONTATOS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'salvar', contato: registro })
+      });
+      const json = await resposta.json();
+      if (!json.success) throw new Error(json.message || 'Falha ao salvar o contato.');
+      await carregar();
+    } else {
+      const lista = lerLocal().filter((c) => c.id !== registro.id && chaveNomeElaborador(c.nome) !== chaveNomeElaborador(registro.nome));
+      lista.push(registro);
+      localStorage.setItem(CHAVE_CONTATOS_LOCAL, JSON.stringify(lista));
+      contatos = lista;
+    }
+    return registro;
+  }
+
+  function buscarPorNome(nome) {
+    const chave = chaveNomeElaborador(nome);
+    return contatos.find((c) => chaveNomeElaborador(c.nome) === chave) || null;
+  }
+
+  return { carregar, salvar, buscarPorNome, remoto, listar: () => contatos.slice(), carregado: () => carregado };
+})();
+
+// Provedor de envio: hoje "assistido" (abre wa.me com a mensagem; o usuário anexa o PDF e
+// confirma o envio no WhatsApp). Para migrar à API oficial do WhatsApp Business, basta trocar
+// este objeto por um que envie pelo backend (sem token da Meta no navegador).
+const ProvedorEnvioWhatsApp = {
+  tipo: 'assistido',
+  abrirConversa(telefoneNormalizado, mensagem) {
+    window.open(`https://wa.me/${telefoneNormalizado}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener');
+  }
+};
+
+function mensagemPadraoWhatsAppElaborador(nome) {
+  return [
+    `Olá, ${nome}.`,
+    '',
+    'Encaminhamos o Relatório de Pendências em Atraso, referente às avaliações que permanecem sem registro de devolutiva após o prazo estabelecido.',
+    '',
+    'Solicitamos a regularização das entregas com a máxima prioridade, a fim de evitar impactos no cronograma do processo de avaliação.',
+    '',
+    'Em caso de dúvidas, entre em contato com a Equipe Administrativa de avaliações.',
+    '',
+    'Atenciosamente,',
+    'Equipe Administrativa de Avaliações — SGGE'
+  ].join('\n');
+}
+
+// ---- Modal "Enviar relatório pelo WhatsApp" ----
+
+const envioWhatsAppBackdrop = document.getElementById('envioWhatsAppBackdrop');
+const btnBaixarPdfWhatsApp = document.getElementById('btnBaixarPdfWhatsApp');
+const btnAbrirWhatsApp = document.getElementById('btnAbrirWhatsApp');
+const envioWhatsAppEstado = { nome: '', telefone: '', pdf: null, nomeArquivo: '' };
+
+function atualizarStatusEnvioWhatsApp(texto, tipo = '') {
+  const status = document.getElementById('envioWhatsAppStatus');
+  status.textContent = texto;
+  status.className = `envio-whatsapp-status${tipo ? ` envio-whatsapp-status--${tipo}` : ''}`;
+}
+
+function atualizarContatoEnvioWhatsApp() {
+  const contato = ContatosElaboradores.buscarPorNome(envioWhatsAppEstado.nome);
+  const telefone = contato && contato.situacao === 'Ativo' ? normalizarTelefoneWhatsApp(contato.telefone) : '';
+  envioWhatsAppEstado.telefone = telefone;
+  const linha = document.getElementById('envioWhatsAppTelefone');
+  const aviso = document.getElementById('envioWhatsAppSemContato');
+  if (telefone) {
+    linha.textContent = `WhatsApp: ${formatarTelefoneExibicao(telefone)}`;
+    aviso.hidden = true;
+  } else {
+    linha.textContent = 'WhatsApp: não cadastrado';
+    aviso.hidden = false;
+    aviso.querySelector('span').textContent = contato && contato.situacao === 'Inativo'
+      ? 'O contato deste elaborador está inativo.'
+      : 'Este elaborador não possui WhatsApp cadastrado.';
+  }
+  btnAbrirWhatsApp.disabled = !(telefone && envioWhatsAppEstado.pdf);
+}
+
+async function abrirEnvioWhatsAppElaborador(nome) {
+  envioWhatsAppEstado.nome = nome;
+  envioWhatsAppEstado.pdf = null;
+  document.getElementById('envioWhatsAppNome').textContent = nome;
+  document.getElementById('envioWhatsAppMensagem').value = mensagemPadraoWhatsAppElaborador(nome);
+  btnBaixarPdfWhatsApp.disabled = true;
+  btnAbrirWhatsApp.disabled = true;
+  envioWhatsAppBackdrop.hidden = false;
+  atualizarContatoEnvioWhatsApp();
+  atualizarStatusEnvioWhatsApp('Preparando o PDF do relatório…');
+
+  // PDF individual atualizado: mesmo template e mesmo gerador A4 do relatório individual
+  const iframe = criarIframePdf();
+  try {
+    await garantirBibliotecasPdf();
+    gerarRelatorioElabIndividual(nome);
+    if (relatorioElabIndividualPreview.hidden) throw new Error('Elaborador sem pendências atrasadas nos filtros atuais.');
+    const blob = await gerarPdfRelatorioCobranca(iframe, relatorioElabIndividualPreview.innerHTML, `Relatório de Pendências em Atraso — ${nome}`);
+    if (envioWhatsAppEstado.nome !== nome) return; // usuário trocou de elaborador no meio
+    envioWhatsAppEstado.pdf = blob;
+    envioWhatsAppEstado.nomeArquivo = nomeArquivoPdfCobranca(nome, dataArquivoLoteCobranca());
+    btnBaixarPdfWhatsApp.disabled = false;
+    atualizarContatoEnvioWhatsApp();
+    atualizarStatusEnvioWhatsApp('Relatório preparado. Baixe o PDF, abra a conversa e anexe o documento antes de enviar.', 'ok');
+  } catch (erro) {
+    console.error('Falha ao preparar o PDF para o WhatsApp:', erro);
+    atualizarStatusEnvioWhatsApp(`Não foi possível preparar o PDF: ${erro.message}`, 'erro');
+  } finally {
+    iframe.remove();
+  }
+}
+
+function fecharEnvioWhatsApp() {
+  envioWhatsAppBackdrop.hidden = true;
+  envioWhatsAppEstado.nome = '';
+  envioWhatsAppEstado.pdf = null;
+}
+
+btnBaixarPdfWhatsApp.addEventListener('click', () => {
+  if (envioWhatsAppEstado.pdf) baixarArquivo(envioWhatsAppEstado.pdf, envioWhatsAppEstado.nomeArquivo);
+});
+// Só abre a conversa; não registra nada como "enviado" — o envio é confirmado pelo usuário no WhatsApp
+btnAbrirWhatsApp.addEventListener('click', () => {
+  if (!envioWhatsAppEstado.telefone || !envioWhatsAppEstado.pdf) return;
+  ProvedorEnvioWhatsApp.abrirConversa(envioWhatsAppEstado.telefone, document.getElementById('envioWhatsAppMensagem').value);
+  atualizarStatusEnvioWhatsApp('Conversa aberta. Anexe o PDF baixado e confirme o envio no WhatsApp.', 'ok');
+});
+document.getElementById('btnCancelarEnvioWhatsApp').addEventListener('click', fecharEnvioWhatsApp);
+document.getElementById('btnFecharEnvioWhatsApp').addEventListener('click', fecharEnvioWhatsApp);
+envioWhatsAppBackdrop.addEventListener('click', (event) => {
+  if (event.target === envioWhatsAppBackdrop) fecharEnvioWhatsApp();
+});
+document.getElementById('btnCadastrarContatoWhatsApp').addEventListener('click', () => abrirContatosElaboradores(envioWhatsAppEstado.nome));
+
+// ---- Modal "Contatos dos elaboradores" ----
+
+const contatosBackdrop = document.getElementById('contatosElaboradoresBackdrop');
+const formContato = document.getElementById('formContatoElaborador');
+const campoContatoId = document.getElementById('contatoElaboradorId');
+const campoContatoNome = document.getElementById('contatoElaboradorNome');
+const campoContatoTelefone = document.getElementById('contatoElaboradorTelefone');
+const campoContatoSituacao = document.getElementById('contatoElaboradorSituacao');
+
+function preencherFormContato(contato, nomePadrao = '') {
+  campoContatoId.value = contato ? contato.id : '';
+  campoContatoNome.value = contato ? contato.nome : nomePadrao;
+  campoContatoTelefone.value = contato ? formatarTelefoneExibicao(contato.telefone) : '';
+  campoContatoSituacao.value = contato ? contato.situacao : 'Ativo';
+  document.getElementById('contatoElaboradorErro').textContent = '';
+}
+
+function renderizarTabelaContatos() {
+  const tbody = document.getElementById('contatosElaboradoresBody');
+  const contatos = ContatosElaboradores.listar().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  tbody.innerHTML = '';
+  if (contatos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="contatos-vazio">Nenhum contato cadastrado.</td></tr>';
+    return;
+  }
+  contatos.forEach((contato) => {
+    const tr = document.createElement('tr');
+    [contato.nome, formatarTelefoneExibicao(contato.telefone), contato.situacao].forEach((valor) => {
+      const td = document.createElement('td');
+      td.textContent = valor || '-';
+      tr.appendChild(td);
+    });
+    const tdAcao = document.createElement('td');
+    const editar = document.createElement('button');
+    editar.type = 'button';
+    editar.className = 'btn btn-outline contatos-editar';
+    editar.textContent = 'Editar';
+    editar.addEventListener('click', () => preencherFormContato(contato));
+    tdAcao.appendChild(editar);
+    tr.appendChild(tdAcao);
+    tbody.appendChild(tr);
+  });
+}
+
+async function abrirContatosElaboradores(nomePadrao = '') {
+  // Sugestões de nome: todos os elaboradores da base carregada (campo `elaborador`)
+  const datalist = document.getElementById('listaNomesElaboradores');
+  datalist.innerHTML = '';
+  Array.from(new Set(allRecords.map((r) => safe(r.elaborador)).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .forEach((nome) => {
+      const option = document.createElement('option');
+      option.value = nome;
+      datalist.appendChild(option);
+    });
+
+  document.getElementById('contatosModoAviso').hidden = ContatosElaboradores.remoto();
+  contatosBackdrop.hidden = false;
+  document.getElementById('contatosElaboradoresBody').innerHTML = '<tr><td colspan="4" class="contatos-vazio">Carregando…</td></tr>';
+  try {
+    await ContatosElaboradores.carregar();
+  } catch (erro) {
+    document.getElementById('contatoElaboradorErro').textContent = `Não foi possível carregar os contatos: ${erro.message}`;
+  }
+  renderizarTabelaContatos();
+  preencherFormContato(ContatosElaboradores.buscarPorNome(nomePadrao), nomePadrao);
+}
+
+function fecharContatosElaboradores() {
+  contatosBackdrop.hidden = true;
+  // Reflete o cadastro na lista de seleção e no modal de envio, se estiverem abertos
+  if (!selecaoElabIndividualBackdrop.hidden) renderizarListaElaboradoresIndividual();
+  if (!envioWhatsAppBackdrop.hidden) atualizarContatoEnvioWhatsApp();
+}
+
+formContato.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const erro = document.getElementById('contatoElaboradorErro');
+  const nome = safe(campoContatoNome.value);
+  if (!nome) {
+    erro.textContent = 'Informe o nome do elaborador.';
+    return;
+  }
+  if (!normalizarTelefoneWhatsApp(campoContatoTelefone.value)) {
+    erro.textContent = 'Informe um WhatsApp válido com DDD, por exemplo (81) 99999-8888.';
+    return;
+  }
+  const existente = ContatosElaboradores.buscarPorNome(nome);
+  const botao = document.getElementById('btnSalvarContatoElaborador');
+  botao.disabled = true;
+  try {
+    await ContatosElaboradores.salvar({
+      id: campoContatoId.value || (existente && existente.id),
+      nome,
+      telefone: campoContatoTelefone.value,
+      situacao: campoContatoSituacao.value
+    });
+    erro.textContent = '';
+    renderizarTabelaContatos();
+    preencherFormContato(null);
+  } catch (falha) {
+    erro.textContent = `Não foi possível salvar: ${falha.message}`;
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+document.getElementById('btnContatosElaboradores').addEventListener('click', () => abrirContatosElaboradores());
+document.getElementById('btnNovoContatoElaborador').addEventListener('click', () => preencherFormContato(null));
+document.getElementById('btnFecharContatosElaboradores').addEventListener('click', fecharContatosElaboradores);
+document.getElementById('btnFecharContatosElaboradoresRodape').addEventListener('click', fecharContatosElaboradores);
+contatosBackdrop.addEventListener('click', (event) => {
+  if (event.target === contatosBackdrop) fecharContatosElaboradores();
+});
 
 // ======================================================================
 // Relatório de Pendências por Coordenador (1ª Validação — card "Validações atrasadas"): mesma
