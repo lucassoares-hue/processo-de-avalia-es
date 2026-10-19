@@ -5498,6 +5498,94 @@ body {
    1 barra por módulo. Sem precedente igual no projeto (os demais gráficos de barra são de uma
    cor só) — construído com o mesmo vocabulário visual das outras seções de Indicadores
    (cores --ind-*, .coord-ranking-row-like spacing), sem framework de gráfico. */
+/* Previsto vs. Realizado — faixas de antecedência, controle "Somente fora do previsto" e
+   destaque das linhas fora do previsto na tabela */
+.prg-faixas {
+  height: 190px;
+  margin-top: 6px;
+}
+
+.prg-faixas .stage-chart-vbar-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.prg-faixas .stage-chart-vbar-label small {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.prg-somente-fora {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 20px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.prg-somente-fora input {
+  width: 16px;
+  height: 16px;
+  accent-color: #DC2626;
+  cursor: pointer;
+}
+
+.data-table tbody tr.prg-linha-fora td {
+  background: #fef2f2;
+}
+
+/* Análise de Causa Raiz: acesso pela tabela e pelo botão "Analisar atrasos" */
+.prg-detalhe-ferramentas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 20px 10px;
+}
+
+.prg-detalhe-ferramentas .prg-somente-fora {
+  margin: 0;
+}
+
+.prg-btn-analisar {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.prg-btn-acr {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border: 1px solid #DC2626;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prg-btn-acr:hover,
+.prg-btn-acr:focus-visible {
+  background: #fee2e2;
+}
+
+.report-modal-content.acr-modal {
+  width: min(1100px, calc(100vw - 32px));
+}
+
+.acr-modal .report-table-wrap,
+.acr-modal .report-section {
+  overflow-x: auto;
+}
+
 .prg-stacked-chart {
   display: flex;
   flex-direction: column;
@@ -5972,7 +6060,7 @@ body {
   justify-content: center;
   font-size: 18px;
   font-weight: 900;
-  color: #0b315f;
+  color: #0B2D5B;
 }
 
 .resumo-modulos-barras {
@@ -5986,7 +6074,7 @@ body {
   display: block;
   font-size: 12px;
   font-weight: 800;
-  color: #334155;
+  color: #0B2D5B;
   letter-spacing: 0.03em;
   margin-bottom: 5px;
 }
@@ -6000,7 +6088,7 @@ body {
 .resumo-modulos-track {
   flex: 1;
   height: 12px;
-  background: #e8eef5;
+  background: #E5ECF4;
   border-radius: 999px;
   overflow: hidden;
 }
@@ -6008,17 +6096,15 @@ body {
 .resumo-modulos-fill {
   height: 100%;
   border-radius: 999px;
+  background: #1555A5;
 }
-
-.resumo-modulos-fill--m3 { background: #16a34a; }
-.resumo-modulos-fill--m4 { background: #1d4f86; }
 
 .resumo-modulos-pct {
   min-width: 52px;
   text-align: right;
   font-size: 15px;
   font-weight: 900;
-  color: #0b315f;
+  color: #0B2D5B;
 }
 
 @media (max-width: 700px) {
@@ -6032,6 +6118,581 @@ body {
   }
 }
 
+/* Cabeçalho de seção com botão à direita (Resumo da Produção / Cronograma de Atividades) */
+.pe-indicadores-header.resumo-header-com-acao {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.btn-cronograma {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #1555A5;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(21, 85, 165, 0.25);
+  transition: background-color 0.15s ease;
+}
+
+.btn-cronograma:hover,
+.btn-cronograma:focus-visible {
+  background: #0B2D5B;
+}
+
+.btn-voltar-resumo {
+  flex-shrink: 0;
+}
+
+/* Cronograma de Atividades: cards por atividade */
+.cronograma-grupo {
+  margin-bottom: 18px;
+}
+
+.cronograma-grupo-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0B2D5B;
+}
+
+.cronograma-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.cronograma-card {
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-top: 4px solid #1555A5;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgba(15, 35, 65, 0.06);
+  display: grid;
+  gap: 10px;
+}
+
+.cronograma-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cronograma-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eaf1fb;
+  color: #1555A5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cronograma-tag--modulo {
+  background: #0B2D5B;
+  color: #ffffff;
+}
+
+.cronograma-card-datas {
+  display: grid;
+}
+
+.cronograma-data {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  min-width: 0;
+}
+
+.cronograma-data + .cronograma-data {
+  border-top: 1px solid #e8eef6;
+}
+
+.cronograma-data > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cronograma-data-icone {
+  flex: 0 0 auto;
+  color: #1555A5;
+}
+
+.cronograma-card-datas strong {
+  font-size: 15px;
+  color: #0B2D5B;
+}
+
+.cronograma-rotulo {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* Quadro "Anotação" (mural independente, abaixo dos cards) */
+.pcp-anotacoes {
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(15, 35, 65, 0.06);
+}
+
+.pcp-anotacoes-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #0B2D5B;
+  color: #ffffff;
+}
+
+.pcp-anotacoes-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pcp-anotacoes-lista {
+  list-style: none;
+  margin: 0;
+  padding: 4px 16px;
+}
+
+.pcp-anotacao {
+  padding: 12px 0;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #1f2937;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pcp-anotacao:last-child {
+  border-bottom: none;
+}
+
+.pcp-anotacao--vazia {
+  color: #64748b;
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .btn-cronograma,
+  .btn-voltar-resumo {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* "Erros de Avaliações" (Indicadores do Processo) */
+
+/* Cabeçalho só com o título (sem subtítulo): cards mais próximos */
+.pe-indicadores-header.erros-header {
+  margin-bottom: 12px;
+}
+
+.erros-header .pe-indicadores-titulo {
+  margin-bottom: 0;
+}
+/* 4 cards de indicadores (Total de erros | Total de avaliações | % com erro | % qualidade) */
+.erros-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.erros-kpi {
+  --erros-kpi-cor: #1555A5;
+  --erros-kpi-fundo: #eaf1fb;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-top: 4px solid var(--erros-kpi-cor);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(15, 35, 65, 0.06);
+}
+
+.erros-kpi--erro { --erros-kpi-cor: #DC2626; --erros-kpi-fundo: #fef2f2; }
+.erros-kpi--total { --erros-kpi-cor: #1555A5; --erros-kpi-fundo: #eaf1fb; }
+.erros-kpi--qualidade { --erros-kpi-cor: #16A36B; --erros-kpi-fundo: #e8f7f0; }
+
+.erros-kpi-icone {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--erros-kpi-fundo);
+  color: var(--erros-kpi-cor);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.erros-kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.erros-kpi-titulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.erros-kpi-valor {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: var(--erros-kpi-cor);
+}
+
+.erros-kpi-sub {
+  font-size: 12px;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .erros-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.erros-grid {
+  margin-top: 4px;
+}
+
+/* Colunas verticais (avaliação, ano/série, cascata): rótulo pode ter 2 linhas */
+.erros-colunas .stage-chart-vbar-label,
+.erros-cascata-label {
+  white-space: normal;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  min-height: 2.4em;
+}
+
+/* Cascata: cada degrau flutua sobre o acumulado das categorias anteriores */
+.stage-chart-vbar-track.erros-cascata-track {
+  position: relative;
+  display: block;
+  max-width: 72px;
+}
+
+.erros-cascata-degrau {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 4px;
+  min-height: 3px;
+}
+
+.erros-cascata {
+  height: 220px;
+}
+
+/* Disciplina: nome completo em até 2 linhas, coluna de rótulo mais larga */
+.erros-hbars .stage-chart-hbar {
+  grid-template-columns: minmax(110px, 220px) minmax(0, 1fr) 40px;
+}
+
+.erros-hbars .stage-chart-hbar-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Filtros cruzados dos gráficos de Erros de Avaliações */
+.erros-filtros-ativos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f4f7fb;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+}
+
+.erros-filtros-ativos[hidden] {
+  display: none;
+}
+
+.erros-filtros-ativos-titulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.erros-filtros-ativos-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.erros-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid #1555A5;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0B2D5B;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.erros-chip:hover,
+.erros-chip:focus-visible {
+  background: #eaf1fb;
+}
+
+.erros-filtros-limpar {
+  border: none;
+  background: transparent;
+  color: #1555A5;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Elementos clicáveis dos gráficos: cursor, hover discreto, seleção em destaque */
+.erros-clicavel {
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+
+#errosAvaliacoesGraficos .stage-chart-vbar.erros-clicavel:hover,
+#errosAvaliacoesGraficos .stage-chart-hbar.erros-clicavel:hover,
+#errosAvaliacoesGraficos li.erros-clicavel:hover {
+  opacity: 0.8;
+}
+
+#errosAvaliacoesGraficos circle.erros-clicavel:hover {
+  opacity: 0.75;
+}
+
+#errosAvaliacoesGraficos .erros-clicavel:focus-visible {
+  outline: 2px solid #1555A5;
+  outline-offset: 2px;
+}
+
+#errosAvaliacoesGraficos .is-erros-esmaecido {
+  opacity: 0.35;
+}
+
+#errosAvaliacoesGraficos .is-erros-selecionado .stage-chart-vbar-label,
+#errosAvaliacoesGraficos .is-erros-selecionado .stage-chart-hbar-label {
+  font-weight: 900;
+  color: #0B2D5B;
+}
+
+#errosAvaliacoesGraficos .is-erros-selecionado .stage-chart-vbar-fill,
+#errosAvaliacoesGraficos .is-erros-selecionado .stage-chart-hbar-fill,
+#errosAvaliacoesGraficos .is-erros-selecionado .erros-cascata-degrau {
+  box-shadow: 0 0 0 2px #0B2D5B;
+}
+
+#errosAvaliacoesGraficos .stage-chart-vbar-fill,
+#errosAvaliacoesGraficos .stage-chart-hbar-fill,
+#errosAvaliacoesGraficos .erros-cascata-degrau {
+  transition: height 0.25s ease, width 0.25s ease, bottom 0.25s ease;
+}
+
+/* "Descrição dos Erros" */
+.erros-descricao {
+  margin-top: 14px;
+}
+
+.erros-descricao-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.erros-descricao-header .stage-chart-title {
+  margin: 0;
+}
+
+.erros-descricao-ferramentas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.erros-descricao-ferramentas input[type='search'] {
+  flex: 1 1 320px;
+  max-width: 520px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d8e3ef;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.erros-descricao-contador {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Rolagem só dentro da tabela (horizontal no mobile; vertical com cabeçalho fixo) */
+.erros-tabela-wrap {
+  overflow: auto;
+  max-height: 560px;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+}
+
+.erros-tabela {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  color: #1f2937;
+}
+
+.erros-tabela th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #0B2D5B;
+  color: #ffffff;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.erros-tabela th::after {
+  content: ' ↕';
+  opacity: 0.45;
+  font-size: 11px;
+}
+
+.erros-tabela th[aria-sort='ascending']::after {
+  content: ' ▲';
+  opacity: 1;
+}
+
+.erros-tabela th[aria-sort='descending']::after {
+  content: ' ▼';
+  opacity: 1;
+}
+
+.erros-tabela th:focus-visible {
+  outline: 2px solid #76B8F8;
+  outline-offset: -2px;
+}
+
+.erros-tabela td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e5ecf4;
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.erros-tabela tbody tr:nth-child(even) td {
+  background: #f4f7fb;
+}
+
+.erros-tabela tbody tr:hover td {
+  background: #e8f1fc;
+}
+
+.erros-col-curta { width: 7%; }
+.erros-col-media { width: 13%; }
+.erros-col-longa { width: 34%; }
+
+.erros-celula-vazia {
+  color: #94a3b8;
+}
+
+.erros-tabela td.erros-tabela-vazia {
+  text-align: center;
+  color: #64748b;
+  padding: 18px;
+}
+
+.erros-paginacao {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.erros-paginacao .btn {
+  padding: 6px 14px;
+}
+
+@media (max-width: 640px) {
+  .erros-paginacao {
+    justify-content: space-between;
+  }
+
+  .erros-descricao-ferramentas input[type='search'] {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .erros-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .erros-hbars .stage-chart-hbar {
+    grid-template-columns: minmax(80px, 120px) minmax(0, 1fr) 32px;
+  }
+}
+
 /* Painel "Análise da etapa" (Resumo da Produção — clique num card de etapa) */
 .stage-analysis-card {
   margin-bottom: 20px;
@@ -6040,15 +6701,8 @@ body {
 .stage-analysis-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: flex-start;
   margin-bottom: 12px;
-}
-
-.stage-analysis-toggle {
-  padding: 6px 14px;
-  font-size: 13px;
 }
 
 .stage-analysis-kpis {
@@ -6056,6 +6710,17 @@ body {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
+}
+
+/* Etapas com 4 cards (Processo Editorial, sem "Atrasadas"): 4 colunas iguais */
+.stage-analysis-kpis.stage-analysis-kpis--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .stage-analysis-kpis.stage-analysis-kpis--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .stage-analysis-kpi {
@@ -6083,14 +6748,112 @@ body {
   color: #0b315f;
 }
 
-.stage-analysis-kpi--success { border-top-color: #16a34a; }
-.stage-analysis-kpi--success .stage-analysis-kpi-valor { color: #059669; }
-.stage-analysis-kpi--warning { border-top-color: #ea580c; }
-.stage-analysis-kpi--warning .stage-analysis-kpi-valor { color: #ea580c; }
-.stage-analysis-kpi--pending { border-top-color: #94a3b8; }
-.stage-analysis-kpi--pending .stage-analysis-kpi-valor { color: #475569; }
-.stage-analysis-kpi--danger { border-top-color: #dc2626; }
-.stage-analysis-kpi--danger .stage-analysis-kpi-valor { color: #dc2626; }
+/* Mesma paleta da rosca "Distribuição por status" (CORES_STATUS_ANALISE_ETAPA): azuis do mais
+   escuro ao mais claro e vermelho só para Atrasadas. O número de "Pendentes" usa um azul um pouco
+   mais escuro que a borda (#76B8F8) para manter contraste com o fundo claro. */
+.stage-analysis-kpi--total { border-top-color: #0B2D5B; }
+.stage-analysis-kpi--total .stage-analysis-kpi-valor { color: #0B2D5B; }
+.stage-analysis-kpi--success { border-top-color: #1555A5; }
+.stage-analysis-kpi--success .stage-analysis-kpi-valor { color: #1555A5; }
+.stage-analysis-kpi--warning { border-top-color: #287FE5; }
+.stage-analysis-kpi--warning .stage-analysis-kpi-valor { color: #287FE5; }
+.stage-analysis-kpi--pending { border-top-color: #76B8F8; }
+.stage-analysis-kpi--pending .stage-analysis-kpi-valor { color: #4A90D9; }
+.stage-analysis-kpi--danger { border-top-color: #DC2626; }
+.stage-analysis-kpi--danger .stage-analysis-kpi-valor { color: #DC2626; }
+
+/* Cards como filtro de status (são <button>): seleção com borda na cor do status, fundo
+   levemente tonalizado e marcador "✓"; foco visível para teclado */
+button.stage-analysis-kpi {
+  position: relative;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  --kpi-cor: #0B2D5B;
+  --kpi-fundo: #eef2f8;
+}
+
+.stage-analysis-kpi--success { --kpi-cor: #1555A5; --kpi-fundo: #eaf1fb; }
+.stage-analysis-kpi--warning { --kpi-cor: #287FE5; --kpi-fundo: #edf5fe; }
+.stage-analysis-kpi--pending { --kpi-cor: #76B8F8; --kpi-fundo: #f1f8ff; }
+.stage-analysis-kpi--danger { --kpi-cor: #DC2626; --kpi-fundo: #fef2f2; }
+
+button.stage-analysis-kpi:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(15, 35, 65, 0.1);
+}
+
+button.stage-analysis-kpi:focus-visible {
+  outline: 2px solid var(--kpi-cor);
+  outline-offset: 2px;
+}
+
+button.stage-analysis-kpi.is-active {
+  background: var(--kpi-fundo);
+  border-color: var(--kpi-cor);
+  border-top-width: 5px;
+  box-shadow: 0 0 0 1px var(--kpi-cor), 0 6px 16px rgba(15, 35, 65, 0.12);
+}
+
+button.stage-analysis-kpi.is-active::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--kpi-cor);
+}
+
+button.stage-analysis-kpi:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* "Exibindo: <status>" + "Limpar filtro" */
+.stage-analysis-filtro {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: -4px 0 12px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.stage-analysis-filtro[hidden] {
+  display: none;
+}
+
+.stage-analysis-filtro strong {
+  color: #0B2D5B;
+}
+
+.stage-analysis-filtro-limpar {
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  color: #1555A5;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Rosca com status selecionado: legenda dos demais status esmaecida */
+.stage-chart-legend li.is-esmaecido {
+  opacity: 0.45;
+}
+
+.stage-chart-legend li.is-destaque {
+  font-weight: 700;
+}
+
+/* Quantidade de atrasadas (filtro "Atrasadas") em vermelho */
+.stage-chart-progress-valor strong.stage-chart-valor--late {
+  color: #DC2626;
+}
 
 .stage-analysis-grid {
   display: grid;
@@ -6317,6 +7080,47 @@ body {
   font-weight: 900;
 }
 
+/* Barras empilhadas por status (htmlBarrasEmpilhadasAnaliseEtapa): segmentos lado a lado dentro
+   da trilha; cada segmento tem a largura do seu % no agrupamento */
+.stage-chart-progress-track.stage-chart-stack {
+  display: flex;
+  height: 16px;
+}
+
+.stage-chart-stack-seg {
+  height: 100%;
+  min-width: 2px;
+  cursor: help;
+}
+
+.stage-chart-stack-seg + .stage-chart-stack-seg {
+  border-left: 1px solid #ffffff;
+}
+
+.stage-chart-status-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: -2px 0 10px;
+  padding: 0;
+  font-size: 11px;
+  color: #475569;
+}
+
+.stage-chart-status-legend li {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Disciplina: nome completo (quebra em linhas em vez de reticências) */
+.stage-chart-progress--disciplina .stage-chart-progress-label {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
 /* Progresso por disciplina: nomes mais longos, coluna de rótulo mais larga */
 .stage-chart-progress--disciplina .stage-chart-progress-row {
   grid-template-columns: minmax(90px, 220px) minmax(0, 1fr) auto;
@@ -6504,64 +7308,6 @@ body {
 @media (max-width: 700px) {
   .resumo-etapas-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-/* Cabeçalho da tabela "Detalhamento da etapa" (Resumo da Produção): título à esquerda, filtro
-   "Status" à direita, mesma linha — mesmo card branco da tabela (.pe-matrix-card), só o
-   cabeçalho tem layout próprio (não reaproveita .pe-tabela-header para não afetar as demais
-   tabelas pe-matrix-card do painel). */
-.stage-detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px 16px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.stage-detail-header .pe-tabela-titulo {
-  margin: 0;
-}
-
-.stage-status-filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stage-status-filter label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ind-azul-principal, #1f4775);
-  white-space: nowrap;
-}
-
-.stage-status-filter select {
-  min-width: 180px;
-  height: 36px;
-  border: 1px solid var(--ind-cinza-borda, #cfd8e3);
-  border-radius: 8px;
-  padding: 0 10px;
-  background: #fff;
-  color: var(--ind-azul-escuro, #0b2f5f);
-  font-weight: 600;
-}
-
-@media (max-width: 768px) {
-  .stage-detail-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .stage-status-filter {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .stage-status-filter select {
-    width: 100%;
   }
 }
 
