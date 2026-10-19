@@ -14,10 +14,15 @@ const API_MACRO2_URL = 'https://script.google.com/macros/s/AKfycbyodkISnkFM63FOW
 let allRecords = [];
 let processedRecords = [];
 let filteredRecords = [];
-// Dados da BD_MACRO2 — dadosGPA alimenta a seção "GPA"; dadosQualidade só é armazenado por
-// enquanto (uso futuro), não é usado em nenhuma tela ainda
+// Dados da BD_MACRO2 — dadosGPA alimenta a seção "GPA"; dadosQualidade (BD-QUALIDADE) alimenta
+// a seção "Erros de Avaliações"
 let dadosGPA = [];
 let dadosQualidade = [];
+// BD_MACRO2 → aba PCP: alimenta a seção "Cronograma de Atividades"
+let dadosPcp = [];
+// Estado da carga da BD-QUALIDADE para a seção "Erros de Avaliações" (carregando / erro)
+let dadosQualidadeCarregados = false;
+let erroCargaQualidade = '';
 let abaAtual = 'geral';
 let filtroRapidoElaborador = null;
 let visaoElaborador = 'acompanhamento'; // 'acompanhamento' | 'indicadores'
@@ -358,6 +363,7 @@ const viewProcessoEditorialIndicadores = document.getElementById('viewProcessoEd
 // atalho de nenhuma aba existente (ver bloco de funções mais abaixo, perto de
 // renderizarIndicadoresAssinaturaCoordenador)
 const viewPrevistoRealizado = document.getElementById('viewPrevistoRealizado');
+const viewErrosAvaliacoes = document.getElementById('viewErrosAvaliacoes');
 const viewGPA = document.getElementById('gpa-section');
 let visaoProcessoEditorial = 'acompanhamento'; // 'acompanhamento' | 'indicadores'
 
@@ -372,15 +378,10 @@ const resumoProducaoEtapasGrid = document.getElementById('resumoProducaoEtapasGr
 const resumoProducaoEtapaChipWrapper = document.getElementById('resumoProducaoEtapaChipWrapper');
 const resumoProducaoEtapaChipTexto = document.getElementById('resumoProducaoEtapaChipTexto');
 const btnFecharEtapaChipResumoProducao = document.getElementById('btnFecharEtapaChipResumoProducao');
-const resumoProducaoDetalheEtapaCard = document.getElementById('resumoProducaoDetalheEtapaCard');
 const resumoProducaoAnaliseEtapa = document.getElementById('resumoProducaoAnaliseEtapa');
-const btnVerDetalhesEtapaResumo = document.getElementById('btnVerDetalhesEtapaResumo');
-// Tabela "Detalhamento da etapa" visível? (botão "Ver detalhes" do painel "Análise da etapa")
-let detalhesEtapaResumoVisiveis = false;
-const resumoProducaoDetalheEtapaTitulo = document.getElementById('resumoProducaoDetalheEtapaTitulo');
-const resumoProducaoDetalheEtapaBody = document.getElementById('resumoProducaoDetalheEtapaBody');
-const resumoDetalheEtapaStatusWrapper = document.getElementById('resumoDetalheEtapaStatusWrapper');
-const filterResumoDetalheEtapaStatus = document.getElementById('filterResumoDetalheEtapaStatus');
+// Status escolhido num card da "Análise da etapa" (null = Total): filtra só os gráficos; os
+// números dos cards não mudam
+let statusFiltroAnaliseEtapa = null;
 
 const filterResumoAnoAplicacao = document.getElementById('filterResumoAnoAplicacao');
 const filterResumoModulo = document.getElementById('filterResumoModulo');
@@ -396,14 +397,9 @@ const btnAbrirFiltrosResumo = document.getElementById('btnAbrirFiltrosResumo');
 const resumoFiltersPopover = document.getElementById('resumoFiltersPopover');
 const resumoFilterBadge = document.getElementById('resumoFilterBadge');
 
-// Etapa de card clicada (destaca o card + mostra a tabela "Detalhamento da etapa" abaixo);
+// Etapa de card clicada (destaca o card + mostra o painel "Análise da etapa" abaixo);
 // null = nenhuma etapa selecionada. Mesmo padrão de alternância de filtroCardArteFinalizacao.
 let etapaSelecionadaResumoProducao = null;
-
-// Filtro "Status" da tabela "Detalhamento da etapa" — por enquanto só usado quando a etapa
-// selecionada é "Processo Editorial" (ver renderizarDetalheEtapaResumoProducao); '' = "Todos".
-// Afeta só essa tabela, mantido mesmo ao trocar de etapa (mais simples que resetar).
-let filtroStatusDetalheEtapaResumoProducao = '';
 
 // Filtros próprios da seção (isolados do resto do projeto) — mesmo padrão de
 // filtrosPrevistoRealizado
@@ -1038,7 +1034,8 @@ const TABS_GRUPO_INDICADOR_PROCESSO = [
   'indicador-coordenador',
   'indicador-segunda-validacao',
   'indicador-sistema',
-  'indicador-previsto-realizado'
+  'indicador-previsto-realizado',
+  'indicador-erros-avaliacoes'
 ];
 const sidebarGrupoIndicadorProcesso = document.getElementById('sidebarGroupIndicadorProcesso');
 const sidebarGroupToggleIndicadorProcesso = document.getElementById('sidebarGroupToggleIndicadorProcesso');
@@ -1157,6 +1154,20 @@ function trocarAba(nomeAba) {
   }
   // "Previsto vs. Realizado": seção própria (não é alias de outra aba), só alterna o hidden
   viewPrevistoRealizado.hidden = nomeAba !== 'indicador-previsto-realizado';
+  // Filtros de Previsto vs. Realizado no cabeçalho (Módulo + funil) — só nesta seção
+  const ehAbaPrevisto = nomeAba === 'indicador-previsto-realizado';
+  document.getElementById('previstoModuloRapidoWrapper').hidden = !ehAbaPrevisto;
+  document.getElementById('previstoFilterPopoverWrapper').hidden = !ehAbaPrevisto;
+  if (!ehAbaPrevisto) fecharPopoverFiltrosPrevisto();
+  // "Erros de Avaliações": seção própria (BD_MACRO2 → qualidade), só alterna o hidden
+  viewErrosAvaliacoes.hidden = nomeAba !== 'indicador-erros-avaliacoes';
+  // "Cronograma de Atividades": aberto pelo botão do Resumo da Produção (sem item próprio no menu)
+  document.getElementById('viewCronograma').hidden = nomeAba !== 'cronograma-atividades';
+  // Filtros da BD-QUALIDADE no cabeçalho (Módulo + funil) — só nesta seção; não afetam as demais
+  const ehAbaErros = nomeAba === 'indicador-erros-avaliacoes';
+  document.getElementById('errosModuloRapidoWrapper').hidden = !ehAbaErros;
+  document.getElementById('errosFilterPopoverWrapper').hidden = !ehAbaErros;
+  if (!ehAbaErros) fecharPopoverFiltrosErros();
   // Botão de filtros avançados (bpFilterPopoverWrapper) agora vive dentro da própria barra de
   // busca da seção Banco de Provas (banco-searchbar-wrapper), então sua visibilidade já segue
   // automaticamente a da section pai (dom.bancoProvasVazio acima) — só fecha o painel ao sair
@@ -1333,6 +1344,10 @@ function renderAbaAtual() {
     renderizarGPA();
   } else if (abaAtual === 'indicador-previsto-realizado') {
     renderizarIndicadorPrevistoRealizado();
+  } else if (abaAtual === 'indicador-erros-avaliacoes') {
+    renderizarErrosAvaliacoes();
+  } else if (abaAtual === 'cronograma-atividades') {
+    renderizarCronogramaAtividades();
   }
 }
 
@@ -11735,7 +11750,9 @@ function classificarBlocosPrevistoRealizado(dadosFiltrados) {
 // Popula os selects de Módulo (dinâmico, a partir do recorte atual) — Ano e Tipo de AV usam
 // listas fixas do projeto (populadas 1x, idempotente)
 function popularFiltrosPrevistoRealizado(records) {
-  populateSelectOptions(domPrevisto.filtroModulo, records, 'modulo');
+  // Módulo é o filtro rápido do cabeçalho: opção vazia "Módulo" (= todos), como nas demais seções
+  populateSelectOptions(domPrevisto.filtroModulo, records, 'modulo', 'Módulo');
+  atualizarIndicadorFiltrosPrevisto();
 
   if (domPrevisto.filtroAno.options.length <= 1) {
     ORDEM_ANO_ESCOLAR_COORD.forEach((ano) => {
@@ -11984,14 +12001,116 @@ function renderizarGraficoResultadoPorModuloPrevisto(classificados) {
 // os componentes do bloco (item.dataEnvio); "Dias úteis" exibe o valor com sinal invertido em
 // relação a item.diasUteisAntecedencia (que é sempre >= 0, envio antes da aplicação) — aqui
 // aparece negativo, seguindo a convenção pedida (data_aplicacao - data_envio_grafica)
-function renderizarTabelaDetalhePrevistoRealizado(classificados) {
+// Faixas de antecedência (dias úteis entre envio e aplicação, item.diasUteisAntecedencia — o MESMO
+// valor da classificação: positivo = envio antes da aplicação; negativo = envio depois). "< 5"
+// coincide exatamente com "Fora do previsto" (dias < LIMITE_DIAS_UTEIS_PREVISTO); as faixas são
+// excludentes e somam o total de provas enviadas.
+const FAIXAS_ANTECEDENCIA_PREVISTO = [
+  { rotulo: 'Menos de 5', descricao: 'Fora do previsto', cor: '#DC2626', pertence: (d) => d < LIMITE_DIAS_UTEIS_PREVISTO },
+  { rotulo: '5 a 6', descricao: 'Dentro do previsto · margem reduzida', cor: '#76B8F8', pertence: (d) => d >= 5 && d <= 6 },
+  { rotulo: '7 a 9', descricao: 'Dentro do previsto · margem intermediária', cor: '#287FE5', pertence: (d) => d >= 7 && d <= 9 },
+  { rotulo: '10 ou mais', descricao: 'Dentro do previsto · maior margem', cor: '#1555A5', pertence: (d) => d >= 10 }
+];
+
+function renderizarGraficoFaixasAntecedenciaPrevisto(classificados) {
+  const container = document.getElementById('graficoFaixasAntecedenciaPrevisto');
+  const total = classificados.length;
+  if (!total) {
+    container.innerHTML = '<p class="indicadores-chart-empty">Sem provas no recorte atual.</p>';
+    return;
+  }
+  const faixas = FAIXAS_ANTECEDENCIA_PREVISTO.map((f) => ({
+    ...f,
+    qtd: classificados.filter((item) => f.pertence(item.diasUteisAntecedencia)).length
+  }));
+  const maximo = Math.max(1, ...faixas.map((f) => f.qtd));
+  container.innerHTML = `<div class="stage-chart-vbars prg-faixas">${faixas
+    .map((f) => {
+      const pct = formatarPercentualComVirgula((f.qtd / total) * 100);
+      return `<div class="stage-chart-vbar" title="${f.rotulo} dias úteis — ${f.descricao}\n${f.qtd} ${f.qtd === 1 ? 'prova' : 'provas'} (${pct}%)">
+        <strong class="stage-chart-vbar-valor">${f.qtd}</strong>
+        <div class="stage-chart-vbar-track"><div class="stage-chart-vbar-fill" style="height:${f.qtd ? Math.max(4, (f.qtd / maximo) * 100) : 0}%;background:${f.cor}"></div></div>
+        <span class="stage-chart-vbar-label">${f.rotulo}<small>dias úteis</small></span>
+      </div>`;
+    })
+    .join('')}</div>`;
+}
+
+// Barras empilhadas Dentro/Fora do previsto por tipo de avaliação (AV1 → REC-FIM, depois os
+// demais tipos); à direita "X de Y — Z% dentro do previsto"
+function renderizarGraficoCumprimentoAvaliacaoPrevisto(classificados) {
+  const container = document.getElementById('graficoCumprimentoAvaliacaoPrevisto');
+  if (!classificados.length) {
+    container.innerHTML = '<p class="indicadores-chart-empty">Sem provas no recorte atual.</p>';
+    return;
+  }
+  const porTipo = new Map();
+  classificados.forEach((item) => {
+    const tipo = normalizarTipoAvPerformance(item.registros[0].tipo_av) || 'Não informado';
+    if (!porTipo.has(tipo)) porTipo.set(tipo, { dentro: 0, fora: 0 });
+    porTipo.get(tipo)[item.status === 'Dentro do previsto' ? 'dentro' : 'fora'] += 1;
+  });
+  const ordem = (t) => {
+    const i = ORDEM_TIPO_AV_PERFORMANCE.indexOf(t);
+    return i === -1 ? ORDEM_TIPO_AV_PERFORMANCE.length : i;
+  };
+  const tipos = [...porTipo.keys()].sort((a, b) => ordem(a) - ordem(b) || a.localeCompare(b, 'pt-BR'));
+  const cores = { dentro: '#1555A5', fora: '#DC2626' };
+  const rotulos = { dentro: 'Dentro do previsto', fora: 'Fora do previsto' };
+
+  const legenda = `<ul class="stage-chart-status-legend">${['dentro', 'fora']
+    .map((k) => `<li><span class="stage-chart-swatch" style="background:${cores[k]}"></span>${rotulos[k]}</li>`)
+    .join('')}</ul>`;
+  const linhas = tipos
+    .map((tipo) => {
+      const v = porTipo.get(tipo);
+      const total = v.dentro + v.fora;
+      const segmentos = ['dentro', 'fora']
+        .filter((k) => v[k] > 0)
+        .map((k) => {
+          const pct = (v[k] / total) * 100;
+          return `<div class="stage-chart-stack-seg" style="width:${pct}%;background:${cores[k]}" title="${tipo} — ${rotulos[k]}\n${v[k]} ${v[k] === 1 ? 'prova' : 'provas'} (${formatarPercentualComVirgula(pct)}%)"></div>`;
+        })
+        .join('');
+      return `<div class="stage-chart-progress-row">
+        <span class="stage-chart-progress-label">${tipo}</span>
+        <div class="stage-chart-progress-track stage-chart-stack">${segmentos}</div>
+        <span class="stage-chart-progress-valor"><strong>${v.dentro}</strong> de ${total} — <strong>${formatarPercentualComVirgula((v.dentro / total) * 100)}%</strong> dentro do previsto</span>
+      </div>`;
+    })
+    .join('');
+  container.innerHTML = `${legenda}<div class="stage-chart-progress">${linhas}</div>`;
+}
+
+// "Somente fora do previsto" — filtra só a tabela de detalhamento
+let somenteForaPrevistoRealizado = false;
+
+function renderizarTabelaDetalhePrevistoRealizado(classificadosTodos) {
   const tbody = domPrevisto.tabelaDetalheBody;
   tbody.innerHTML = '';
 
   const fragment = document.createDocumentFragment();
+  const classificados = somenteForaPrevistoRealizado
+    ? classificadosTodos.filter((item) => item.status === 'Fora do previsto')
+    : classificadosTodos;
+
+  if (classificados.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.className = 'pe-ano-detail-empty';
+    td.style.textAlign = 'center';
+    td.style.padding = '16px';
+    td.textContent = 'Nenhuma prova fora do previsto no recorte atual.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
 
   classificados.forEach((item) => {
     const tr = document.createElement('tr');
+    // Destaque suave nas provas fora do previsto (classificação original, sem alteração)
+    if (item.status === 'Fora do previsto') tr.classList.add('prg-linha-fora');
 
     const tdCod = document.createElement('td');
     tdCod.textContent = item.id;
@@ -12016,6 +12135,15 @@ function renderizarTabelaDetalhePrevistoRealizado(classificados) {
     badge.className = `badge ${item.status === 'Dentro do previsto' ? 'badge-pe-status-concluido' : 'badge-pe-status-pendente'}`;
     badge.textContent = item.status;
     tdStatus.appendChild(badge);
+    // Acesso à Análise de Causa Raiz (só provas fora do previsto; coluna e classificação inalteradas)
+    if (item.status === 'Fora do previsto') {
+      const analisar = document.createElement('button');
+      analisar.type = 'button';
+      analisar.className = 'prg-btn-acr';
+      analisar.dataset.acrId = item.id;
+      analisar.textContent = 'Analisar causa';
+      tdStatus.appendChild(analisar);
+    }
     tr.appendChild(tdStatus);
 
     fragment.appendChild(tr);
@@ -12091,6 +12219,8 @@ function renderizarIndicadorPrevistoRealizado() {
   // para não gerar contagens incorretas (ver classificarBlocosPrevistoRealizado)
   const dadosFiltrados = aplicarFiltrosPrevistoRealizado(filteredRecords);
   const classificadosBase = classificarBlocosPrevistoRealizado(dadosFiltrados);
+  // Recorte atual (sem o filtro de status dos cards) — base da Análise de Causa Raiz
+  ultimosClassificadosPrevisto = classificadosBase;
 
   if (classificadosBase.length === 0) {
     domPrevisto.emptyGeral.hidden = false;
@@ -12123,8 +12253,524 @@ function renderizarIndicadorPrevistoRealizado() {
   atualizarCardsPrevistoRealizado(classificados);
   renderizarGraficoDistribuicaoGeralPrevisto(classificados);
   renderizarGraficoResultadoPorModuloPrevisto(classificados);
+  renderizarGraficoFaixasAntecedenciaPrevisto(classificados);
+  renderizarGraficoCumprimentoAvaliacaoPrevisto(classificados);
   renderizarTabelaDetalhePrevistoRealizado(classificados);
 }
+
+document.getElementById('indPrevistoSomenteFora').addEventListener('change', (event) => {
+  somenteForaPrevistoRealizado = event.target.checked;
+  renderizarIndicadorPrevistoRealizado();
+});
+
+// ======================================================================
+// Análise de Causa Raiz (ACR) — provas "Fora do previsto" no Previsto vs. Realizado.
+// Camada de diagnóstico por REGRAS TRANSPARENTES sobre os dados já carregados da BD_SGGE (nenhuma
+// requisição nova, nenhuma IA, nenhum cálculo existente alterado):
+//  • Só há "atraso comprovado" em etapas com PRAZO registrado na base: Elaboração
+//    (prazo_encomenda), 1ª Validação (prazo_coord) e Assinatura (prazo_assinatura_coord). Desvio =
+//    data realizada − prazo, em dias corridos (mesma convenção das demais telas de prazo).
+//  • Etapas sem prazo (Validação SGGE, Processo Editorial, Arte-finalização e Envio) só têm
+//    duração e intervalos — nunca são classificadas como atrasadas.
+//  • Data ausente = "informação insuficiente" (nunca atraso). Só início sem fim = não concluída.
+//  • Blocos: cada componente (disciplina) é analisado; a etapa do bloco termina quando o ÚLTIMO
+//    componente conclui (identificado), sem atribuir responsabilidade a pessoas.
+//  • Durações/intervalos em dias úteis com a mesma função da seção
+//    (calcularDiasUteisEntrePrevistoRealizado).
+//  • "Causa comprovada" exige registro documental da razão do atraso, que a base não possui —
+//    por isso as regras só chegam a "fator contribuinte identificado" ou "causa não determinada".
+// ======================================================================
+
+const ETAPAS_ACR = [
+  { chave: 'elaboracao', nome: 'Elaboração', fase: 'Elaboração', inicio: 'data_encomenda', prazo: 'prazo_encomenda', fim: 'devolutiva_encomenda' },
+  { chave: 'validacao_sgge', nome: 'Validação SGGE', fase: 'Elaboração', inicio: 'devolutiva_encomenda', fim: 'data_validacao_sgge' },
+  { chave: 'validacao_coord', nome: '1ª Validação (coordenador)', fase: '1ª Validação', inicio: 'data_envio_coord', prazo: 'prazo_coord', fim: 'devolutiva_coord' },
+  { chave: 'diagramacao', nome: 'Diagramação', fase: 'Processo Editorial', inicio: 'inicio_diagramacao_preparo', fim: 'fim_diagramacao_preparo' },
+  { chave: 'cotejo', nome: 'Cotejo', fase: 'Processo Editorial', inicio: 'inicio_cotejo', fim: 'fim_cotejo' },
+  { chave: 'aplicacao_cotejo', nome: 'Aplicação do cotejo', fase: 'Processo Editorial', inicio: 'inicio_aplicacao_cotejo', fim: 'fim_aplicacao_cotejo' },
+  { chave: 'leitura_final', nome: 'Leitura final', fase: 'Processo Editorial', inicio: 'inicio_leitura_final', fim: 'fim_leitura_final' },
+  { chave: 'aplicacao_leitura', nome: 'Aplicação da leitura final', fase: 'Processo Editorial', inicio: 'inicio_aplicacao_leitura', fim: 'fim_aplicacao_leitura' },
+  { chave: 'ctj', nome: 'Cotejo técnico (CTJ)', fase: 'Processo Editorial', inicio: 'inicio_ctj', fim: 'fim_ctj' },
+  { chave: 'assinatura', nome: 'Assinatura do coordenador', fase: 'Assinatura', inicio: 'envio_assinatura_coord', prazo: 'prazo_assinatura_coord', fim: 'devolutiva_assinatura_coord' },
+  { chave: 'verificacao', nome: 'Verificação da validação', fase: 'Arte-finalização e Envio', inicio: 'inicio_verificacao_validacao_coord', fim: 'fim_verificacao_validacao_coord' },
+  { chave: 'aplicacao_verificacao', nome: 'Aplicação da verificação', fase: 'Arte-finalização e Envio', inicio: 'inicio_aplicacao_verificacao_validacao_coord', fim: 'fim_aplicacao_verificacao_validacao_coord' },
+  { chave: 'cotejo_verificacao', nome: 'Cotejo de verificação', fase: 'Arte-finalização e Envio', inicio: 'inicio_cotejo_verificacao', fim: 'fim_cotejo_verificacao' },
+  { chave: 'arte_final', nome: 'Arte-finalização', fase: 'Arte-finalização e Envio', inicio: 'inicio_arte_final', fim: 'fim_arte_final' },
+  { chave: 'cotejo_arte_final', nome: 'Cotejo da arte-final', fase: 'Arte-finalização e Envio', inicio: 'inicio_cotejo_arte_final', fim: 'fim_cotejo_arte_final' },
+  { chave: 'checklist', nome: 'Checklist', fase: 'Arte-finalização e Envio', fim: 'data_checklist' },
+  { chave: 'envio', nome: 'Envio à gráfica', fase: 'Arte-finalização e Envio', fim: 'data_envio_grafica' }
+];
+const CORES_ACR = { ok: '#1555A5', atraso: '#DC2626', neutro: '#94a3b8' };
+let ultimosClassificadosPrevisto = [];
+let analiseAcrAtual = null; // { tipo: 'individual'|'consolidada', item }
+
+function diasCorridosAcr(de, ate) {
+  return Math.round((ate.getTime() - de.getTime()) / 86400000);
+}
+
+function formatarDataAcr(data) {
+  return data ? formatarDataAplicacaoExibicao(data) : '—';
+}
+
+// Data limite ideal de envio: 5 dias úteis antes da aplicação (já ajustada para dia útil, como no
+// cálculo da seção) — envio até essa data = "Dentro do previsto"
+function calcularLimiteIdealEnvioAcr(dataAplicacao) {
+  const limite = ajustarAplicacaoParaDiaUtil(dataAplicacao);
+  let restantes = LIMITE_DIAS_UTEIS_PREVISTO;
+  const d = new Date(limite.getFullYear(), limite.getMonth(), limite.getDate());
+  while (restantes > 0) {
+    d.setDate(d.getDate() - 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) restantes -= 1;
+  }
+  return d;
+}
+
+// Texto (com letras) num campo de data — ex.: "N/S", "COR ELABOROU" — indica que a etapa não se
+// aplica ao componente (ex.: prova elaborada pelo próprio coordenador não passa pela 1ª Validação).
+// Campo vazio ou número inválido continua sendo "informação insuficiente".
+function motivoNaoSeAplicaAcr(etapa, registro) {
+  const campos = [etapa.inicio, etapa.prazo, etapa.fim].filter(Boolean);
+  const texto = campos.map((c) => safe(registro[c])).find((v) => v && /[A-Za-zÀ-ú]/.test(v) && !parseDataAplicacao(v));
+  return texto || '';
+}
+
+// Analisa 1 etapa sobre todos os componentes do bloco
+function analisarEtapaAcr(etapa, registros) {
+  const naoSeAplica = registros
+    .map((r) => ({ frente: safe(r.frente) || '—', motivo: motivoNaoSeAplicaAcr(etapa, r) }))
+    .filter((c) => c.motivo);
+  const aplicaveis = registros.filter((r) => !motivoNaoSeAplicaAcr(etapa, r));
+  if (aplicaveis.length === 0) {
+    return {
+      etapa, componentes: [], inicio: null, fim: null, prazo: null, prazoVariavel: false,
+      situacao: 'nao-aplica', atrasados: [], maiorDesvio: null, ultimoComponente: null,
+      espalhamentoDiasUteis: 0, duracaoDiasUteis: null, faltantes: [], naoSeAplica
+    };
+  }
+  const componentes = aplicaveis.map((r) => {
+    const inicio = etapa.inicio ? parseDataAplicacao(r[etapa.inicio]) : null;
+    const prazo = etapa.prazo ? parseDataAplicacao(r[etapa.prazo]) : null;
+    const fim = parseDataAplicacao(r[etapa.fim]);
+    const desvio = prazo && fim ? diasCorridosAcr(prazo, fim) : null;
+    return { frente: safe(r.frente) || '—', inicio, prazo, fim, desvio };
+  });
+  const comFim = componentes.filter((c) => c.fim);
+  const inicios = componentes.map((c) => c.inicio).filter(Boolean);
+  const inicio = inicios.length ? new Date(Math.min(...inicios.map((d) => d.getTime()))) : null;
+  const ultimo = comFim.reduce((maior, c) => (!maior || c.fim > maior.fim ? c : maior), null);
+  const fim = ultimo ? ultimo.fim : null;
+  const completo = comFim.length === componentes.length;
+  const prazosUnicos = new Set(componentes.map((c) => (c.prazo ? obterChaveDia(c.prazo) : '')).filter(Boolean));
+  const prazo = prazosUnicos.size ? new Date(Math.max(...componentes.filter((c) => c.prazo).map((c) => c.prazo.getTime()))) : null;
+  const atrasados = componentes.filter((c) => c.desvio !== null && c.desvio > 0).sort((a, b) => b.desvio - a.desvio);
+  const maiorDesvio = atrasados.length ? atrasados[0].desvio : null;
+
+  let situacao;
+  if (!completo) situacao = 'insuficiente';
+  else if (!etapa.prazo) situacao = 'sem-prazo';
+  else if (componentes.some((c) => !c.prazo)) situacao = atrasados.length ? 'atraso' : 'insuficiente';
+  else situacao = atrasados.length ? 'atraso' : 'ok';
+
+  // Componente que concluiu por último, quando o bloco tem mais de um componente com datas diferentes
+  const primeiroFim = comFim.reduce((menor, c) => (!menor || c.fim < menor ? c.fim : menor), null);
+  const espalhamento = fim && primeiroFim ? calcularDiasUteisEntrePrevistoRealizado(primeiroFim, fim) : 0;
+
+  return {
+    etapa,
+    componentes,
+    inicio,
+    fim,
+    prazo,
+    prazoVariavel: prazosUnicos.size > 1,
+    situacao,
+    atrasados,
+    maiorDesvio,
+    ultimoComponente: componentes.length > 1 && espalhamento > 0 ? ultimo.frente : null,
+    espalhamentoDiasUteis: espalhamento,
+    duracaoDiasUteis: inicio && fim ? calcularDiasUteisEntrePrevistoRealizado(inicio, fim) : null,
+    faltantes: componentes.filter((c) => !c.fim).map((c) => c.frente),
+    naoSeAplica
+  };
+}
+
+// Análise completa de 1 prova (item da lista classificada do Previsto vs. Realizado)
+function analisarCausaRaizProva(item) {
+  const etapas = ETAPAS_ACR.map((etapa) => analisarEtapaAcr(etapa, item.registros));
+  const antecedencia = item.diasUteisAntecedencia;
+  const desvioFinal = Math.max(0, LIMITE_DIAS_UTEIS_PREVISTO - antecedencia);
+  const limiteIdeal = calcularLimiteIdealEnvioAcr(item.dataAplicacao);
+
+  // Intervalos de espera: do fim de uma etapa ao início da seguinte (ambas com datas), em dias úteis
+  const intervalos = [];
+  for (let i = 1; i < etapas.length; i += 1) {
+    const anterior = etapas.slice(0, i).reverse().find((e) => e.fim);
+    const atual = etapas[i];
+    if (!anterior || !atual.inicio) continue;
+    const dias = calcularDiasUteisEntrePrevistoRealizado(anterior.fim, atual.inicio);
+    if (dias >= 2) intervalos.push({ de: anterior.etapa.nome, para: atual.etapa.nome, dias, deData: anterior.fim, paraData: atual.inicio });
+  }
+  intervalos.sort((a, b) => b.dias - a.dias);
+
+  const comAtraso = etapas.filter((e) => e.situacao === 'atraso').sort((a, b) => b.maiorDesvio - a.maiorDesvio);
+  const insuficientes = etapas.filter((e) => e.situacao === 'insuficiente');
+  const maisLonga = etapas
+    .filter((e) => e.duracaoDiasUteis !== null)
+    .reduce((maior, e) => (!maior || e.duracaoDiasUteis > maior.duracaoDiasUteis ? e : maior), null);
+  const envio = etapas.find((e) => e.etapa.chave === 'envio');
+
+  let classificacao;
+  if (comAtraso.length) classificacao = 'Fator contribuinte identificado';
+  else classificacao = 'Causa não determinada';
+
+  return {
+    item,
+    etapas,
+    antecedencia,
+    desvioFinal,
+    limiteIdeal,
+    intervalos,
+    comAtraso,
+    insuficientes,
+    maisLonga,
+    envio,
+    classificacao,
+    tipoAv: normalizarTipoAvPerformance(item.registros[0].tipo_av),
+    ano: safe(item.registros[0].ano),
+    componentes: item.registros.map((r) => safe(r.frente)).filter(Boolean)
+  };
+}
+
+function textoDiasAcr(n, unidade = 'dia') {
+  return `${n} ${unidade}${Math.abs(n) === 1 ? '' : 's'}`;
+}
+
+// Diagnóstico textual (respostas às 6 perguntas) — só fatos dos registros, hipóteses rotuladas
+function montarDiagnosticoAcr(a) {
+  const itens = [];
+  itens.push(
+    `<strong>1. Desvio final:</strong> envio à gráfica em ${formatarDataAcr(a.item.dataEnvio)}, ${a.antecedencia} ${Math.abs(a.antecedencia) === 1 ? 'dia útil' : 'dias úteis'} antes da aplicação (${formatarDataAcr(a.item.dataAplicacao)}). ` +
+      (a.desvioFinal > 0
+        ? `Faltaram ${a.desvioFinal} dia(s) útil(eis) para o mínimo de ${LIMITE_DIAS_UTEIS_PREVISTO}; o limite ideal de envio era ${formatarDataAcr(a.limiteIdeal)}.`
+        : 'A antecedência mínima foi atendida.')
+  );
+  itens.push(
+    `<strong>2. Etapas que ultrapassaram o prazo registrado:</strong> ` +
+      (a.comAtraso.length
+        ? a.comAtraso.map((e) => `${e.etapa.nome} (+${textoDiasAcr(e.maiorDesvio)} corridos)`).join('; ') + '.'
+        : 'nenhuma — as etapas com prazo na base (Elaboração, 1ª Validação e Assinatura) foram concluídas no prazo ou não têm dados suficientes.')
+  );
+  itens.push(
+    `<strong>3. Maior desvio registrado:</strong> ` +
+      (a.comAtraso.length
+        ? `${a.comAtraso[0].etapa.nome}, ${textoDiasAcr(a.comAtraso[0].maiorDesvio)} corridos após o prazo (${formatarDataAcr(a.comAtraso[0].atrasados[0].prazo)} → ${formatarDataAcr(a.comAtraso[0].atrasados[0].fim)}${a.item.registros.length > 1 ? `, componente ${escaparTextoSvg(a.comAtraso[0].atrasados[0].frente)}` : ''}).`
+        : 'Não determinado (nenhum prazo descumprido comprovado).')
+  );
+  itens.push(
+    `<strong>4. Acúmulo de atrasos:</strong> ` +
+      (a.comAtraso.length > 1
+        ? `sim — ${a.comAtraso.length} etapas com prazo descumprido.`
+        : a.comAtraso.length === 1
+          ? 'não — apenas uma etapa com prazo descumprido.'
+          : 'não há atrasos comprovados para acumular.') +
+      (a.intervalos.length
+        ? ` Maior intervalo de espera entre etapas: ${a.intervalos[0].dias} dias úteis (${a.intervalos[0].de} → ${a.intervalos[0].para}).`
+        : '')
+  );
+  const componentesUltimos = a.etapas.filter((e) => e.ultimoComponente);
+  itens.push(
+    `<strong>5. Componente do bloco que concluiu por último:</strong> ` +
+      (a.item.registros.length === 1
+        ? 'não se aplica (prova com um único componente).'
+        : componentesUltimos.length
+          ? componentesUltimos
+              .map((e) => `${e.etapa.nome}: ${e.ultimoComponente} (${e.espalhamentoDiasUteis} d.u. após o primeiro componente)`)
+              .join('; ') + '. Isso indica qual componente determinou a conclusão do bloco, não a responsabilidade pelo atraso.'
+          : 'os componentes concluíram as etapas na mesma data; nenhum retardou a finalização do bloco.')
+  );
+  itens.push(
+    `<strong>6. Conclusão:</strong> <span class="acr-classificacao" style="color:${a.comAtraso.length ? '#b45309' : '#475569'}">${a.classificacao}</span>. ` +
+      (a.comAtraso.length
+        ? 'Há prazo(s) descumprido(s) documentado(s) que reduziram a margem disponível, mas a base não registra o motivo do atraso — por isso não é possível declarar causa comprovada.'
+        : 'Os registros não mostram prazo descumprido; a redução da antecedência pode estar ligada à duração das etapas sem prazo definido ou ao planejamento do cronograma — hipóteses a verificar, não comprovadas pelos dados.')
+  );
+  return itens;
+}
+
+// Linha do tempo (Gantt simplificado) — estilos inline para sair igual no PDF
+function htmlLinhaTempoAcr(a) {
+  const datas = [a.item.dataAplicacao];
+  a.etapas.forEach((e) => {
+    if (e.inicio) datas.push(e.inicio);
+    if (e.fim) datas.push(e.fim);
+    if (e.prazo) datas.push(e.prazo);
+  });
+  const min = Math.min(...datas.map((d) => d.getTime()));
+  const max = Math.max(...datas.map((d) => d.getTime()));
+  const extensao = Math.max(1, max - min);
+  const pos = (d) => ((d.getTime() - min) / extensao) * 100;
+  const corSituacao = { ok: CORES_ACR.ok, atraso: CORES_ACR.atraso, 'sem-prazo': CORES_ACR.neutro, insuficiente: '#cbd5e1', 'nao-aplica': '#e2e8f0' };
+  const rotuloSituacao = { ok: 'No prazo', atraso: 'Fora do prazo', 'sem-prazo': 'Sem prazo definido', insuficiente: 'Informação insuficiente', 'nao-aplica': 'Não se aplica' };
+  const marcador = (d, cor, titulo) =>
+    `<div title="${titulo}" style="position:absolute;top:-2px;bottom:-2px;left:${pos(d)}%;border-left:2px dashed ${cor};"></div>`;
+
+  const linhas = a.etapas
+    .map((e) => {
+      const ini = e.inicio || e.fim;
+      const barra =
+        ini && e.fim
+          ? `<div title="${e.etapa.nome}: ${formatarDataAcr(e.inicio)} → ${formatarDataAcr(e.fim)}" style="position:absolute;top:3px;bottom:3px;left:${pos(ini)}%;width:max(4px, ${pos(e.fim) - pos(ini)}%);background:${corSituacao[e.situacao]};border-radius:3px;"></div>`
+          : '';
+      const prazo = e.prazo ? `<div title="Prazo ${formatarDataAcr(e.prazo)}" style="position:absolute;top:0;bottom:0;left:${pos(e.prazo)}%;width:2px;background:#0B2D5B;"></div>` : '';
+      const desvio = e.maiorDesvio ? `+${e.maiorDesvio} d` : e.situacao === 'ok' ? 'no prazo' : '';
+      return `<tr>
+        <td style="padding:4px 6px;font-size:11px;white-space:nowrap;text-align:left;">${e.etapa.nome}</td>
+        <td style="padding:4px 6px;font-size:10px;text-align:center;white-space:nowrap;word-break:normal;overflow-wrap:normal;">${formatarDataAcr(e.prazo)}${e.prazoVariavel ? '*' : ''}</td>
+        <td style="padding:4px 6px;font-size:10px;text-align:center;white-space:nowrap;word-break:normal;overflow-wrap:normal;">${formatarDataAcr(e.fim)}</td>
+        <td style="padding:4px 6px;font-size:10px;text-align:center;white-space:nowrap;word-break:normal;overflow-wrap:normal;">${e.duracaoDiasUteis !== null ? `${e.duracaoDiasUteis} d.u.` : '—'}</td>
+        <td style="padding:4px 6px;font-size:10px;text-align:center;color:${e.situacao === 'atraso' ? '#b91c1c' : '#334155'};font-weight:${e.situacao === 'atraso' ? 800 : 400};">${desvio || rotuloSituacao[e.situacao]}</td>
+        <td style="padding:4px 8px;width:42%;"><div style="position:relative;height:16px;background:#f1f5f9;border-radius:3px;">${prazo}${barra}</div></td>
+      </tr>`;
+    })
+    .join('');
+
+  const eixo = `<div style="position:relative;height:16px;margin-top:2px;">
+      ${marcador(a.limiteIdeal, '#b45309', `Limite ideal de envio ${formatarDataAcr(a.limiteIdeal)}`)}
+      ${marcador(a.item.dataAplicacao, '#0B2D5B', `Aplicação ${formatarDataAcr(a.item.dataAplicacao)}`)}
+    </div>`;
+
+  return `<table class="report-table acr-timeline" style="table-layout:auto;">
+      <thead><tr><th style="text-align:left;">Etapa</th><th>Prazo</th><th>Realizada</th><th>Duração</th><th>Situação</th><th>Linha do tempo (${formatarDataAcr(new Date(min))} → ${formatarDataAcr(new Date(max))})</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;"><div style="width:42%;margin-right:8px;">${eixo}</div></div>
+    <p style="font-size:10px;color:#64748b;margin:6px 0 0;">
+      <span style="display:inline-block;width:10px;height:10px;background:${CORES_ACR.ok};border-radius:2px;vertical-align:middle;"></span> No prazo ·
+      <span style="display:inline-block;width:10px;height:10px;background:${CORES_ACR.atraso};border-radius:2px;vertical-align:middle;"></span> Fora do prazo ·
+      <span style="display:inline-block;width:10px;height:10px;background:${CORES_ACR.neutro};border-radius:2px;vertical-align:middle;"></span> Sem prazo definido ·
+      <span style="display:inline-block;width:10px;height:10px;background:#cbd5e1;border-radius:2px;vertical-align:middle;"></span> Informação insuficiente ·
+      <span style="display:inline-block;width:2px;height:10px;background:#0B2D5B;vertical-align:middle;"></span> Prazo da etapa ·
+      <span style="border-left:2px dashed #b45309;margin-left:4px;padding-left:4px;">Limite ideal de envio (${formatarDataAcr(a.limiteIdeal)})</span> ·
+      <span style="border-left:2px dashed #0B2D5B;padding-left:4px;">Aplicação</span>
+      ${a.etapas.some((e) => e.prazoVariavel) ? ' · * prazo diferente entre componentes (exibido o maior)' : ''}
+    </p>
+    ${a.etapas
+      .filter((e) => e.naoSeAplica && e.naoSeAplica.length)
+      .map(
+        (e) =>
+          `<p style="font-size:10px;color:#64748b;margin:4px 0 0;"><strong>${e.etapa.nome}</strong> não se aplica a: ${e.naoSeAplica
+            .map((c) => `${escaparTextoSvg(c.frente)} (${escaparTextoSvg(c.motivo)})`)
+            .join(', ')} — componente(s) fora da análise desta etapa.</p>`
+      )
+      .join('')}`;
+}
+
+function htmlGargalosAcr(a) {
+  const linhas = [
+    ...a.comAtraso.map((e) => ({
+      etapa: e.etapa.nome,
+      // prazo/data do componente MAIS atrasado (não o maior prazo do bloco)
+      prazo: formatarDataAcr(e.atrasados[0].prazo),
+      realizada: formatarDataAcr(e.atrasados[0].fim),
+      desvio: `+${textoDiasAcr(e.maiorDesvio)} corridos`,
+      ordem: 1000 + e.maiorDesvio,
+      tipo: 'Atraso comprovado',
+      cor: '#b91c1c',
+      evidencia:
+        a.item.registros.length > 1
+          ? `Componentes após o prazo: ${e.atrasados.map((c) => `${c.frente} (+${c.desvio})`).join(', ')}`
+          : `Devolutiva ${formatarDataAcr(e.fim)} após o prazo ${formatarDataAcr(e.prazo)}`
+    })),
+    ...a.intervalos.map((i) => ({
+      etapa: `${i.de} → ${i.para}`,
+      prazo: '—',
+      realizada: `${formatarDataAcr(i.deData)} → ${formatarDataAcr(i.paraData)}`,
+      desvio: `${i.dias} d.u. de espera`,
+      ordem: i.dias,
+      tipo: 'Intervalo de espera identificado',
+      cor: '#b45309',
+      evidencia: 'Tempo entre o fim de uma etapa e o início da seguinte (possível fator contribuinte, não comprovado).'
+    })),
+    ...a.insuficientes.map((e) => ({
+      etapa: e.etapa.nome,
+      prazo: formatarDataAcr(e.prazo),
+      realizada: formatarDataAcr(e.fim),
+      desvio: '—',
+      ordem: -1,
+      tipo: 'Informação insuficiente',
+      cor: '#64748b',
+      evidencia: e.faltantes.length ? `Sem data de conclusão: ${e.faltantes.join(', ')}` : 'Prazo não registrado para todos os componentes.'
+    }))
+  ].sort((x, y) => y.ordem - x.ordem);
+
+  if (!linhas.length) return '<p class="report-section-subtitle">Nenhum atraso comprovado, intervalo de espera relevante (≥ 2 dias úteis) ou lacuna de dados identificado.</p>';
+  return `<table class="report-table" style="table-layout:auto;">
+      <thead><tr><th>Etapa</th><th>Prazo previsto</th><th>Data realizada</th><th>Desvio</th><th>Classificação</th><th>Evidência</th></tr></thead>
+      <tbody>${linhas
+        .map(
+          (l) => `<tr><td style="text-align:left;">${l.etapa}</td><td>${l.prazo}</td><td>${l.realizada}</td><td style="color:${l.cor};font-weight:700;">${l.desvio}</td><td style="color:${l.cor};font-weight:700;">${l.tipo}</td><td style="text-align:left;">${escaparTextoSvg(l.evidencia)}</td></tr>`
+        )
+        .join('')}</tbody>
+    </table>`;
+}
+
+function htmlCabecalhoAcr(titulo, subtitulo) {
+  return `<div class="report-print-header">
+      <div class="report-header-left"><img src="assets/logo/logo-sgge.png" alt="Logo SGGE"></div>
+      <div class="report-title-wrap">
+        <h1 class="report-title" id="acrTitulo">${titulo}</h1>
+        <p class="report-section-subtitle">${subtitulo}</p>
+        <p class="report-section-subtitle report-generated-at">Gerado em: ${formatarDataHoraAtual().replace(' ', ' às ')}</p>
+      </div>
+    </div>`;
+}
+
+function htmlKpisAcr(kpis) {
+  return `<div class="report-kpis">${kpis
+    .map((k) => `<div class="report-kpi ${k.tipo || 'info'}"><span class="report-kpi-label">${k.rotulo}</span><span class="report-kpi-value" style="font-size:16px;">${k.valor}</span></div>`)
+    .join('')}</div>`;
+}
+
+function renderizarAnaliseCausaRaiz(item) {
+  const a = analisarCausaRaizProva(item);
+  analiseAcrAtual = { tipo: 'individual', item };
+  const maior = a.comAtraso[0];
+  document.getElementById('acr-print-area').innerHTML = `
+    ${htmlCabecalhoAcr('Análise de Causa Raiz', `Prova ${escaparTextoSvg(a.item.id)} — enviada à gráfica fora do prazo ideal`)}
+    <div class="report-section">
+      <table class="report-table" style="table-layout:auto;">
+        <tbody>
+          <tr><th style="text-align:left;width:28%;">Prova / bloco</th><td style="text-align:left;">${escaparTextoSvg(a.item.id)}</td><th style="text-align:left;width:22%;">Módulo · Ano · Avaliação</th><td style="text-align:left;">${escaparTextoSvg(a.item.modulo)} · ${escaparTextoSvg(a.ano)} · ${escaparTextoSvg(a.tipoAv)}</td></tr>
+          <tr><th style="text-align:left;">Disciplina(s) / componentes</th><td style="text-align:left;" colspan="3">${escaparTextoSvg(a.componentes.join(', '))}</td></tr>
+          <tr><th style="text-align:left;">Data da aplicação</th><td style="text-align:left;">${formatarDataAcr(a.item.dataAplicacao)}</td><th style="text-align:left;">Envio à gráfica</th><td style="text-align:left;">${formatarDataAcr(a.item.dataEnvio)}</td></tr>
+          <tr><th style="text-align:left;">Antecedência real</th><td style="text-align:left;">${a.antecedencia} dia(s) útil(eis)</td><th style="text-align:left;">Antecedência mínima</th><td style="text-align:left;">${LIMITE_DIAS_UTEIS_PREVISTO} dias úteis</td></tr>
+          <tr><th style="text-align:left;">Diferença</th><td style="text-align:left;color:#b91c1c;font-weight:800;" colspan="3">${a.desvioFinal > 0 ? `${a.desvioFinal} dia(s) útil(eis) abaixo do previsto` : 'Dentro do previsto'}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    ${htmlKpisAcr([
+      { rotulo: 'Antecedência do envio', valor: `${a.antecedencia} d.u.`, tipo: a.desvioFinal > 0 ? 'danger' : 'ok' },
+      { rotulo: 'Desvio do prazo ideal', valor: a.desvioFinal > 0 ? `${a.desvioFinal} d.u.` : '0 d.u.', tipo: a.desvioFinal > 0 ? 'danger' : 'ok' },
+      { rotulo: 'Etapas com prazo descumprido', valor: a.comAtraso.length, tipo: a.comAtraso.length ? 'danger' : 'info' },
+      { rotulo: 'Maior desvio de prazo', valor: maior ? `${maior.etapa.nome} (+${maior.maiorDesvio} d)` : 'Não determinado', tipo: maior ? 'danger' : 'info' }
+    ])}
+    <div class="report-section"><h3 class="report-section-title">Linha do Tempo da Produção</h3>${htmlLinhaTempoAcr(a)}</div>
+    <div class="report-section"><h3 class="report-section-title">Gargalos Identificados</h3>${htmlGargalosAcr(a)}</div>
+    <div class="report-section">
+      <h3 class="report-section-title">Diagnóstico da Causa Raiz</h3>
+      <ul class="acr-lista" style="margin:0;padding-left:18px;font-size:12px;line-height:1.55;">${montarDiagnosticoAcr(a).map((t) => `<li style="margin-bottom:4px;">${t}</li>`).join('')}</ul>
+    </div>`;
+  document.getElementById('btnExportarAcrPdf').hidden = false;
+  document.getElementById('acrBackdrop').hidden = false;
+}
+
+function renderizarAnaliseConsolidadaAtrasos() {
+  const fora = ultimosClassificadosPrevisto.filter((i) => i.status === 'Fora do previsto');
+  analiseAcrAtual = { tipo: 'consolidada' };
+  const analises = fora.map(analisarCausaRaizProva).sort((x, y) => x.antecedencia - y.antecedencia);
+  const porEtapa = new Map();
+  analises.forEach((a) => a.comAtraso.forEach((e) => porEtapa.set(e.etapa.nome, (porEtapa.get(e.etapa.nome) || 0) + 1)));
+  const ocorrencias = [...porEtapa.entries()].sort((x, y) => y[1] - x[1]);
+  const naoDeterminadas = analises.filter((a) => a.classificacao === 'Causa não determinada').length;
+  const maiores = analises
+    .flatMap((a) => a.comAtraso.map((e) => ({ prova: a.item.id, etapa: e.etapa.nome, desvio: e.maiorDesvio })))
+    .sort((x, y) => y.desvio - x.desvio)
+    .slice(0, 5);
+
+  document.getElementById('acr-print-area').innerHTML = `
+    ${htmlCabecalhoAcr('Análise dos Atrasos', 'Provas enviadas à gráfica fora do prazo ideal no recorte atual')}
+    ${htmlKpisAcr([
+      { rotulo: 'Provas fora do previsto', valor: fora.length, tipo: fora.length ? 'danger' : 'ok' },
+      { rotulo: 'Ocorrências de prazo descumprido', valor: ocorrencias.reduce((s, [, n]) => s + n, 0), tipo: 'danger' },
+      { rotulo: 'Maior desvio de prazo', valor: maiores.length ? `+${maiores[0].desvio} d` : 'Não determinado', tipo: maiores.length ? 'danger' : 'info' },
+      { rotulo: 'Causa não determinada', valor: naoDeterminadas, tipo: 'info' }
+    ])}
+    ${
+      fora.length
+        ? `<div class="report-section">
+      <h3 class="report-section-title">Ocorrências por etapa com prazo descumprido</h3>
+      <p class="report-section-subtitle">Uma prova pode ter atraso em mais de uma etapa: a soma das ocorrências pode ser maior que o número de provas.</p>
+      ${
+        ocorrencias.length
+          ? `<table class="report-table" style="table-layout:auto;"><thead><tr><th style="text-align:left;">Etapa</th><th>Ocorrências</th></tr></thead><tbody>${ocorrencias
+              .map(([nome, n]) => `<tr><td style="text-align:left;">${nome}</td><td>${n}</td></tr>`)
+              .join('')}</tbody></table>`
+          : '<p class="report-section-subtitle">Nenhuma etapa com prazo descumprido comprovado.</p>'
+      }
+    </div>
+    <div class="report-section">
+      <h3 class="report-section-title">Comparativo dos diagnósticos</h3>
+      <table class="report-table" style="table-layout:auto;">
+        <thead><tr><th style="text-align:left;">Prova</th><th>Aplicação</th><th>Envio</th><th>Antecedência</th><th>Etapas com prazo descumprido</th><th>Maior intervalo de espera</th><th>Conclusão</th><th></th></tr></thead>
+        <tbody>${analises
+          .map(
+            (a) => `<tr>
+            <td style="text-align:left;">${escaparTextoSvg(a.item.id)}</td>
+            <td>${formatarDataAcr(a.item.dataAplicacao)}</td>
+            <td>${formatarDataAcr(a.item.dataEnvio)}</td>
+            <td style="color:#b91c1c;font-weight:700;">${a.antecedencia} d.u.</td>
+            <td style="text-align:left;">${a.comAtraso.length ? a.comAtraso.map((e) => `${e.etapa.nome} (+${e.maiorDesvio} d)`).join('; ') : '—'}</td>
+            <td style="text-align:left;">${a.intervalos.length ? `${a.intervalos[0].dias} d.u. (${a.intervalos[0].de} → ${a.intervalos[0].para})` : '—'}</td>
+            <td>${a.classificacao}</td>
+            <td><button type="button" class="btn btn-outline prg-btn-analisar" data-acr-id="${escaparTextoSvg(a.item.id)}">Analisar causa</button></td>
+          </tr>`
+          )
+          .join('')}</tbody>
+      </table>
+    </div>`
+        : '<p class="report-section-subtitle">Nenhuma prova fora do previsto no recorte atual.</p>'
+    }`;
+  document.getElementById('btnExportarAcrPdf').hidden = true;
+  document.getElementById('acrBackdrop').hidden = false;
+}
+
+function abrirAnaliseCausaRaizPorId(id) {
+  const item = ultimosClassificadosPrevisto.find((i) => i.id === id);
+  if (item) renderizarAnaliseCausaRaiz(item);
+}
+
+function fecharAnaliseCausaRaiz() {
+  document.getElementById('acrBackdrop').hidden = true;
+}
+
+async function exportarAnaliseCausaRaizPdf() {
+  if (!analiseAcrAtual || analiseAcrAtual.tipo !== 'individual') return;
+  const botao = document.getElementById('btnExportarAcrPdf');
+  const texto = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = 'Gerando PDF…';
+  const iframe = criarIframePdf();
+  try {
+    await garantirBibliotecasPdf();
+    const id = analiseAcrAtual.item.id;
+    const blob = await gerarPdfRelatorioCobranca(iframe, document.getElementById('acr-print-area').innerHTML, `Análise de Causa Raiz — ${id}`);
+    const nome = removerAcentos(id).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    baixarArquivo(blob, `ANALISE_CAUSA_RAIZ_${nome}_${dataArquivoLoteCobranca()}.pdf`);
+  } catch (erro) {
+    console.error('Falha ao gerar o PDF da análise; abrindo a impressão do navegador:', erro);
+    imprimirAreaRelatorio('acr-print-area', `Análise de Causa Raiz — ${analiseAcrAtual.item.id}`);
+  } finally {
+    iframe.remove();
+    botao.disabled = false;
+    botao.textContent = texto;
+  }
+}
+
+// Botão "Analisar causa" nas linhas fora do previsto da tabela e na visão consolidada (delegação)
+domPrevisto.tabelaDetalheBody.addEventListener('click', (event) => {
+  const botao = event.target.closest('[data-acr-id]');
+  if (botao) abrirAnaliseCausaRaizPorId(botao.dataset.acrId);
+});
+document.getElementById('acr-print-area').addEventListener('click', (event) => {
+  const botao = event.target.closest('[data-acr-id]');
+  if (botao) abrirAnaliseCausaRaizPorId(botao.dataset.acrId);
+});
+document.getElementById('btnAnalisarAtrasosPrevisto').addEventListener('click', renderizarAnaliseConsolidadaAtrasos);
+document.getElementById('btnFecharAcr').addEventListener('click', fecharAnaliseCausaRaiz);
+document.getElementById('btnFecharAcrRodape').addEventListener('click', fecharAnaliseCausaRaiz);
+document.getElementById('acrBackdrop').addEventListener('click', (event) => {
+  if (event.target.id === 'acrBackdrop') fecharAnaliseCausaRaiz();
+});
+document.getElementById('btnExportarAcrPdf').addEventListener('click', exportarAnaliseCausaRaizPdf);
 
 domPrevisto.filtroModulo.addEventListener('change', () => {
   filtrosPrevistoRealizado.modulo = domPrevisto.filtroModulo.value;
@@ -12145,6 +12791,62 @@ domPrevisto.filtroBusca.addEventListener('input', () => {
   filtrosPrevistoRealizado.busca = domPrevisto.filtroBusca.value;
   filtroStatusPrevistoRealizado = null;
   renderizarIndicadorPrevistoRealizado();
+});
+
+// ---- Painel "Filtros avançados" de Previsto vs. Realizado (mesmo componente/comportamento dos
+// popovers das demais seções: funil no cabeçalho, badge de filtros ativos, fecha ao clicar fora
+// ou com Esc). Os campos aplicam na hora (listeners acima). ----
+const btnAbrirFiltrosPrevisto = document.getElementById('btnAbrirFiltrosPrevisto');
+const previstoFiltersPopover = document.getElementById('previstoFiltersPopover');
+
+// Badge do funil = filtros avançados ativos (Ano, Tipo de AV, Busca); Módulo fica no cabeçalho
+function atualizarIndicadorFiltrosPrevisto() {
+  const ativos = ['ano', 'tipoAv', 'busca'].filter((chave) => safe(filtrosPrevistoRealizado[chave]) !== '').length;
+  const badge = document.getElementById('previstoFilterBadge');
+  badge.hidden = ativos === 0;
+  badge.textContent = ativos;
+  btnAbrirFiltrosPrevisto.classList.toggle('has-active-filters', ativos > 0);
+}
+
+function abrirPopoverFiltrosPrevisto() {
+  previstoFiltersPopover.hidden = false;
+  btnAbrirFiltrosPrevisto.classList.add('is-active');
+  btnAbrirFiltrosPrevisto.setAttribute('aria-expanded', 'true');
+  btnAbrirFiltrosPrevisto.querySelector('.filter-header-btn-icon').src = btnAbrirFiltrosPrevisto.dataset.iconAtivo;
+}
+
+function fecharPopoverFiltrosPrevisto() {
+  previstoFiltersPopover.hidden = true;
+  btnAbrirFiltrosPrevisto.classList.remove('is-active');
+  btnAbrirFiltrosPrevisto.setAttribute('aria-expanded', 'false');
+  btnAbrirFiltrosPrevisto.querySelector('.filter-header-btn-icon').src = btnAbrirFiltrosPrevisto.dataset.iconNormal;
+}
+
+btnAbrirFiltrosPrevisto.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (previstoFiltersPopover.hidden) abrirPopoverFiltrosPrevisto();
+  else fecharPopoverFiltrosPrevisto();
+});
+document.getElementById('btnFecharFiltrosPrevisto').addEventListener('click', fecharPopoverFiltrosPrevisto);
+document.getElementById('btnFecharFiltrosPrevistoRodape').addEventListener('click', fecharPopoverFiltrosPrevisto);
+// Limpa Ano, Tipo de AV, Busca e também o Módulo do cabeçalho
+document.getElementById('btnLimparFiltrosPrevisto').addEventListener('click', () => {
+  [domPrevisto.filtroModulo, domPrevisto.filtroAno, domPrevisto.filtroTipoAv].forEach((select) => (select.value = ''));
+  domPrevisto.filtroBusca.value = '';
+  filtrosPrevistoRealizado = { modulo: '', ano: '', tipoAv: '', busca: '' };
+  filtroStatusPrevistoRealizado = null;
+  renderizarIndicadorPrevistoRealizado();
+});
+document.addEventListener('click', (event) => {
+  if (!previstoFiltersPopover.hidden && !document.getElementById('previstoFilterPopoverWrapper').contains(event.target)) {
+    fecharPopoverFiltrosPrevisto();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !previstoFiltersPopover.hidden) fecharPopoverFiltrosPrevisto();
+});
+btnAbrirFiltrosPrevisto.querySelector('.filter-header-btn-icon').addEventListener('error', (event) => {
+  if (event.target.src !== btnAbrirFiltrosPrevisto.dataset.iconNormal) event.target.src = btnAbrirFiltrosPrevisto.dataset.iconNormal;
 });
 
 // --- "Resumo da Produção" (2026-09-11) ---
@@ -12267,21 +12969,6 @@ function calcularStatusEtapaResumoProducao(registrosDoBloco, camposInicio, campo
   return iniciada ? 'in-progress' : 'pending';
 }
 
-const ROTULOS_STATUS_ETAPA_RESUMO_PRODUCAO = {
-  completed: 'Concluída',
-  'in-progress': 'Em andamento',
-  pending: 'Pendente'
-};
-
-function badgeClassForStatusEtapaResumoProducao(status) {
-  const map = {
-    completed: 'badge-pe-status-concluido',
-    'in-progress': 'badge-pe-status-andamento',
-    pending: 'badge-pe-status-pendente'
-  };
-  return map[status] || '';
-}
-
 // Calcula, para cada uma das 5 etapas, total/concluídas/em andamento/pendentes/progresso — cada
 // etapa usa sua própria granularidade (ver etapa.usaBloco/obterItensEtapaResumoProducao):
 // Processo Editorial e Arte-finalização e Envio contam por bloco/bloquinho consolidado; as
@@ -12387,35 +13074,8 @@ function aplicarFiltrosResumoProducao(dados, ignorarModulo = false) {
 // alternarFiltroCardArteFinalizacao.
 function alternarEtapaResumoProducao(chave) {
   etapaSelecionadaResumoProducao = etapaSelecionadaResumoProducao === chave ? null : chave;
-  detalhesEtapaResumoVisiveis = false; // ao trocar de etapa, volta a mostrar só os gráficos
+  statusFiltroAnaliseEtapa = null; // ao trocar de etapa, o filtro de status volta para "Total"
   renderizarResumoProducao();
-}
-
-// Última data preenchida entre os campos da etapa (conclusão + início), usada na coluna "Última
-// data registrada" da tabela de detalhamento — prioriza a data mais recente já parseável
-// (dd/mm/aaaa); cai para o primeiro valor não vazio quando nenhum dos campos é uma data válida
-function obterUltimaDataEtapaResumoProducao(registrosDoBloco, camposInicio, campoFim) {
-  const campos = [campoFim, ...camposInicio];
-  let melhorTexto = null;
-  let melhorData = null;
-
-  registrosDoBloco.forEach((record) => {
-    campos.forEach((campo) => {
-      const valor = safe(record[campo]);
-      if (!valor) return;
-      const data = parseBrDate(valor);
-      if (data) {
-        if (!melhorData || data.getTime() > melhorData.getTime()) {
-          melhorData = data;
-          melhorTexto = valor;
-        }
-      } else if (!melhorTexto) {
-        melhorTexto = valor;
-      }
-    });
-  });
-
-  return melhorTexto || '-';
 }
 
 // Renderiza os 3 cards executivos superiores
@@ -12432,8 +13092,9 @@ function calcularAvancoMedioFluxoResumo(grupos, dados) {
 }
 
 // Gráfico-resumo ao lado do card "Total de Avaliações": Global = média das % das 5 etapas do
-// recorte atual (as mesmas exibidas nos cards); Módulo 3/Módulo 4 = a mesma média calculada só
-// com os registros de cada módulo (respeitando os demais filtros ativos)
+// recorte atual (as mesmas exibidas nos cards); 1 barra por módulo PRESENTE no recorte filtrado
+// (dadosFiltrados já respeita o filtro de Módulo do topo: com "M3", só aparece MÓDULO 3), com a
+// mesma média calculada só com os registros daquele módulo
 function renderizarGraficoResumoModulos(grupos, dadosFiltrados) {
   const doModulo = (modulo) => {
     const dados = dadosFiltrados.filter((r) => safe(r.modulo) === modulo);
@@ -12441,10 +13102,12 @@ function renderizarGraficoResumoModulos(grupos, dadosFiltrados) {
   };
 
   const global = calcularAvancoMedioFluxoResumo(grupos, dadosFiltrados);
-  const modulos = [
-    { nome: 'MÓDULO 3', valor: doModulo('M3'), classe: 'm3' },
-    { nome: 'MÓDULO 4', valor: doModulo('M4'), classe: 'm4' }
-  ];
+  const modulos = Array.from(new Set(dadosFiltrados.map((r) => safe(r.modulo)).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+    .map((modulo) => ({
+      nome: /^M\d+$/i.test(modulo) ? `MÓDULO ${modulo.slice(1)}` : modulo.toUpperCase(),
+      valor: doModulo(modulo)
+    }));
 
   const r = 42;
   const circ = 2 * Math.PI * r;
@@ -12455,8 +13118,8 @@ function renderizarGraficoResumoModulos(grupos, dadosFiltrados) {
       <span class="resumo-modulos-global-titulo">Global</span>
       <div class="resumo-modulos-donut">
         <svg viewBox="0 0 100 100" width="104" height="104" role="img" aria-label="Global: ${formatarPercentualComVirgula(global)}%">
-          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#e8eef5" stroke-width="12"/>
-          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#1d4f86" stroke-width="12" stroke-linecap="round"
+          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#E5ECF4" stroke-width="12"/>
+          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#1555A5" stroke-width="12" stroke-linecap="round"
             stroke-dasharray="${preenchido.toFixed(2)} ${circ.toFixed(2)}" transform="rotate(-90 50 50)"
             ${global === 0 ? 'stroke-opacity="0"' : ''}/>
         </svg>
@@ -12469,7 +13132,7 @@ function renderizarGraficoResumoModulos(grupos, dadosFiltrados) {
           (m) => `<div class="resumo-modulos-linha">
             <span class="resumo-modulos-nome">${m.nome}</span>
             <div class="resumo-modulos-barra-linha">
-              <div class="resumo-modulos-track"><div class="resumo-modulos-fill resumo-modulos-fill--${m.classe}" style="width:${m.valor}%"></div></div>
+              <div class="resumo-modulos-track"><div class="resumo-modulos-fill" style="width:${m.valor}%"></div></div>
               <strong class="resumo-modulos-pct">${formatarPercentualComVirgula(m.valor)}%</strong>
             </div>
           </div>`
@@ -12598,13 +13261,16 @@ function calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, chaveDoItem, ordem
   if (incluirZeros) ordem.forEach((chave) => mapa.set(chave, { total: 0, concluidas: 0 }));
   itens.forEach((item) => {
     // chaveDoItem pode devolver várias chaves (ex.: disciplinas de um bloco): o item conta 1
-    // vez em cada chave distinta, com o status do próprio item
-    const concluido = classificarItemAnaliseEtapa(etapa, item) === 'completed';
+    // vez em cada chave distinta, com o status do próprio item. O status é o mesmo da rosca
+    // (classificarItemAnaliseEtapa: 1 status por item), então os segmentos somam o total.
+    const status = classificarItemAnaliseEtapa(etapa, item);
     new Set([].concat(chaveDoItem(item)).map((c) => c || 'Não informado')).forEach((chave) => {
       if (!mapa.has(chave)) mapa.set(chave, { total: 0, concluidas: 0 });
       const linha = mapa.get(chave);
       linha.total += 1;
-      if (concluido) linha.concluidas += 1;
+      if (status === 'completed') linha.concluidas += 1;
+      linha.porStatus = linha.porStatus || { completed: 0, 'in-progress': 0, pending: 0, late: 0 };
+      linha.porStatus[status] += 1;
     });
   });
   const fixos = ordem.filter((chave) => mapa.has(chave));
@@ -12612,31 +13278,76 @@ function calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, chaveDoItem, ordem
     .filter((chave) => !ordem.includes(chave))
     .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
   return [...fixos, ...extras].map((chave) => {
-    const { total, concluidas } = mapa.get(chave);
-    return { rotulo: chave, total, concluidas, percentual: total > 0 ? (concluidas / total) * 100 : 0 };
+    const { total, concluidas, porStatus } = mapa.get(chave);
+    return {
+      rotulo: chave,
+      total,
+      concluidas,
+      porStatus: porStatus || { completed: 0, 'in-progress': 0, pending: 0, late: 0 },
+      percentual: total > 0 ? (concluidas / total) * 100 : 0
+    };
   });
 }
 
-// Barras de progresso horizontais: rótulo | trilha cinza com preenchimento = % concluído |
-// "concluídas de total — %"
-function htmlBarrasAvancoAnaliseEtapa(linhas, classeExtra = '') {
-  if (!linhas.some((l) => l.total > 0)) return htmlVazioAnaliseEtapa();
-  return `<div class="stage-chart-progress ${classeExtra}">${linhas
-    .map(
-      (l) => `<div class="stage-chart-progress-row" title="${escaparTextoSvg(l.rotulo)}: ${l.concluidas} de ${l.total} concluídas">
-        <span class="stage-chart-progress-label">${escaparTextoSvg(l.rotulo)}</span>
-        <div class="stage-chart-progress-track"><div class="stage-chart-progress-fill" style="width:${l.percentual}%"></div></div>
-        <span class="stage-chart-progress-valor"><strong>${l.concluidas}</strong> de ${l.total} — <strong>${formatarPercentualComVirgula(l.percentual)}%</strong></span>
-      </div>`
-    )
-    .join('')}</div>`;
+// Status exibidos nas barras empilhadas e na legenda, na ordem da rosca. "Atrasadas" só nas
+// etapas que têm regra de atraso (etapa.atrasada), como na rosca.
+function statusBarrasAnaliseEtapa(etapa) {
+  return [
+    { chave: 'completed', rotulo: 'Concluídas' },
+    { chave: 'in-progress', rotulo: 'Em andamento' },
+    { chave: 'pending', rotulo: etapa.rotuloPendentes || 'Pendentes' },
+    ...(etapa.atrasada ? [{ chave: 'late', rotulo: 'Atrasadas' }] : [])
+  ];
 }
 
+// Barras horizontais empilhadas por status: cada barra = 100% do agrupamento, dividida pelos
+// status (mesmas cores da rosca); tooltip por segmento; à direita "X de Y — Z% concluído".
+// referencia = complemento do tooltip ("do módulo", "da avaliação", "do ano", "da disciplina").
+// filtro = status do card selecionado (null = Total): só o segmento daquele status aparece, com a
+// largura do seu % sobre o total ORIGINAL do agrupamento, e o texto à direita passa a ser
+// "X <status> de Y — Z%" (não o % de conclusão).
+function htmlBarrasEmpilhadasAnaliseEtapa(linhas, etapa, referencia, classeExtra = '', filtro = null) {
+  if (!linhas.some((l) => l.total > 0)) return htmlVazioAnaliseEtapa();
+  const status = statusBarrasAnaliseEtapa(etapa).filter((s) => !filtro || s.chave === filtro);
+  const legenda = `<ul class="stage-chart-status-legend">${status
+    .map((s) => `<li><span class="stage-chart-swatch" style="background:${CORES_STATUS_ANALISE_ETAPA[s.chave]}"></span>${escaparTextoSvg(s.rotulo)}</li>`)
+    .join('')}</ul>`;
+  const rotuloFiltro = filtro ? (status[0] ? status[0].rotulo.toLowerCase() : '') : '';
+
+  const linhasHtml = linhas
+    .map((l) => {
+      const qtdFiltro = filtro ? l.porStatus[filtro] || 0 : 0;
+      const pctFiltro = filtro && l.total > 0 ? (qtdFiltro / l.total) * 100 : 0;
+      const valor = filtro
+        ? `<strong class="${filtro === 'late' ? 'stage-chart-valor--late' : ''}">${qtdFiltro}</strong> ${rotuloFiltro} de ${l.total} — <strong>${formatarPercentualComVirgula(pctFiltro)}%</strong>`
+        : `<strong>${l.concluidas}</strong> de ${l.total} — <strong>${formatarPercentualComVirgula(l.percentual)}%</strong> concluído`;
+      const segmentos = status
+        .filter((s) => l.porStatus[s.chave] > 0)
+        .map((s) => {
+          const qtd = l.porStatus[s.chave];
+          const pct = (qtd / l.total) * 100;
+          const dica = `${l.rotulo} — ${s.rotulo}\n${qtd} ${qtd === 1 ? 'avaliação' : 'avaliações'} — ${formatarPercentualComVirgula(pct)}% ${referencia}`;
+          return `<div class="stage-chart-stack-seg" style="width:${pct}%;background:${CORES_STATUS_ANALISE_ETAPA[s.chave]}" title="${escaparTextoSvg(dica)}"></div>`;
+        })
+        .join('');
+      return `<div class="stage-chart-progress-row">
+        <span class="stage-chart-progress-label" title="${escaparTextoSvg(l.rotulo)}">${escaparTextoSvg(l.rotulo)}</span>
+        <div class="stage-chart-progress-track stage-chart-stack">${segmentos}</div>
+        <span class="stage-chart-progress-valor">${valor}</span>
+      </div>`;
+    })
+    .join('');
+
+  return `${legenda}<div class="stage-chart-progress ${classeExtra}">${linhasHtml}</div>`;
+}
+
+// Rosca "Distribuição por status" (todas as etapas): azuis do mais escuro ao mais claro e
+// vermelho só para Atrasadas — segmentos e legenda usam estas mesmas cores
 const CORES_STATUS_ANALISE_ETAPA = {
-  completed: '#16a34a',
-  'in-progress': '#ea580c',
-  pending: '#94a3b8',
-  late: '#dc2626'
+  completed: '#1555A5',
+  'in-progress': '#287FE5',
+  pending: '#76B8F8',
+  late: '#DC2626'
 };
 
 // Status de um item para o gráfico "Distribuição por status" — categorias sem sobreposição:
@@ -12649,37 +13360,26 @@ function classificarItemAnaliseEtapa(etapa, item) {
   return status;
 }
 
-// Conta valores em ordem fixa (ordemPreferida primeiro, depois os demais em ordem alfabética)
-// incluirZeros = true mantém todas as chaves de ordemPreferida, mesmo sem dados (valor 0)
-function contarPorChaveAnaliseEtapa(valores, ordemPreferida = [], incluirZeros = false) {
-  const contagem = new Map();
-  valores.forEach((valor) => {
-    const chave = valor || 'Não informado';
-    contagem.set(chave, (contagem.get(chave) || 0) + 1);
-  });
-  if (incluirZeros) ordemPreferida.forEach((chave) => contagem.set(chave, contagem.get(chave) || 0));
-  const fixos = ordemPreferida.filter((chave) => contagem.has(chave));
-  const extras = [...contagem.keys()]
-    .filter((chave) => !ordemPreferida.includes(chave))
-    .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
-  return [...fixos, ...extras].map((chave) => ({ rotulo: chave, qtd: contagem.get(chave) }));
-}
-
 function htmlVazioAnaliseEtapa() {
   return '<p class="stage-chart-empty">Sem dados para exibir</p>';
 }
 
-function htmlDonutAnaliseEtapa(fatias) {
+// destaque = status do card selecionado (null = Total): as demais fatias ficam cinza-claro (mesma
+// proporção sobre o total da etapa) e o centro mostra a quantidade e o % do status selecionado
+// attrsItem (opcional): f => ({ attrs, classe }) acrescentados à fatia e ao item da legenda
+function htmlDonutAnaliseEtapa(fatias, destaque = null, rotuloCentro = 'itens', attrsItem = null) {
+  const extra = (f) => (attrsItem ? attrsItem(f) : { attrs: '', classe: '' });
   const total = fatias.reduce((soma, f) => soma + f.qtd, 0);
   if (!total) return htmlVazioAnaliseEtapa();
   const r = 40;
   const circ = 2 * Math.PI * r;
   let deslocamento = 0;
+  const corFatia = (f) => (!destaque || f.chave === destaque ? f.cor : '#E5EAF0');
   const arcos = fatias
     .filter((f) => f.qtd > 0)
     .map((f) => {
       const tamanho = (f.qtd / total) * circ;
-      const arco = `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${f.cor}" stroke-width="16"
+      const arco = `<circle class="${extra(f).classe}"${extra(f).attrs} cx="50" cy="50" r="${r}" fill="none" stroke="${corFatia(f)}" stroke-width="16"
         stroke-dasharray="${tamanho.toFixed(2)} ${(circ - tamanho).toFixed(2)}"
         stroke-dashoffset="${(-deslocamento).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
       deslocamento += tamanho;
@@ -12688,33 +13388,23 @@ function htmlDonutAnaliseEtapa(fatias) {
     .join('');
   const legenda = fatias
     .map(
-      (f) => `<li><span class="stage-chart-swatch" style="background:${f.cor}"></span>${escaparTextoSvg(f.rotulo)}
+      (f) => `<li${extra(f).attrs} class="${extra(f).classe} ${destaque && f.chave !== destaque ? 'is-esmaecido' : ''}${destaque === f.chave ? ' is-destaque' : ''}"><span class="stage-chart-swatch" style="background:${f.cor}"></span>${escaparTextoSvg(f.rotulo)}
         <strong>${f.qtd}</strong> <small>(${formatarPercentualComVirgula((f.qtd / total) * 100)}%)</small></li>`
     )
     .join('');
+  const fatiaDestaque = destaque ? fatias.find((f) => f.chave === destaque) : null;
+  const centro = fatiaDestaque
+    ? `<strong style="color:${fatiaDestaque.cor === CORES_STATUS_ANALISE_ETAPA.pending ? '#4A90D9' : fatiaDestaque.cor}">${fatiaDestaque.qtd}</strong><small>${formatarPercentualComVirgula((fatiaDestaque.qtd / total) * 100)}% do total</small>`
+    : `<strong>${total}</strong><small>${rotuloCentro}</small>`;
   return `<div class="stage-chart-donut">
     <div class="stage-chart-donut-svg">
       <svg viewBox="0 0 100 100" width="150" height="150" role="img" aria-label="Distribuição por status">
         <circle cx="50" cy="50" r="${r}" fill="none" stroke="#e8eef5" stroke-width="16"/>${arcos}
       </svg>
-      <span class="stage-chart-donut-total"><strong>${total}</strong><small>itens</small></span>
+      <span class="stage-chart-donut-total">${centro}</span>
     </div>
     <ul class="stage-chart-legend">${legenda}</ul>
   </div>`;
-}
-
-function htmlBarrasHorizontaisAnaliseEtapa(linhas, cor = '#0b315f', classeExtra = '') {
-  if (!linhas.length) return htmlVazioAnaliseEtapa();
-  const maximo = Math.max(...linhas.map((l) => l.qtd));
-  return `<div class="stage-chart-hbars ${classeExtra}">${linhas
-    .map(
-      (l) => `<div class="stage-chart-hbar">
-        <span class="stage-chart-hbar-label" title="${escaparTextoSvg(l.rotulo)}">${escaparTextoSvg(l.rotulo)}</span>
-        <div class="stage-chart-hbar-track"><div class="stage-chart-hbar-fill" style="width:${(l.qtd / maximo) * 100}%;background:${cor}"></div></div>
-        <strong class="stage-chart-hbar-valor">${l.qtd}</strong>
-      </div>`
-    )
-    .join('')}</div>`;
 }
 
 // Disciplina do gráfico "Progresso por disciplina": tira a numeração final e unifica as
@@ -12733,21 +13423,41 @@ function renderizarAnaliseEtapaResumoProducao(etapa, resumoEtapa, itens) {
 
   // Indicadores: os mesmos números do card da etapa (calcularResumoEtapasProducao)
   const rotuloPendentes = etapa.rotuloPendentes || 'Pendentes';
+  // Cards = filtros de status (status: chave da classificação da rosca; null = Total). Os números
+  // continuam sendo os totais originais; o card "Atrasadas" fica desativado nas etapas sem atraso.
+  // Status que deixou de existir (troca de filtro global) volta para Total.
+  if (statusFiltroAnaliseEtapa === 'late' && !etapa.atrasada) statusFiltroAnaliseEtapa = null;
+  const filtro = statusFiltroAnaliseEtapa;
   const kpis = [
-    { rotulo: 'Total', valor: resumoEtapa ? resumoEtapa.total : itens.length, tipo: 'total' },
-    { rotulo: 'Concluídas', valor: resumoEtapa ? resumoEtapa.concluidas : '-', tipo: 'success' },
-    { rotulo: 'Em andamento', valor: resumoEtapa ? resumoEtapa.andamento : '-', tipo: 'warning' },
-    { rotulo: rotuloPendentes, valor: resumoEtapa ? resumoEtapa.pendentes : '-', tipo: 'pending' },
-    { rotulo: 'Atrasadas', valor: resumoEtapa && resumoEtapa.atrasadas !== null ? resumoEtapa.atrasadas : '-', tipo: 'danger' }
+    { rotulo: 'Total', valor: resumoEtapa ? resumoEtapa.total : itens.length, tipo: 'total', status: null },
+    { rotulo: 'Concluídas', valor: resumoEtapa ? resumoEtapa.concluidas : '-', tipo: 'success', status: 'completed' },
+    { rotulo: 'Em andamento', valor: resumoEtapa ? resumoEtapa.andamento : '-', tipo: 'warning', status: 'in-progress' },
+    { rotulo: rotuloPendentes, valor: resumoEtapa ? resumoEtapa.pendentes : '-', tipo: 'pending', status: 'pending' },
+    { rotulo: 'Atrasadas', valor: resumoEtapa && resumoEtapa.atrasadas !== null ? resumoEtapa.atrasadas : '-', tipo: 'danger', status: 'late', desativado: !etapa.atrasada }
   ];
-  document.getElementById('resumoProducaoAnaliseEtapaKpis').innerHTML = kpis
-    .map(
-      (k) => `<div class="stage-analysis-kpi stage-analysis-kpi--${k.tipo}">
+  // Processo Editorial e Arte-finalização e Envio: sem o card "Atrasadas" (essas etapas não têm
+  // regra de atraso) — 4 cards na largura
+  const semCardAtraso = etapa.chave === 'processo_editorial' || etapa.chave === 'arte_finalizacao_envio';
+  const containerKpis = document.getElementById('resumoProducaoAnaliseEtapaKpis');
+  containerKpis.classList.toggle('stage-analysis-kpis--4', semCardAtraso);
+  containerKpis.innerHTML = kpis
+    .filter((k) => !(semCardAtraso && k.status === 'late'))
+    .map((k) => {
+      const ativo = k.status === filtro;
+      return `<button type="button" class="stage-analysis-kpi stage-analysis-kpi--${k.tipo}${ativo ? ' is-active' : ''}"
+        data-status="${k.status || ''}" aria-pressed="${ativo}" ${k.desativado ? 'disabled' : ''}
+        title="${k.desativado ? 'Esta etapa não tem regra de atraso' : k.status ? `Filtrar gráficos por: ${k.rotulo}` : 'Mostrar todos os registros da etapa'}">
         <span class="stage-analysis-kpi-label">${k.rotulo}</span>
         <strong class="stage-analysis-kpi-valor">${k.valor}</strong>
-      </div>`
-    )
+      </button>`;
+    })
     .join('');
+
+  // "Exibindo: <status>" + "Limpar filtro" (só com um status específico)
+  const barraFiltro = document.getElementById('resumoProducaoAnaliseFiltro');
+  const kpiAtivo = kpis.find((k) => k.status === filtro);
+  barraFiltro.hidden = !filtro;
+  document.getElementById('resumoProducaoAnaliseFiltroTexto').textContent = filtro && kpiAtivo ? kpiAtivo.rotulo : '';
 
   // 1) Distribuição por status (categorias sem sobreposição — ver classificarItemAnaliseEtapa)
   const porStatus = { completed: 0, 'in-progress': 0, pending: 0, late: 0 };
@@ -12755,14 +13465,15 @@ function renderizarAnaliseEtapaResumoProducao(etapa, resumoEtapa, itens) {
     porStatus[classificarItemAnaliseEtapa(etapa, item)] += 1;
   });
   const fatias = [
-    { rotulo: 'Concluídas', qtd: porStatus.completed, cor: CORES_STATUS_ANALISE_ETAPA.completed },
-    { rotulo: 'Em andamento', qtd: porStatus['in-progress'], cor: CORES_STATUS_ANALISE_ETAPA['in-progress'] },
-    { rotulo: rotuloPendentes, qtd: porStatus.pending, cor: CORES_STATUS_ANALISE_ETAPA.pending },
-    ...(etapa.atrasada ? [{ rotulo: 'Atrasadas', qtd: porStatus.late, cor: CORES_STATUS_ANALISE_ETAPA.late }] : [])
+    { chave: 'completed', rotulo: 'Concluídas', qtd: porStatus.completed, cor: CORES_STATUS_ANALISE_ETAPA.completed },
+    { chave: 'in-progress', rotulo: 'Em andamento', qtd: porStatus['in-progress'], cor: CORES_STATUS_ANALISE_ETAPA['in-progress'] },
+    { chave: 'pending', rotulo: rotuloPendentes, qtd: porStatus.pending, cor: CORES_STATUS_ANALISE_ETAPA.pending },
+    ...(etapa.atrasada ? [{ chave: 'late', rotulo: 'Atrasadas', qtd: porStatus.late, cor: CORES_STATUS_ANALISE_ETAPA.late }] : [])
   ];
 
   // 2) Módulo, 3) Avaliação, 4) Ano/Série — 1 contagem por item
-  const porModulo = contarPorChaveAnaliseEtapa(itens.map((i) => safe(i.modulo)), ['M1', 'M2', 'M3', 'M4']);
+  // Módulos presentes na base, na mesma ordem de antes (M1→M4, depois os demais)
+  const porModulo = calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, (i) => safe(i.modulo), ['M1', 'M2', 'M3', 'M4']);
   // Avanço (concluídas de total) por avaliação e por ano/série. Avaliação: sempre as 5 fixas
   // (com 0 quando não houver dados) — "2ºCHAM"/"2CHAM"/... já chegam como "2º CHAMADA" via
   // normalizarTipoAvPerformance
@@ -12788,28 +13499,65 @@ function renderizarAnaliseEtapaResumoProducao(etapa, resumoEtapa, itens) {
   // Todas as disciplinas do recorte (sem limite), por total decrescente e depois nome.
   const porDisciplina = calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, (i) =>
     i.registros.map((r) => normalizarDisciplinaProgressoAnaliseEtapa(r.frente))
-  ).sort((a, b) => b.total - a.total || a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
+  ).sort(
+    (a, b) =>
+      // Com um status selecionado, as disciplinas com mais registros daquele status vêm primeiro
+      (filtro ? (b.porStatus[filtro] || 0) - (a.porStatus[filtro] || 0) : 0) ||
+      b.total - a.total ||
+      a.rotulo.localeCompare(b.rotulo, 'pt-BR')
+  );
+
+  // 1ª Validação e Assinatura do Coordenador: o último gráfico é "Progresso por coordenador"
+  // (campo `coordenador`) no lugar de disciplina — cada uma com a classificação da própria etapa
+  // (1ª Validação: data_envio_coord/prazo_coord/devolutiva_coord; Assinatura:
+  // envio_assinatura_coord/prazo_assinatura_coord/devolutiva_assinatura_coord),
+  // mesma barra empilhada e mesmo filtro dos cards. Nomes que só diferem em espaços/maiúsculas
+  // são unificados, exibindo a 1ª grafia encontrada. Ordem: mais atrasadas → menor % de
+  // conclusão → nome. As demais etapas continuam com "Progresso por disciplina".
+  let graficoFinal = {
+    titulo: 'Progresso por disciplina',
+    html: htmlBarrasEmpilhadasAnaliseEtapa(porDisciplina, etapa, 'da disciplina', 'stage-chart-progress--disciplina', filtro),
+    largo: true
+  };
+  if (etapa.chave === 'primeira_validacao' || etapa.chave === 'assinatura_coordenador') {
+    const nomeCoordenador = new Map();
+    itens.forEach((item) => {
+      const original = safe(item.registros[0].coordenador).replace(/\s+/g, ' ');
+      const chave = original.toUpperCase();
+      if (original && !nomeCoordenador.has(chave)) nomeCoordenador.set(chave, original);
+    });
+    const porCoordenador = calcularAvancoPorCategoriaAnaliseEtapa(etapa, itens, (i) => {
+      const original = safe(i.registros[0].coordenador).replace(/\s+/g, ' ');
+      return nomeCoordenador.get(original.toUpperCase()) || 'Não informado';
+    }).sort(
+      (a, b) =>
+        (b.porStatus.late || 0) - (a.porStatus.late || 0) ||
+        a.percentual - b.percentual ||
+        a.rotulo.localeCompare(b.rotulo, 'pt-BR')
+    );
+    graficoFinal = {
+      titulo: 'Progresso por coordenador',
+      html: htmlBarrasEmpilhadasAnaliseEtapa(porCoordenador, etapa, 'do coordenador', 'stage-chart-progress--disciplina', filtro),
+      largo: true
+    };
+  }
 
   const graficos = [
-    { titulo: 'Distribuição por status', html: htmlDonutAnaliseEtapa(fatias) },
-    { titulo: 'Quantidade por módulo', html: htmlBarrasHorizontaisAnaliseEtapa(porModulo, '#0b315f') },
+    { titulo: 'Distribuição por status', html: htmlDonutAnaliseEtapa(fatias, filtro) },
+    // Barras empilhadas por status (htmlBarrasEmpilhadasAnaliseEtapa), mesma paleta da rosca
+    { titulo: 'Quantidade por módulo', html: htmlBarrasEmpilhadasAnaliseEtapa(porModulo, etapa, 'do módulo', '', filtro) },
     {
       titulo: TITULO_AVALIACAO_ANALISE_ETAPA[etapa.chave] || 'Quantidade por avaliação',
-      subtitulo: 'Concluídas de total — % concluído',
-      html: htmlBarrasAvancoAnaliseEtapa(porAvaliacao)
+      html: htmlBarrasEmpilhadasAnaliseEtapa(porAvaliacao, etapa, 'da avaliação', '', filtro)
     },
     {
       titulo: TITULO_ANO_ANALISE_ETAPA[etapa.chave] || 'Distribuição por ano/série',
-      subtitulo: 'Concluídas de total — % concluído',
-      html: htmlBarrasAvancoAnaliseEtapa(porAno)
+      html: htmlBarrasEmpilhadasAnaliseEtapa(porAno, etapa, 'do ano/série', '', filtro)
     },
-    {
-      titulo: 'Progresso por disciplina',
-      subtitulo: 'Concluídas de total — % concluído',
-      html: htmlBarrasAvancoAnaliseEtapa(porDisciplina, 'stage-chart-progress--disciplina'),
-      largo: true
-    }
-  ];
+    // Processo Editorial e Arte-finalização e Envio: sem "Progresso por disciplina" (ficam com os
+    // 4 gráficos acima)
+    semCardAtraso ? null : graficoFinal
+  ].filter(Boolean);
 
   document.getElementById('resumoProducaoAnaliseEtapaGraficos').innerHTML = graficos
     .map(
@@ -12822,19 +13570,13 @@ function renderizarAnaliseEtapaResumoProducao(etapa, resumoEtapa, itens) {
     .join('');
 }
 
-// Mostra/esconde o chip "Filtro ativo: <etapa> ×" e a tabela "Detalhamento da etapa" conforme a
-// etapa atualmente selecionada (clique num card) — lista os mesmos itens contados pelo card/
-// tabela "Detalhamento por etapa" daquela etapa (bloco ou linha a linha, ver
-// obterItensEtapaResumoProducao/etapa.usaBloco), anotados com o status daquela etapa. O filtro
-// "Status" do cabeçalho (.stage-detail-header) aparece nas 5 etapas; quando um status específico
-// está selecionado, restringe só esta tabela — não afeta os cards, a tabela "Detalhamento por
-// etapa" nem os demais filtros da seção.
+// Mostra/esconde o chip "Filtro ativo: <etapa> ×" e o painel "Análise da etapa" (cards +
+// gráficos) conforme a etapa selecionada (clique num card de etapa) — mesmos itens contados pelo
+// card da etapa (bloco ou linha a linha, ver obterItensEtapaResumoProducao/etapa.usaBloco)
 function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados, etapasCalculadas = []) {
   if (!etapaSelecionadaResumoProducao) {
     resumoProducaoEtapaChipWrapper.hidden = true;
     resumoProducaoAnaliseEtapa.hidden = true;
-    resumoProducaoDetalheEtapaCard.hidden = true;
-    resumoProducaoDetalheEtapaBody.innerHTML = '';
     return;
   }
 
@@ -12844,75 +13586,11 @@ function renderizarDetalheEtapaResumoProducao(grupos, dadosFiltrados, etapasCalc
   resumoProducaoEtapaChipWrapper.hidden = false;
   resumoProducaoEtapaChipTexto.textContent = `Filtro ativo: ${etapa.nome}`;
 
-  // Conteúdo principal: painel analítico (gráficos). A tabela abaixo só aparece em "Ver detalhes".
   renderizarAnaliseEtapaResumoProducao(
     etapa,
     etapasCalculadas.find((e) => e.chave === etapa.chave),
     obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados)
   );
-
-  resumoProducaoDetalheEtapaCard.hidden = !detalhesEtapaResumoVisiveis;
-  btnVerDetalhesEtapaResumo.textContent = detalhesEtapaResumoVisiveis ? 'Ocultar detalhes' : 'Ver detalhes';
-  btnVerDetalhesEtapaResumo.setAttribute('aria-expanded', String(detalhesEtapaResumoVisiveis));
-  resumoProducaoDetalheEtapaTitulo.textContent = `Detalhamento da etapa — ${etapa.nome}`;
-  filterResumoDetalheEtapaStatus.value = filtroStatusDetalheEtapaResumoProducao;
-
-  resumoProducaoDetalheEtapaBody.innerHTML = '';
-  const fragment = document.createDocumentFragment();
-
-  const itens = obterItensEtapaResumoProducao(etapa, grupos, dadosFiltrados).map((item) => ({
-    ...item,
-    status: calcularStatusEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim)
-  }));
-
-  const itensExibidos = filtroStatusDetalheEtapaResumoProducao
-    ? itens.filter((item) => item.status === filtroStatusDetalheEtapaResumoProducao)
-    : itens;
-
-  if (itensExibidos.length === 0) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 7;
-    td.className = 'pe-ano-detail-empty';
-    td.style.textAlign = 'center';
-    td.style.padding = '16px';
-    td.textContent = 'Nenhuma avaliação encontrada para o status selecionado.';
-    tr.appendChild(td);
-    fragment.appendChild(tr);
-    resumoProducaoDetalheEtapaBody.appendChild(fragment);
-    return;
-  }
-
-  itensExibidos.forEach((item) => {
-    const tr = document.createElement('tr');
-
-    [
-      item.codigo,
-      safe(item.ano),
-      safe(item.modulo),
-      normalizarTipoAvPerformance(item.tipoAv),
-      etapa.nome
-    ].forEach((valor) => {
-      const td = document.createElement('td');
-      td.textContent = valor;
-      tr.appendChild(td);
-    });
-
-    const tdStatus = document.createElement('td');
-    const badge = document.createElement('span');
-    badge.className = `badge ${badgeClassForStatusEtapaResumoProducao(item.status)}`;
-    badge.textContent = ROTULOS_STATUS_ETAPA_RESUMO_PRODUCAO[item.status];
-    tdStatus.appendChild(badge);
-    tr.appendChild(tdStatus);
-
-    const tdData = document.createElement('td');
-    tdData.textContent = obterUltimaDataEtapaResumoProducao(item.registros, etapa.camposInicio, etapa.campoFim);
-    tr.appendChild(tdData);
-
-    fragment.appendChild(tr);
-  });
-
-  resumoProducaoDetalheEtapaBody.appendChild(fragment);
 }
 
 // Orquestrador da seção: base = filteredRecords (mesmo recorte global de todas as outras abas) +
@@ -13032,22 +13710,23 @@ btnAbrirFiltrosResumo.querySelector('.filter-header-btn-icon').addEventListener(
     event.target.src = btnAbrirFiltrosResumo.dataset.iconNormal;
   }
 });
-// "Ver detalhes" / "Ocultar detalhes": mostra a tabela "Detalhamento da etapa" abaixo do painel
-btnVerDetalhesEtapaResumo.addEventListener('click', () => {
-  detalhesEtapaResumoVisiveis = !detalhesEtapaResumoVisiveis;
+// Cards da "Análise da etapa" como filtro de status (delegação: os cards são recriados a cada
+// render). Clicar no card ativo, ou em "Total", volta à visão completa. Só re-renderiza a partir
+// dos dados já em memória — nenhuma requisição nova.
+document.getElementById('resumoProducaoAnaliseEtapaKpis').addEventListener('click', (event) => {
+  const card = event.target.closest('.stage-analysis-kpi');
+  if (!card || card.disabled) return;
+  const status = card.dataset.status || null;
+  statusFiltroAnaliseEtapa = status && status !== statusFiltroAnaliseEtapa ? status : null;
   renderizarResumoProducao();
-  if (detalhesEtapaResumoVisiveis) {
-    resumoProducaoDetalheEtapaCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 });
+document.getElementById('btnLimparFiltroAnaliseEtapa').addEventListener('click', () => {
+  statusFiltroAnaliseEtapa = null;
+  renderizarResumoProducao();
+});
+
 btnFecharEtapaChipResumoProducao.addEventListener('click', () => {
   etapaSelecionadaResumoProducao = null;
-  renderizarResumoProducao();
-});
-// Filtro "Status" da tabela "Detalhamento da etapa" — só afeta essa tabela (ver
-// renderizarDetalheEtapaResumoProducao), não os cards nem os demais filtros da seção
-filterResumoDetalheEtapaStatus.addEventListener('change', () => {
-  filtroStatusDetalheEtapaResumoProducao = filterResumoDetalheEtapaStatus.value;
   renderizarResumoProducao();
 });
 
@@ -13190,14 +13869,21 @@ async function carregarDadosMacro2() {
     }
 
     dadosGPA = Array.isArray(json.gpa) ? json.gpa : [];
-    // Armazenado para uso futuro — nenhuma tela usa dadosQualidade ainda
+    // BD-QUALIDADE — alimenta a seção "Erros de Avaliações"
     dadosQualidade = Array.isArray(json.qualidade) ? json.qualidade : [];
+    dadosQualidadeCarregados = true;
+    dadosPcp = Array.isArray(json.pcp) ? json.pcp : [];
+    if (abaAtual === 'cronograma-atividades') renderizarCronogramaAtividades();
+    if (abaAtual === 'indicador-erros-avaliacoes') renderizarErrosAvaliacoes();
 
     if (abaAtual === 'gpa') {
       renderizarGPA();
     }
   } catch (err) {
     console.error('Erro ao carregar dados da BD_MACRO2:', err);
+    erroCargaQualidade = err.message;
+    if (abaAtual === 'cronograma-atividades') renderizarCronogramaAtividades();
+    if (abaAtual === 'indicador-erros-avaliacoes') renderizarErrosAvaliacoes();
   }
 }
 
@@ -16197,6 +16883,685 @@ btnCopiarRelatorioPendCoord.addEventListener('click', copiarResumoRelatorioPendC
 btnImprimirRelatorioPendCoord.addEventListener('click', () =>
   imprimirAreaRelatorio('pendencias-coord-report-print-area', 'Relatório de Pendências por Coordenador')
 );
+
+// ======================================================================
+// "Erros de Avaliações" (Indicadores do Processo) — BD_MACRO2 → array `qualidade` (aba
+// BD-QUALIDADE), já carregado por carregarDadosMacro2 (mesma API do GPA; nenhuma requisição
+// nova ao filtrar).
+// Critérios:
+//  • Registro COM ERRO = linha com `acao`, `descricao` ou `correlacao` preenchido (ignorando
+//    espaços). Linhas sem esses três campos = sem erro registrado.
+//  • "Total de erros" = quantidade de LINHAS com erro (uma avaliação pode ter mais de uma linha
+//    de erro — a base tem IDs repetidos exatamente nesses casos).
+//  • "% Avaliações com erro" = IDs DISTINTOS com erro ÷ IDs DISTINTOS no recorte (os IDs
+//    repetidos não inflam o numerador nem o denominador). `tt_questao` não entra no cálculo.
+//  • Gráficos contam linhas com erro (somam o "Total de erros").
+// ======================================================================
+
+const PALETA_AZUIS_ERROS = ['#0B2D5B', '#1555A5', '#287FE5', '#76B8F8', '#A9D1FB', '#3E6FB0', '#5B9BE8'];
+const errosFiltros = {
+  modulo: document.getElementById('filterErrosModulo'),
+  ano: document.getElementById('filterErrosAno'),
+  tipoAv: document.getElementById('filterErrosTipoAv'),
+  segmento: document.getElementById('filterErrosSegmento'),
+  disciplina: document.getElementById('filterErrosDisciplina')
+};
+
+// Normaliza 1 linha da BD-QUALIDADE (espaços, nulos, ano "6º", tipo de AV, segmento)
+function normalizarRegistroQualidade(r) {
+  const texto = (v) => safe(v).replace(/\s+/g, ' ');
+  const numeroAno = normalizarAnoSegmento(r.ano);
+  const ano = numeroAno === null ? texto(r.ano) : `${numeroAno}º`;
+  let segmento = '';
+  if (numeroAno !== null && numeroAno >= 6 && numeroAno <= 9) segmento = 'Fundamental II';
+  else if (numeroAno !== null && numeroAno >= 1 && numeroAno <= 3) segmento = 'Ensino Médio';
+  const acao = texto(r.acao);
+  const descricao = texto(r.descricao);
+  const correlacao = texto(r.correlacao);
+  return {
+    id: texto(r.id),
+    modulo: texto(r.mod),
+    ano,
+    segmento,
+    tipoAv: texto(r.av) ? normalizarTipoAvPerformance(r.av) : '',
+    frente: texto(r.frente), // nome original (Física 1 ≠ Física 2)
+    correlacao,
+    descricao,
+    acao,
+    // Valores originais (só espaços normalizados) para a tabela "Descrição dos Erros"
+    moduloOriginal: texto(r.mod),
+    anoOriginal: texto(r.ano),
+    avOriginal: texto(r.av),
+    temErro: Boolean(acao || descricao || correlacao)
+  };
+}
+
+function preencherSelectErros(select, valores, rotuloTodos) {
+  const atual = select.value;
+  select.innerHTML = `<option value="">${rotuloTodos}</option>`;
+  valores.forEach((valor) => {
+    const option = document.createElement('option');
+    option.value = valor;
+    option.textContent = valor;
+    select.appendChild(option);
+  });
+  select.value = valores.includes(atual) ? atual : '';
+}
+
+// Contagem por chave → [{ rotulo, qtd }], na ordem pedida (fixos primeiro, depois alfabética)
+function contarErrosPor(registros, chave, ordem = []) {
+  const mapa = new Map();
+  registros.forEach((r) => {
+    const valor = r[chave] || 'Não informado';
+    mapa.set(valor, (mapa.get(valor) || 0) + 1);
+  });
+  const fixos = ordem.filter((v) => mapa.has(v));
+  const extras = [...mapa.keys()].filter((v) => !ordem.includes(v)).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+  return [...fixos, ...extras].map((rotulo) => ({ rotulo, qtd: mapa.get(rotulo) }));
+}
+
+// Atributos de clique dos gráficos (filtro cruzado): data-erros-dim/valor + classe de seleção
+function attrsCliqueErros(dim, valor, selecionado) {
+  if (!dim || valor === 'Não informado') return '';
+  return ` data-erros-dim="${dim}" data-erros-valor="${escaparTextoSvg(valor)}" role="button" tabindex="0" aria-pressed="${valor === selecionado}"`;
+}
+
+function classeSelecaoErros(valor, selecionado) {
+  if (!selecionado) return '';
+  return valor === selecionado ? ' is-erros-selecionado' : ' is-erros-esmaecido';
+}
+
+function htmlColunasErros(linhas, cor = '#1555A5', dim = null, selecionado = null) {
+  if (!linhas.length) return htmlVazioAnaliseEtapa();
+  const maximo = Math.max(...linhas.map((l) => l.qtd));
+  const total = linhas.reduce((s, l) => s + l.qtd, 0);
+  return `<div class="stage-chart-vbars erros-colunas">${linhas
+    .map(
+      (l) => `<div class="stage-chart-vbar erros-clicavel${classeSelecaoErros(l.rotulo, selecionado)}"${attrsCliqueErros(dim, l.rotulo, selecionado)} title="${escaparTextoSvg(l.rotulo)}: ${l.qtd} ${l.qtd === 1 ? 'erro' : 'erros'} (${formatarPercentualComVirgula((l.qtd / total) * 100)}%)">
+        <strong class="stage-chart-vbar-valor">${l.qtd}</strong>
+        <div class="stage-chart-vbar-track"><div class="stage-chart-vbar-fill" style="height:${Math.max(4, (l.qtd / maximo) * 100)}%;background:${cor}"></div></div>
+        <span class="stage-chart-vbar-label">${escaparTextoSvg(l.rotulo)}</span>
+      </div>`
+    )
+    .join('')}</div>`;
+}
+
+function htmlBarrasHorizontaisErros(linhas, cor = '#1555A5', dim = null, selecionado = null) {
+  if (!linhas.length) return htmlVazioAnaliseEtapa();
+  const maximo = Math.max(...linhas.map((l) => l.qtd));
+  const total = linhas.reduce((s, l) => s + l.qtd, 0);
+  return `<div class="stage-chart-hbars erros-hbars">${linhas
+    .map(
+      (l) => `<div class="stage-chart-hbar erros-clicavel${classeSelecaoErros(l.rotulo, selecionado)}"${attrsCliqueErros(dim, l.rotulo, selecionado)} title="${escaparTextoSvg(l.rotulo)}: ${l.qtd} ${l.qtd === 1 ? 'erro' : 'erros'} (${formatarPercentualComVirgula((l.qtd / total) * 100)}%)">
+        <span class="stage-chart-hbar-label">${escaparTextoSvg(l.rotulo)}</span>
+        <div class="stage-chart-hbar-track"><div class="stage-chart-hbar-fill" style="width:${(l.qtd / maximo) * 100}%;background:${cor}"></div></div>
+        <strong class="stage-chart-hbar-valor">${l.qtd}</strong>
+      </div>`
+    )
+    .join('')}</div>`;
+}
+
+// Cascata "Associação dos erros": cada correlação é um degrau que começa onde a anterior terminou
+// (altura = quantidade), e a última coluna é o total geral (soma dos degraus)
+function htmlCascataErros(linhas, dim = null, selecionado = null) {
+  if (!linhas.length) return htmlVazioAnaliseEtapa();
+  const total = linhas.reduce((soma, l) => soma + l.qtd, 0);
+  let acumulado = 0;
+  const colunas = linhas.map((l, i) => {
+    const base = (acumulado / total) * 100;
+    acumulado += l.qtd;
+    const cor = PALETA_AZUIS_ERROS[(i + 1) % PALETA_AZUIS_ERROS.length];
+    return `<div class="stage-chart-vbar erros-clicavel${classeSelecaoErros(l.rotulo, selecionado)}"${attrsCliqueErros(dim, l.rotulo, selecionado)} title="${escaparTextoSvg(l.rotulo)}: ${l.qtd} ${l.qtd === 1 ? 'erro' : 'erros'} (${formatarPercentualComVirgula((l.qtd / total) * 100)}%)">
+      <strong class="stage-chart-vbar-valor">${l.qtd}</strong>
+      <div class="stage-chart-vbar-track erros-cascata-track">
+        <div class="erros-cascata-degrau" style="bottom:${base}%;height:${(l.qtd / total) * 100}%;background:${cor}"></div>
+      </div>
+      <span class="stage-chart-vbar-label erros-cascata-label">${escaparTextoSvg(l.rotulo)}</span>
+    </div>`;
+  });
+  colunas.push(`<div class="stage-chart-vbar" title="Total: ${total}">
+      <strong class="stage-chart-vbar-valor">${total}</strong>
+      <div class="stage-chart-vbar-track erros-cascata-track">
+        <div class="erros-cascata-degrau" style="bottom:0;height:100%;background:#0B2D5B"></div>
+      </div>
+      <span class="stage-chart-vbar-label erros-cascata-label"><strong>Total</strong></span>
+    </div>`);
+  return `<div class="stage-chart-vbars erros-cascata">${colunas.join('')}</div>`;
+}
+
+// Rosca clicável (módulo/segmento): mesma rosca da seção, com atributos de clique nas fatias e
+// nos itens da legenda (parâmetro opcional attrsItem de htmlDonutAnaliseEtapa)
+function htmlDonutErros(fatias, dim, selecionado) {
+  return htmlDonutAnaliseEtapa(fatias, selecionado, 'erros', (f) => ({
+    attrs: attrsCliqueErros(dim, f.chave, selecionado),
+    classe: 'erros-clicavel'
+  }));
+}
+// Filtros cruzados dos gráficos (cliques), aplicados DEPOIS dos filtros do cabeçalho
+const DIMENSOES_FILTRO_ERROS = {
+  modulo: { rotulo: 'Módulo', campo: 'modulo' },
+  segmento: { rotulo: 'Segmento', campo: 'segmento' },
+  tipoAv: { rotulo: 'Avaliação', campo: 'tipoAv' },
+  ano: { rotulo: 'Ano/Série', campo: 'ano' },
+  frente: { rotulo: 'Disciplina', campo: 'frente' },
+  correlacao: { rotulo: 'Correlação', campo: 'correlacao' }
+};
+const filtrosGraficoErros = { modulo: null, segmento: null, tipoAv: null, ano: null, frente: null, correlacao: null };
+
+// Aplica os filtros dos gráficos a um conjunto de linhas, exceto a dimensão `excluir` (cada gráfico
+// mostra todas as suas categorias, filtradas pelas seleções dos OUTROS gráficos). A correlação só
+// existe em linhas com erro: o filtro de correlação restringe quais linhas CONTAM COMO ERRO, mantendo
+// as demais avaliações no denominador do recorte.
+function aplicarFiltrosGraficoErros(linhas, excluir = null) {
+  const dims = Object.keys(DIMENSOES_FILTRO_ERROS).filter((d) => d !== 'correlacao' && d !== excluir && filtrosGraficoErros[d]);
+  return linhas.filter((r) => dims.every((d) => r[DIMENSOES_FILTRO_ERROS[d].campo] === filtrosGraficoErros[d]));
+}
+
+function linhasComErroFiltradas(linhas, excluir = null) {
+  const corr = excluir === 'correlacao' ? null : filtrosGraficoErros.correlacao;
+  return aplicarFiltrosGraficoErros(linhas, excluir).filter((r) => r.temErro && (!corr || r.correlacao === corr));
+}
+
+function renderizarChipsFiltrosGraficoErros() {
+  const area = document.getElementById('errosFiltrosAtivos');
+  const ativos = Object.keys(DIMENSOES_FILTRO_ERROS).filter((d) => filtrosGraficoErros[d]);
+  area.hidden = ativos.length === 0;
+  document.getElementById('errosFiltrosAtivosLista').innerHTML = ativos
+    .map(
+      (d) => `<button type="button" class="erros-chip" data-erros-remover="${d}" title="Remover filtro ${DIMENSOES_FILTRO_ERROS[d].rotulo}">
+        <span>${DIMENSOES_FILTRO_ERROS[d].rotulo}: <strong>${escaparTextoSvg(filtrosGraficoErros[d])}</strong></span> <span aria-hidden="true">×</span>
+      </button>`
+    )
+    .join('');
+}
+
+function renderizarErrosAvaliacoes() {
+  const status = document.getElementById('errosAvaliacoesStatus');
+  const conteudo = document.getElementById('errosAvaliacoesConteudo');
+  const mostrarStatus = (texto) => {
+    status.textContent = texto;
+    status.hidden = false;
+    conteudo.hidden = true;
+  };
+
+  if (!dadosQualidadeCarregados) {
+    document.getElementById('errosFiltrosAtivos').hidden = true;
+    mostrarStatus(erroCargaQualidade ? `Não foi possível carregar a BD-QUALIDADE: ${erroCargaQualidade}` : 'Carregando dados da BD-QUALIDADE…');
+    return;
+  }
+
+  const todos = dadosQualidade.map(normalizarRegistroQualidade);
+
+  // Opções dos filtros a partir da base completa (mantém a seleção atual quando ainda existir)
+  const unicos = (chave) => Array.from(new Set(todos.map((r) => r[chave]).filter(Boolean)));
+  // Módulo é o filtro rápido do cabeçalho: opção vazia "Módulo" (= todos), como nas demais seções
+  preencherSelectErros(errosFiltros.modulo, unicos('modulo').sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })), 'Módulo');
+  atualizarIndicadorFiltrosErros();
+  preencherSelectErros(errosFiltros.ano, contarErrosPor(todos, 'ano', ORDEM_ANO_ESCOLAR_COORD).map((l) => l.rotulo).filter((v) => v !== 'Não informado'), 'Todos');
+  preencherSelectErros(errosFiltros.tipoAv, contarErrosPor(todos, 'tipoAv', ORDEM_TIPO_AV_PERFORMANCE).map((l) => l.rotulo).filter((v) => v !== 'Não informado'), 'Todos');
+  preencherSelectErros(errosFiltros.disciplina, unicos('frente').sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })), 'Todas');
+
+  // 1) Filtros do cabeçalho (globais da seção)
+  const f = Object.fromEntries(Object.entries(errosFiltros).map(([chave, select]) => [chave, select.value]));
+  const recorte = todos.filter(
+    (r) =>
+      (!f.modulo || r.modulo === f.modulo) &&
+      (!f.ano || r.ano === f.ano) &&
+      (!f.tipoAv || r.tipoAv === f.tipoAv) &&
+      (!f.segmento || r.segmento === f.segmento) &&
+      (!f.disciplina || r.frente === f.disciplina)
+  );
+  const errosDoRecorte = recorte.filter((r) => r.temErro);
+
+  // Seleção de gráfico que não existe mais no recorte (após mudar filtro do cabeçalho) é descartada
+  Object.keys(DIMENSOES_FILTRO_ERROS).forEach((d) => {
+    const valor = filtrosGraficoErros[d];
+    if (valor && !errosDoRecorte.some((r) => r[DIMENSOES_FILTRO_ERROS[d].campo] === valor)) filtrosGraficoErros[d] = null;
+  });
+  renderizarChipsFiltrosGraficoErros();
+
+  if (errosDoRecorte.length === 0) {
+    mostrarStatus('Nenhum erro registrado nos filtros selecionados.');
+    return;
+  }
+
+  // 2) Filtros dos gráficos → cards e tabela
+  const linhasRecorte = aplicarFiltrosGraficoErros(recorte);
+  const comErro = linhasComErroFiltradas(recorte);
+  if (comErro.length === 0) {
+    mostrarStatus('Nenhum erro encontrado para os filtros selecionados.');
+    return;
+  }
+  status.hidden = true;
+  conteudo.hidden = false;
+
+  // Indicadores: denominador = TODAS as avaliações distintas do recorte filtrado (com e sem erro)
+  const corr = filtrosGraficoErros.correlacao;
+  const avaliacoes = new Set(linhasRecorte.map((r) => r.id).filter(Boolean));
+  const avaliacoesComErro = new Set(comErro.map((r) => r.id).filter(Boolean));
+  // Avaliação = id distinto; tem erro se QUALQUER linha dela tiver erro. Sem erro = total − com erro.
+  // % qualidade = 100 − % com erro, calculado sem arredondar (só a exibição arredonda).
+  const avaliacoesSemErro = avaliacoes.size - avaliacoesComErro.size;
+  const percentual = avaliacoes.size ? (avaliacoesComErro.size / avaliacoes.size) * 100 : 0;
+  const percentualQualidade = avaliacoes.size ? (avaliacoesSemErro / avaliacoes.size) * 100 : 0;
+  const sufixoCorr = corr ? ` (correlação ${corr})` : '';
+  document.getElementById('errosCardTotal').textContent = comErro.length;
+  document.getElementById('errosCardTotalSub').textContent =
+    `${comErro.length === 1 ? 'Registro' : 'Registros'} com erro${sufixoCorr} em ${avaliacoesComErro.size} ${avaliacoesComErro.size === 1 ? 'avaliação' : 'avaliações'}`;
+  document.getElementById('errosCardAvaliacoes').textContent = avaliacoes.size;
+  document.getElementById('errosCardPercentual').textContent = `${formatarPercentualComVirgula(percentual)}%`;
+  document.getElementById('errosCardPercentualSub').textContent =
+    `${avaliacoesComErro.size} de ${avaliacoes.size} avaliações distintas${corr ? ` com erro de ${corr}` : ''}`;
+  document.getElementById('errosCardQualidade').textContent = `${formatarPercentualComVirgula(percentualQualidade)}%`;
+  document.getElementById('errosCardQualidadeSub').textContent = corr
+    ? `${avaliacoesSemErro} de ${avaliacoes.size} sem erro de ${corr} (não é a taxa geral)`
+    : `${avaliacoesSemErro} de ${avaliacoes.size} avaliações sem erro`;
+
+  // Gráficos: cada um conta as linhas com erro filtradas pelos OUTROS gráficos (o próprio gráfico
+  // continua mostrando todas as categorias, com a selecionada em destaque)
+  const sel = filtrosGraficoErros;
+  const fatiasModulo = contarErrosPor(linhasComErroFiltradas(recorte, 'modulo'), 'modulo', ['M1', 'M2', 'M3', 'M4']).map((l, i) => ({
+    chave: l.rotulo,
+    rotulo: l.rotulo,
+    qtd: l.qtd,
+    cor: PALETA_AZUIS_ERROS[(i + 1) % PALETA_AZUIS_ERROS.length]
+  }));
+  // Segmento: só Fundamental II e Ensino Médio (ano fora de 6º–9º/1º–3º não entra neste gráfico)
+  const errosSegmento = linhasComErroFiltradas(recorte, 'segmento');
+  const fatiasSegmento = [
+    { chave: 'Fundamental II', rotulo: 'Fundamental II', cor: '#1555A5' },
+    { chave: 'Ensino Médio', rotulo: 'Ensino Médio', cor: '#76B8F8' }
+  ].map((s) => ({ ...s, qtd: errosSegmento.filter((r) => r.segmento === s.chave).length }));
+  const semSegmento = errosSegmento.filter((r) => !r.segmento).length;
+
+  const porAvaliacao = contarErrosPor(linhasComErroFiltradas(recorte, 'tipoAv'), 'tipoAv', ORDEM_TIPO_AV_PERFORMANCE);
+  const porAno = contarErrosPor(linhasComErroFiltradas(recorte, 'ano'), 'ano', ORDEM_ANO_ESCOLAR_COORD);
+  const porDisciplina = contarErrosPor(linhasComErroFiltradas(recorte, 'frente'), 'frente').sort(
+    (a, b) => b.qtd - a.qtd || a.rotulo.localeCompare(b.rotulo, 'pt-BR', { numeric: true })
+  );
+  // Correlação vazia num registro com erro vira "Não informado" só aqui (não é clicável)
+  const porCorrelacao = contarErrosPor(linhasComErroFiltradas(recorte, 'correlacao'), 'correlacao').sort(
+    (a, b) => b.qtd - a.qtd || a.rotulo.localeCompare(b.rotulo, 'pt-BR')
+  );
+
+  const graficos = [
+    { titulo: 'Total de erros por módulo', html: htmlDonutErros(fatiasModulo, 'modulo', sel.modulo) },
+    {
+      titulo: 'Total de erros por segmento',
+      subtitulo: semSegmento ? `${semSegmento} registro(s) com ano fora de 6º–9º/1º–3º não aparecem neste gráfico` : '',
+      html: htmlDonutErros(fatiasSegmento, 'segmento', sel.segmento)
+    },
+    { titulo: 'Quantidade de erros por avaliação', html: htmlColunasErros(porAvaliacao, '#1555A5', 'tipoAv', sel.tipoAv) },
+    { titulo: 'Quantidade de erros por ano/série', html: htmlColunasErros(porAno, '#287FE5', 'ano', sel.ano) },
+    { titulo: 'Quantidade de erros por disciplina', html: htmlBarrasHorizontaisErros(porDisciplina, '#1555A5', 'frente', sel.frente), largo: true },
+    {
+      titulo: 'Associação dos erros',
+      subtitulo: 'Distribuição dos registros com erro por correlação (cascata até o total)',
+      html: htmlCascataErros(porCorrelacao, 'correlacao', sel.correlacao),
+      largo: true
+    }
+  ];
+
+  document.getElementById('errosAvaliacoesGraficos').innerHTML = graficos
+    .map(
+      (g) => `<div class="stage-chart-card${g.largo ? ' stage-chart-card--largo' : ''}">
+        <h3 class="stage-chart-title">${g.titulo}</h3>
+        ${g.subtitulo ? `<p class="stage-chart-subtitle">${g.subtitulo}</p>` : ''}
+        ${g.html}
+      </div>`
+    )
+    .join('');
+
+  // Tabela "Descrição dos Erros": mesmo recorte (comErro) dos cards; volta à página 1
+  registrosTabelaErros = comErro;
+  estadoTabelaErros.pagina = 1;
+  renderizarTabelaErros();
+}
+
+// Clique/teclado nos elementos dos gráficos: mesma categoria = remove; outra = substitui
+function alternarFiltroGraficoErros(dim, valor) {
+  if (!(dim in filtrosGraficoErros)) return;
+  filtrosGraficoErros[dim] = filtrosGraficoErros[dim] === valor ? null : valor;
+  renderizarErrosAvaliacoes();
+}
+
+function tratarCliqueGraficoErros(event) {
+  const alvo = event.target.closest('[data-erros-dim]');
+  if (!alvo) return;
+  const area = document.createElement('textarea');
+  area.innerHTML = alvo.dataset.errosValor; // desfaz o escape HTML do atributo
+  alternarFiltroGraficoErros(alvo.dataset.errosDim, area.value);
+}
+
+const graficosErrosContainer = document.getElementById('errosAvaliacoesGraficos');
+graficosErrosContainer.addEventListener('click', tratarCliqueGraficoErros);
+graficosErrosContainer.addEventListener('keydown', (event) => {
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('[data-erros-dim]')) {
+    event.preventDefault();
+    tratarCliqueGraficoErros(event);
+  }
+});
+document.getElementById('errosFiltrosAtivosLista').addEventListener('click', (event) => {
+  const chip = event.target.closest('[data-erros-remover]');
+  if (!chip) return;
+  filtrosGraficoErros[chip.dataset.errosRemover] = null;
+  renderizarErrosAvaliacoes();
+});
+// "Limpar filtros dos gráficos": só as seleções dos gráficos (o cabeçalho continua como está)
+document.getElementById('btnLimparFiltrosGraficoErros').addEventListener('click', () => {
+  Object.keys(filtrosGraficoErros).forEach((d) => (filtrosGraficoErros[d] = null));
+  renderizarErrosAvaliacoes();
+});
+
+// ---- Tabela "Descrição dos Erros" (consulta e exportação; sem edição) ----
+
+const ERROS_POR_PAGINA = 20;
+const COLUNAS_TABELA_ERROS = [
+  { chave: 'modulo', rotulo: 'Módulo', valor: (r) => r.moduloOriginal },
+  { chave: 'ano', rotulo: 'Ano', valor: (r) => r.anoOriginal },
+  { chave: 'av', rotulo: 'Avaliação', valor: (r) => r.avOriginal },
+  { chave: 'frente', rotulo: 'Disciplina', valor: (r) => r.frente },
+  { chave: 'descricao', rotulo: 'Descrição do erro', valor: (r) => r.descricao },
+  { chave: 'correlacao', rotulo: 'Correlação', valor: (r) => r.correlacao },
+  { chave: 'acao', rotulo: 'Ação', valor: (r) => r.acao }
+];
+let registrosTabelaErros = [];
+// ordem.coluna = null → ordenação padrão (módulo → ano → avaliação → disciplina)
+const estadoTabelaErros = { busca: '', pagina: 1, ordem: { coluna: null, direcao: 1 } };
+
+function indiceOrdem(lista, valor) {
+  const i = lista.indexOf(valor);
+  return i === -1 ? lista.length : i;
+}
+
+function compararPadraoErros(a, b) {
+  const texto = (x, y) => x.localeCompare(y, 'pt-BR', { numeric: true });
+  return (
+    texto(a.modulo, b.modulo) ||
+    indiceOrdem(ORDEM_ANO_ESCOLAR_COORD, a.ano) - indiceOrdem(ORDEM_ANO_ESCOLAR_COORD, b.ano) ||
+    indiceOrdem(ORDEM_TIPO_AV_PERFORMANCE, a.tipoAv) - indiceOrdem(ORDEM_TIPO_AV_PERFORMANCE, b.tipoAv) ||
+    texto(a.frente, b.frente)
+  );
+}
+
+// Registros da tabela após pesquisa + ordenação (todas as páginas — base da exportação)
+function obterRegistrosTabelaErros() {
+  const termo = removerAcentos(estadoTabelaErros.busca).toLowerCase().trim();
+  const filtrados = termo
+    ? registrosTabelaErros.filter((r) =>
+        [r.descricao, r.frente, r.correlacao, r.acao].some((v) => removerAcentos(v).toLowerCase().includes(termo))
+      )
+    : registrosTabelaErros.slice();
+
+  const { coluna, direcao } = estadoTabelaErros.ordem;
+  if (!coluna) return filtrados.sort(compararPadraoErros);
+  const def = COLUNAS_TABELA_ERROS.find((c) => c.chave === coluna);
+  return filtrados.sort((a, b) => {
+    // Ano e avaliação seguem a ordem pedagógica; o resto, alfabética (vazios por último)
+    let comp;
+    if (coluna === 'ano') comp = indiceOrdem(ORDEM_ANO_ESCOLAR_COORD, a.ano) - indiceOrdem(ORDEM_ANO_ESCOLAR_COORD, b.ano);
+    else if (coluna === 'av') comp = indiceOrdem(ORDEM_TIPO_AV_PERFORMANCE, a.tipoAv) - indiceOrdem(ORDEM_TIPO_AV_PERFORMANCE, b.tipoAv);
+    else {
+      const va = def.valor(a);
+      const vb = def.valor(b);
+      if (!va || !vb) return (!va) - (!vb);
+      comp = va.localeCompare(vb, 'pt-BR', { numeric: true });
+    }
+    return comp * direcao || compararPadraoErros(a, b);
+  });
+}
+
+function renderizarTabelaErros() {
+  const tbody = document.getElementById('errosTabelaBody');
+  const registros = obterRegistrosTabelaErros();
+  const totalPaginas = Math.max(1, Math.ceil(registros.length / ERROS_POR_PAGINA));
+  estadoTabelaErros.pagina = Math.min(Math.max(1, estadoTabelaErros.pagina), totalPaginas);
+  const inicio = (estadoTabelaErros.pagina - 1) * ERROS_POR_PAGINA;
+  const pagina = registros.slice(inicio, inicio + ERROS_POR_PAGINA);
+
+  tbody.innerHTML = '';
+  if (pagina.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = COLUNAS_TABELA_ERROS.length;
+    td.className = 'erros-tabela-vazia';
+    td.textContent = registrosTabelaErros.length
+      ? 'Nenhum resultado encontrado para a pesquisa.'
+      : 'Nenhum erro registrado nos filtros selecionados.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  } else {
+    const fragment = document.createDocumentFragment();
+    pagina.forEach((registro) => {
+      const tr = document.createElement('tr');
+      COLUNAS_TABELA_ERROS.forEach((coluna) => {
+        const td = document.createElement('td');
+        td.textContent = coluna.valor(registro) || '—';
+        if (!coluna.valor(registro)) td.classList.add('erros-celula-vazia');
+        tr.appendChild(td);
+      });
+      fragment.appendChild(tr);
+    });
+    tbody.appendChild(fragment);
+  }
+
+  document.getElementById('errosTabelaContador').textContent =
+    `Exibindo ${pagina.length} de ${registros.length} ${registros.length === 1 ? 'registro' : 'registros'} com erro`;
+  document.getElementById('errosPaginaIndicador').textContent = `Página ${estadoTabelaErros.pagina} de ${totalPaginas}`;
+  document.getElementById('btnErrosPaginaAnterior').disabled = estadoTabelaErros.pagina <= 1;
+  document.getElementById('btnErrosPaginaProxima').disabled = estadoTabelaErros.pagina >= totalPaginas;
+  document.getElementById('btnExportarErros').disabled = registros.length === 0;
+
+  document.querySelectorAll('.erros-tabela th[data-coluna]').forEach((th) => {
+    const ativa = th.dataset.coluna === estadoTabelaErros.ordem.coluna;
+    th.setAttribute('aria-sort', ativa ? (estadoTabelaErros.ordem.direcao === 1 ? 'ascending' : 'descending') : 'none');
+  });
+}
+
+// CSV com ";" (padrão do Excel em pt-BR) e BOM UTF-8 (acentos corretos ao abrir no Excel);
+// exporta todos os registros do filtro + pesquisa, não só a página visível
+function exportarTabelaErrosCsv() {
+  const registros = obterRegistrosTabelaErros();
+  if (!registros.length) return;
+  const celula = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const linhas = [
+    COLUNAS_TABELA_ERROS.map((c) => celula(c.rotulo)).join(';'),
+    ...registros.map((r) => COLUNAS_TABELA_ERROS.map((c) => celula(c.valor(r))).join(';'))
+  ];
+  const blob = new Blob([`﻿${linhas.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+  baixarArquivo(blob, `ERROS_AVALIACOES_SGGE_${dataArquivoLoteCobranca()}.csv`);
+}
+
+document.getElementById('buscaErrosTabela').addEventListener('input', (event) => {
+  estadoTabelaErros.busca = event.target.value;
+  estadoTabelaErros.pagina = 1;
+  renderizarTabelaErros();
+});
+document.querySelectorAll('.erros-tabela th[data-coluna]').forEach((th) => {
+  th.tabIndex = 0;
+  const ordenar = () => {
+    const { ordem } = estadoTabelaErros;
+    if (ordem.coluna === th.dataset.coluna) ordem.direcao *= -1;
+    else {
+      ordem.coluna = th.dataset.coluna;
+      ordem.direcao = 1;
+    }
+    estadoTabelaErros.pagina = 1;
+    renderizarTabelaErros();
+  };
+  th.addEventListener('click', ordenar);
+  th.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      ordenar();
+    }
+  });
+});
+document.getElementById('btnErrosPaginaAnterior').addEventListener('click', () => {
+  estadoTabelaErros.pagina -= 1;
+  renderizarTabelaErros();
+});
+document.getElementById('btnErrosPaginaProxima').addEventListener('click', () => {
+  estadoTabelaErros.pagina += 1;
+  renderizarTabelaErros();
+});
+document.getElementById('btnExportarErros').addEventListener('click', exportarTabelaErrosCsv);
+
+Object.values(errosFiltros).forEach((select) => select.addEventListener('change', renderizarErrosAvaliacoes));
+
+// ---- Painel "Filtros avançados" de Erros de Avaliações (mesmo componente/comportamento dos
+// popovers de filtro das demais seções: funil no cabeçalho, badge de filtros ativos, fecha ao
+// clicar fora ou com Esc) ----
+const btnAbrirFiltrosErros = document.getElementById('btnAbrirFiltrosErros');
+const errosFiltersPopover = document.getElementById('errosFiltersPopover');
+
+// Badge do funil = quantidade de filtros avançados ativos (Módulo fica visível no cabeçalho)
+function atualizarIndicadorFiltrosErros() {
+  const ativos = ['ano', 'tipoAv', 'segmento', 'disciplina'].filter((chave) => errosFiltros[chave].value !== '').length;
+  const badge = document.getElementById('errosFilterBadge');
+  badge.hidden = ativos === 0;
+  badge.textContent = ativos;
+  btnAbrirFiltrosErros.classList.toggle('has-active-filters', ativos > 0);
+}
+
+function abrirPopoverFiltrosErros() {
+  errosFiltersPopover.hidden = false;
+  btnAbrirFiltrosErros.classList.add('is-active');
+  btnAbrirFiltrosErros.setAttribute('aria-expanded', 'true');
+  btnAbrirFiltrosErros.querySelector('.filter-header-btn-icon').src = btnAbrirFiltrosErros.dataset.iconAtivo;
+}
+
+function fecharPopoverFiltrosErros() {
+  errosFiltersPopover.hidden = true;
+  btnAbrirFiltrosErros.classList.remove('is-active');
+  btnAbrirFiltrosErros.setAttribute('aria-expanded', 'false');
+  btnAbrirFiltrosErros.querySelector('.filter-header-btn-icon').src = btnAbrirFiltrosErros.dataset.iconNormal;
+}
+
+btnAbrirFiltrosErros.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (errosFiltersPopover.hidden) abrirPopoverFiltrosErros();
+  else fecharPopoverFiltrosErros();
+});
+document.getElementById('btnFecharFiltrosErros').addEventListener('click', fecharPopoverFiltrosErros);
+document.getElementById('btnFecharFiltrosErrosRodape').addEventListener('click', fecharPopoverFiltrosErros);
+// Limpa os 4 filtros avançados e também o Módulo do cabeçalho
+document.getElementById('btnLimparFiltrosErros').addEventListener('click', () => {
+  Object.values(errosFiltros).forEach((select) => (select.value = ''));
+  renderizarErrosAvaliacoes();
+});
+document.addEventListener('click', (event) => {
+  if (!errosFiltersPopover.hidden && !document.getElementById('errosFilterPopoverWrapper').contains(event.target)) {
+    fecharPopoverFiltrosErros();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !errosFiltersPopover.hidden) fecharPopoverFiltrosErros();
+});
+btnAbrirFiltrosErros.querySelector('.filter-header-btn-icon').addEventListener('error', (event) => {
+  if (event.target.src !== btnAbrirFiltrosErros.dataset.iconNormal) event.target.src = btnAbrirFiltrosErros.dataset.iconNormal;
+});
+
+// ======================================================================
+// "Cronograma de Atividades" — aba PCP da BD_MACRO2 (array `pcp`, já carregado por
+// carregarDadosMacro2; nenhuma requisição nova). Cards agrupados por atividade, ordenados por
+// data de início; mostra módulo, tipo de avaliação, início, fim e anotação (quando houver).
+// ======================================================================
+
+function renderizarCronogramaAtividades() {
+  const status = document.getElementById('cronogramaStatus');
+  const conteudo = document.getElementById('cronogramaConteudo');
+  const mostrarStatus = (texto) => {
+    status.textContent = texto;
+    status.hidden = false;
+    conteudo.innerHTML = '';
+  };
+
+  if (!dadosQualidadeCarregados) {
+    mostrarStatus(erroCargaQualidade ? `Não foi possível carregar o cronograma (BD_MACRO2): ${erroCargaQualidade}` : 'Carregando o cronograma…');
+    return;
+  }
+  // Cards: só linhas com dados de atividade (colunas A–E). A coluna ANOTAÇÃO é independente e vai
+  // para o "Quadro de Anotações" (renderizarQuadroAnotacoesPcp), sem associação com a linha.
+  const registros = dadosPcp
+    .map((r) => ({
+      modulo: safe(r.modulo),
+      tipoAv: safe(r.tipo_av),
+      atividade: safe(r.atividade) || 'Atividade sem nome',
+      inicioTexto: safe(r.inicio),
+      fimTexto: safe(r.fim),
+      inicio: parseDataAplicacao(r.inicio),
+      fim: parseDataAplicacao(r.fim)
+    }))
+    .filter((r) => r.modulo || r.tipoAv || r.inicioTexto || r.fimTexto || r.atividade !== 'Atividade sem nome');
+  status.hidden = true;
+  if (!registros.length) {
+    conteudo.innerHTML = `<p class="status-message empty">Nenhuma atividade cadastrada no cronograma (aba PCP).</p>${renderizarQuadroAnotacoesPcp()}`;
+    return;
+  }
+
+  // Agrupa por atividade (ordem da 1ª data de início) e ordena os itens por início
+  const porAtividade = new Map();
+  registros.forEach((r) => {
+    if (!porAtividade.has(r.atividade)) porAtividade.set(r.atividade, []);
+    porAtividade.get(r.atividade).push(r);
+  });
+  const tempo = (d) => (d ? d.getTime() : Infinity);
+  const grupos = [...porAtividade.entries()]
+    .map(([atividade, itens]) => ({ atividade, itens: itens.sort((a, b) => tempo(a.inicio) - tempo(b.inicio)) }))
+    .sort((a, b) => tempo(a.itens[0].inicio) - tempo(b.itens[0].inicio));
+
+  const data = (d, texto) => (d ? formatarDataAplicacaoExibicao(d) : escaparTextoSvg(texto) || '—');
+  conteudo.innerHTML = grupos
+    .map(
+      (g) => `<section class="cronograma-grupo">
+        <h3 class="cronograma-grupo-titulo">${escaparTextoSvg(g.atividade)}</h3>
+        <div class="cronograma-cards">${g.itens
+          .map(
+            (r) => `<article class="cronograma-card">
+              <div class="cronograma-card-tags">
+                ${r.modulo ? `<span class="cronograma-tag cronograma-tag--modulo">${escaparTextoSvg(r.modulo)}</span>` : ''}
+                ${r.tipoAv ? `<span class="cronograma-tag">${escaparTextoSvg(r.tipoAv)}</span>` : ''}
+              </div>
+              <div class="cronograma-card-datas">
+                <div class="cronograma-data">${ICONE_CALENDARIO_CRONOGRAMA}<div><span class="cronograma-rotulo">Início</span><strong>${data(r.inicio, r.inicioTexto)}</strong></div></div>
+                <div class="cronograma-data">${ICONE_CALENDARIO_CRONOGRAMA}<div><span class="cronograma-rotulo">Fim</span><strong>${data(r.fim, r.fimTexto)}</strong></div></div>
+              </div>
+            </article>`
+          )
+          .join('')}</div>
+      </section>`
+    )
+    .join('') + renderizarQuadroAnotacoesPcp();
+}
+
+const ICONE_CALENDARIO_CRONOGRAMA =
+  '<svg class="cronograma-data-icone" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
+
+// "Anotação": mural independente com TODAS as anotações da coluna ANOTAÇÃO, na ordem da
+// planilha (inclusive de linhas sem atividade/datas), sem módulo/avaliação e sem filtros. Texto
+// original preservado; escapado como texto (nenhum HTML/JS da planilha é executado) e exibido
+// com as quebras de linha (CSS white-space: pre-wrap).
+function renderizarQuadroAnotacoesPcp() {
+  const anotacoes = dadosPcp
+    .map((r) => (r.anotacao === null || r.anotacao === undefined ? '' : String(r.anotacao)))
+    .filter((texto) => texto.trim() !== '');
+  const corpo = anotacoes.length
+    ? anotacoes.map((texto) => `<li class="pcp-anotacao">${escaparTextoSvg(texto)}</li>`).join('')
+    : '<li class="pcp-anotacao pcp-anotacao--vazia">Nenhuma anotação cadastrada.</li>';
+  return `<section class="pcp-anotacoes" aria-labelledby="pcpAnotacoesTitulo">
+      <header class="pcp-anotacoes-header">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 11h7M9 15h7M9 19h4"/>
+        </svg>
+        <h3 id="pcpAnotacoesTitulo">Anotação</h3>
+      </header>
+      <ul class="pcp-anotacoes-lista">${corpo}</ul>
+    </section>`;
+}
+
+document.getElementById('btnAbrirCronograma').addEventListener('click', () => trocarAba('cronograma-atividades'));
+document.getElementById('btnVoltarResumoCronograma').addEventListener('click', () => trocarAba('resumo-producao'));
 
 // --- Eventos ---
 

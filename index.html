@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel de Avaliações SGGE</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
-<link rel="stylesheet" href="style.css?v=20261016g">
+<link rel="stylesheet" href="style.css?v=20261019z">
 </head>
 <body>
 
@@ -236,6 +236,18 @@
             data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
           >
             <span class="sidebar-text">Previsto vs. Realizado</span>
+          </button>
+          <!-- "Erros de Avaliações": seção própria alimentada pela BD_MACRO2 (array `qualidade`,
+               aba BD-QUALIDADE), a mesma API do GPA — ver renderizarErrosAvaliacoes -->
+          <button
+            class="sidebar-btn sidebar-subitem"
+            data-tab="indicador-erros-avaliacoes"
+            title="Erros de Avaliações"
+            aria-label="Erros de Avaliações"
+            data-icon-normal="assets/menu-lateral/icone-geral.png"
+            data-icon-ativo="assets/menu-lateral/icone-geral-ativo.png"
+          >
+            <span class="sidebar-text">Erros de Avaliações</span>
           </button>
         </div>
       </div>
@@ -1215,6 +1227,150 @@
           </section>
         </div>
 
+        <!-- Erros de Avaliações: filtro rápido de Módulo + funil (Ano/Série, Tipo de avaliação,
+             Segmento, Disciplina) — mesmo padrão das demais seções. Os <select> são os mesmos
+             (ids filterErros*) lidos por renderizarErrosAvaliacoes; só valem para a BD-QUALIDADE. -->
+        <div class="elab-modulo-rapido-wrapper" id="errosModuloRapidoWrapper" hidden>
+          <select id="filterErrosModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <div class="elab-filter-popover-wrapper" id="errosFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosErros"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="errosFilterBadge" hidden>0</span>
+          </button>
+
+          <section class="elab-filters-popover" id="errosFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros avançados — Erros de Avaliações</h3>
+              <button type="button" id="btnFecharFiltrosErros" class="elab-popover-close" title="Fechar" aria-label="Fechar filtros">&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterErrosAno">Ano/Série</label>
+                    <select id="filterErrosAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterErrosTipoAv">Tipo de avaliação</label>
+                    <select id="filterErrosTipoAv"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterErrosSegmento">Segmento</label>
+                    <select id="filterErrosSegmento">
+                      <option value="">Todos</option>
+                      <option value="Fundamental II">Fundamental II</option>
+                      <option value="Ensino Médio">Ensino Médio</option>
+                    </select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterErrosDisciplina">Disciplina</label>
+                    <select id="filterErrosDisciplina"><option value="">Todas</option></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="elab-filters-actions">
+              <div class="elab-filters-buttons">
+                <button type="button" id="btnLimparFiltrosErros" class="btn btn-secondary">Limpar filtros</button>
+                <button type="button" id="btnFecharFiltrosErrosRodape" class="btn btn-primary">Fechar</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Previsto vs. Realizado: filtro rápido de Módulo + funil (Ano, Tipo de AV, Busca geral) —
+             mesmo padrão das demais seções. Reaproveita os mesmos campos (ids filterPrevisto*,
+             estado em filtrosPrevistoRealizado) que antes ficavam na faixa abaixo do título. -->
+        <div class="elab-modulo-rapido-wrapper" id="previstoModuloRapidoWrapper" hidden>
+          <select id="filterPrevistoModulo" class="elab-modulo-rapido-select" aria-label="Módulo">
+            <option value="">Módulo</option>
+          </select>
+        </div>
+
+        <div class="elab-filter-popover-wrapper" id="previstoFilterPopoverWrapper" hidden>
+          <button
+            type="button"
+            id="btnAbrirFiltrosPrevisto"
+            class="filter-header-btn"
+            title="Filtros"
+            aria-label="Abrir filtros"
+            aria-expanded="false"
+            data-icon-normal="assets/ui/icone-filtro.png"
+            data-icon-ativo="assets/ui/icone-filtro-ativo.png"
+          >
+            <img
+              src="assets/ui/icone-filtro.png"
+              alt="Filtros"
+              width="18"
+              height="18"
+              class="filter-header-btn-icon"
+            >
+            <span class="filter-header-btn-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="elab-filter-badge" id="previstoFilterBadge" hidden>0</span>
+          </button>
+
+          <section class="elab-filters-popover" id="previstoFiltersPopover" hidden>
+            <div class="elab-popover-header">
+              <h3 class="elab-popover-title">Filtros avançados — Previsto vs. Realizado</h3>
+              <button type="button" id="btnFecharFiltrosPrevisto" class="elab-popover-close" title="Fechar" aria-label="Fechar filtros">&times;</button>
+            </div>
+            <div class="elab-filters-groups">
+              <div class="elab-filter-block">
+                <h3 class="elab-filter-block-title">Recorte</h3>
+                <div class="elab-filter-fields">
+                  <div class="filter-field">
+                    <label for="filterPrevistoAno">Ano</label>
+                    <select id="filterPrevistoAno"><option value="">Todos</option></select>
+                  </div>
+                  <div class="filter-field">
+                    <label for="filterPrevistoTipoAv">Tipo de AV</label>
+                    <select id="filterPrevistoTipoAv"><option value="">Todas</option></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="elab-filters-actions">
+              <div class="filter-field filter-search">
+                <label for="filterPrevistoBusca">Busca geral</label>
+                <input type="text" id="filterPrevistoBusca" placeholder="Buscar por ID, módulo, ano, avaliação ou disciplina...">
+              </div>
+              <div class="elab-filters-buttons">
+                <button type="button" id="btnLimparFiltrosPrevisto" class="btn btn-secondary">Limpar filtros</button>
+                <button type="button" id="btnFecharFiltrosPrevistoRodape" class="btn btn-primary">Fechar</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
         <!-- Filtro rápido de Módulo da seção Indicadores — Processo Editorial (Sistema), mesmo
              padrão visual/funcional das demais seções. Reaproveita o <select id="filterIndPEModulo">
              que antes ficava dentro do popover, mesmo id, mesmo estado em indSelectFiltersPE.modulo,
@@ -1717,9 +1873,18 @@
          filteredRecords, mesmo recorte global), com filtros próprios sempre visíveis — mesmo
          padrão de Previsto vs. Realizado logo abaixo. -->
     <div id="viewResumoProducao" hidden>
-      <div class="pe-indicadores-header">
-        <h2 class="pe-indicadores-titulo">Resumo da Produção</h2>
-        <p class="pe-indicadores-subtitulo">Visão executiva do total de avaliações e do andamento de cada etapa do processo de produção.</p>
+      <div class="pe-indicadores-header resumo-header-com-acao">
+        <div>
+          <h2 class="pe-indicadores-titulo">Resumo da Produção</h2>
+          <p class="pe-indicadores-subtitulo">Visão executiva do total de avaliações e do andamento de cada etapa do processo de produção.</p>
+        </div>
+        <!-- Abre a seção "Cronograma de Atividades" (aba PCP da BD_MACRO2) pela navegação interna -->
+        <button type="button" class="btn-cronograma" id="btnAbrirCronograma">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+          </svg>
+          Cronograma de Atividades
+        </button>
       </div>
 
       <!-- Filtros: Ano/Módulo (filtros rápidos) + funil com Tipo de AV/Ano-Série/Segmento/Busca
@@ -1755,51 +1920,133 @@
         </div>
 
         <!-- Painel "Análise da etapa" (ao clicar num card de etapa): indicadores + gráficos da
-             etapa selecionada, montados em renderizarAnaliseEtapaResumoProducao. A tabela
-             "Detalhamento da etapa" fica atrás do botão "Ver detalhes". -->
+             etapa selecionada, montados em renderizarAnaliseEtapaResumoProducao. -->
         <section class="pe-matrix-card stage-analysis-card" id="resumoProducaoAnaliseEtapa" hidden>
           <div class="stage-analysis-header">
             <h2 class="pe-tabela-titulo" id="resumoProducaoAnaliseEtapaTitulo">Análise da etapa</h2>
-            <button type="button" class="btn btn-outline stage-analysis-toggle" id="btnVerDetalhesEtapaResumo" aria-expanded="false">Ver detalhes</button>
           </div>
           <div class="stage-analysis-kpis" id="resumoProducaoAnaliseEtapaKpis"></div>
+          <!-- Filtro de status ativo (card selecionado) — só aparece fora do "Total" -->
+          <div class="stage-analysis-filtro" id="resumoProducaoAnaliseFiltro" hidden>
+            <span>Exibindo: <strong id="resumoProducaoAnaliseFiltroTexto"></strong></span>
+            <button type="button" class="stage-analysis-filtro-limpar" id="btnLimparFiltroAnaliseEtapa">Limpar filtro</button>
+          </div>
           <div class="stage-analysis-grid" id="resumoProducaoAnaliseEtapaGraficos"></div>
         </section>
 
+      </div>
+    </div>
 
-        <!-- Detalhamento por avaliação da etapa selecionada (ao clicar em um card de etapa) -->
-        <section class="pe-matrix-card" id="resumoProducaoDetalheEtapaCard" hidden>
-          <div class="stage-detail-header">
-            <h2 class="pe-tabela-titulo" id="resumoProducaoDetalheEtapaTitulo">Detalhamento da etapa</h2>
-            <!-- Filtro de status — no cabeçalho da tabela, canto direito, mesma linha do título;
-                 aparece em todas as etapas (ver renderizarDetalheEtapaResumoProducao); afeta
-                 somente esta tabela -->
-            <div class="stage-status-filter" id="resumoDetalheEtapaStatusWrapper">
-              <label for="filterResumoDetalheEtapaStatus">Status</label>
-              <select id="filterResumoDetalheEtapaStatus">
-                <option value="">Todos</option>
-                <option value="completed">Concluídas</option>
-                <option value="in-progress">Em andamento</option>
-                <option value="pending">Pendentes</option>
-              </select>
+    <!-- "Cronograma de Atividades": aba PCP da BD_MACRO2 (array `pcp` da mesma API do GPA),
+         aberta pelo botão do Resumo da Produção — ver renderizarCronogramaAtividades -->
+    <div id="viewCronograma" hidden>
+      <div class="pe-indicadores-header resumo-header-com-acao">
+        <div>
+          <h2 class="pe-indicadores-titulo">Cronograma de Atividades</h2>
+          <p class="pe-indicadores-subtitulo">Atividades planejadas com início e fim.</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-voltar-resumo" id="btnVoltarResumoCronograma">← Voltar ao Resumo da Produção</button>
+      </div>
+      <p class="status-message empty" id="cronogramaStatus" hidden></p>
+      <div id="cronogramaConteudo"></div>
+    </div>
+
+    <!-- "Erros de Avaliações" (Indicadores do Processo): BD_MACRO2 → array `qualidade`. Filtros
+         no cabeçalho (#errosModuloRapidoWrapper + #errosFilterPopoverWrapper), só desta seção. -->
+    <div id="viewErrosAvaliacoes" hidden>
+      <div class="pe-indicadores-header erros-header">
+        <h2 class="pe-indicadores-titulo">Erros de Avaliações</h2>
+      </div>
+
+      <!-- Filtros ativos dos gráficos (cliques): etiquetas removíveis + limpar só esses filtros.
+           Fica fora do conteúdo para continuar visível quando a combinação não tem resultado. -->
+      <div class="erros-filtros-ativos" id="errosFiltrosAtivos" hidden>
+        <span class="erros-filtros-ativos-titulo">Filtros ativos</span>
+        <div class="erros-filtros-ativos-lista" id="errosFiltrosAtivosLista"></div>
+        <button type="button" class="erros-filtros-limpar" id="btnLimparFiltrosGraficoErros">Limpar filtros dos gráficos</button>
+      </div>
+
+      <p class="status-message empty" id="errosAvaliacoesStatus" hidden></p>
+
+      <div id="errosAvaliacoesConteudo" hidden>
+        <!-- Linha 1 — indicadores -->
+        <div class="erros-kpis">
+          <div class="erros-kpi erros-kpi--erro">
+            <span class="erros-kpi-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><circle cx="12" cy="16.5" r="0.6" fill="currentColor"/></svg>
+            </span>
+            <div class="erros-kpi-texto">
+              <span class="erros-kpi-titulo">Total de erros</span>
+              <span class="erros-kpi-valor" id="errosCardTotal">-</span>
+              <span class="erros-kpi-sub" id="errosCardTotalSub">-</span>
             </div>
           </div>
+          <div class="erros-kpi erros-kpi--total">
+            <span class="erros-kpi-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="4.5" width="13" height="16" rx="2"/><path d="M9 3.5h6v3H9z"/><path d="M9 11h6M9 15h4"/></svg>
+            </span>
+            <div class="erros-kpi-texto">
+              <span class="erros-kpi-titulo">Total de avaliações</span>
+              <span class="erros-kpi-valor" id="errosCardAvaliacoes">-</span>
+              <span class="erros-kpi-sub">Avaliações distintas no período</span>
+            </div>
+          </div>
+          <div class="erros-kpi erros-kpi--erro">
+            <span class="erros-kpi-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+            </span>
+            <div class="erros-kpi-texto">
+              <span class="erros-kpi-titulo">% Avaliações com erro</span>
+              <span class="erros-kpi-valor" id="errosCardPercentual">-</span>
+              <span class="erros-kpi-sub" id="errosCardPercentualSub">-</span>
+            </div>
+          </div>
+          <div class="erros-kpi erros-kpi--qualidade">
+            <span class="erros-kpi-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.7 2.7L16 9.6"/></svg>
+            </span>
+            <div class="erros-kpi-texto">
+              <span class="erros-kpi-titulo">% Qualidade</span>
+              <span class="erros-kpi-valor" id="errosCardQualidade">-</span>
+              <span class="erros-kpi-sub" id="errosCardQualidadeSub">-</span>
+            </div>
+          </div>
+        </div>
 
-          <div class="table-wrapper pe-ano-table-scroll">
-            <table class="data-table pe-ano-table">
+        <!-- Linhas 2 a 5 — gráficos (montados em renderizarErrosAvaliacoes) -->
+        <div class="stage-analysis-grid erros-grid" id="errosAvaliacoesGraficos"></div>
+
+        <!-- "Descrição dos Erros": só registros com erro do mesmo recorte dos gráficos; pesquisa,
+             ordenação, paginação e exportação sobre os dados em memória (renderizarTabelaErros) -->
+        <section class="stage-chart-card erros-descricao">
+          <div class="erros-descricao-header">
+            <h3 class="stage-chart-title">Descrição dos Erros</h3>
+            <button type="button" class="btn btn-outline" id="btnExportarErros">Exportar Excel/CSV</button>
+          </div>
+          <div class="erros-descricao-ferramentas">
+            <input type="search" id="buscaErrosTabela" placeholder="Pesquisar descrição, disciplina, correlação ou ação..." aria-label="Pesquisar erros">
+            <span class="erros-descricao-contador" id="errosTabelaContador" aria-live="polite">-</span>
+          </div>
+          <div class="erros-tabela-wrap">
+            <table class="erros-tabela">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Ano</th>
-                  <th>Módulo</th>
-                  <th>Avaliação</th>
-                  <th>Etapa</th>
-                  <th>Status da etapa</th>
-                  <th>Última data registrada</th>
+                  <th data-coluna="modulo" class="erros-col-curta" aria-sort="none">Módulo</th>
+                  <th data-coluna="ano" class="erros-col-curta" aria-sort="none">Ano</th>
+                  <th data-coluna="av" class="erros-col-curta" aria-sort="none">Avaliação</th>
+                  <th data-coluna="frente" class="erros-col-media" aria-sort="none">Disciplina</th>
+                  <th data-coluna="descricao" class="erros-col-longa" aria-sort="none">Descrição do erro</th>
+                  <th data-coluna="correlacao" class="erros-col-media" aria-sort="none">Correlação</th>
+                  <th data-coluna="acao" class="erros-col-media" aria-sort="none">Ação</th>
                 </tr>
               </thead>
-              <tbody id="resumoProducaoDetalheEtapaBody"></tbody>
+              <tbody id="errosTabelaBody"></tbody>
             </table>
+          </div>
+          <div class="erros-paginacao">
+            <button type="button" class="btn btn-secondary" id="btnErrosPaginaAnterior">Anterior</button>
+            <span id="errosPaginaIndicador">Página 1 de 1</span>
+            <button type="button" class="btn btn-secondary" id="btnErrosPaginaProxima">Próxima</button>
           </div>
         </section>
       </div>
@@ -1813,34 +2060,7 @@
       <div id="indPrevistoConteudo">
         <div class="pe-indicadores-header">
           <h2 class="pe-indicadores-titulo">Previsto vs. Realizado</h2>
-          <p class="pe-indicadores-subtitulo">Análise das provas em relação ao prazo ideal de envio antes da aplicação.</p>
-        </div>
-
-        <!-- Filtros: Módulo/Ano/Tipo de AV/Busca geral, sempre visíveis (sem popover) — mesmo
-             padrão de campos usado no calendário da aba Geral -->
-        <div class="geral-calendario-filtros">
-          <div class="filter-field">
-            <label for="filterPrevistoModulo">Módulo</label>
-            <select id="filterPrevistoModulo">
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterPrevistoAno">Ano</label>
-            <select id="filterPrevistoAno">
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterPrevistoTipoAv">Tipo de AV</label>
-            <select id="filterPrevistoTipoAv">
-              <option value="">Todas</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="filterPrevistoBusca">Busca geral</label>
-            <input type="text" id="filterPrevistoBusca" placeholder="Buscar por ID, módulo, ano, avaliação ou disciplina...">
-          </div>
+          <p class="pe-indicadores-subtitulo">Análise de previsto e realizado efetuada após o envio das provas para a gráfica, com foco no cumprimento dos prazos de impressão.</p>
         </div>
 
         <!-- Chip do filtro de status ativo (clique nos cards "Dentro do previsto"/"Fora do
@@ -1855,7 +2075,7 @@
         <!-- Cards executivos -->
         <div class="indicadores-resumo-grid indicadores-resumo-grid--previsto">
           <div class="indicadores-resumo-card">
-            <span class="indicadores-resumo-label">Total de provas</span>
+            <span class="indicadores-resumo-label">Provas enviadas</span>
             <span class="indicadores-resumo-value" id="indPrevistoCardTotal">-</span>
             <span class="indicadores-resumo-sub">Provas no recorte atual</span>
           </div>
@@ -1891,6 +2111,22 @@
           </section>
         </div>
 
+        <!-- Linha 3: faixas de antecedência (colunas) + cumprimento de prazo por avaliação (barras
+             empilhadas) — mesma lista de provas dos cards (só enviadas, com datas válidas) -->
+        <div class="coordenador-indicadores-charts">
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Distribuição por faixa de antecedência</h3>
+            <p class="indicadores-chart-subtitle">Dias úteis entre o envio à gráfica e a aplicação</p>
+            <div id="graficoFaixasAntecedenciaPrevisto"></div>
+          </section>
+
+          <section class="indicadores-chart-block coord-chart-card">
+            <h3 class="indicadores-block-title">Cumprimento de prazo por avaliação</h3>
+            <p class="indicadores-chart-subtitle">Provas dentro e fora do previsto, por tipo de avaliação</p>
+            <div id="graficoCumprimentoAvaliacaoPrevisto"></div>
+          </section>
+        </div>
+
         <!-- Detalhamento das provas finalizadas: 1 linha por prova considerada na análise
              (data_envio_grafica preenchida), mesmo padrão visual da tabela "Fluxo de
              Arte-finalização e Envio" (pe-matrix-card + data-table) -->
@@ -1898,6 +2134,15 @@
           <div class="pe-tabela-header">
             <h2 class="pe-tabela-titulo">Detalhamento das provas finalizadas</h2>
             <p class="indicadores-chart-subtitle">Relação das provas com data de aplicação, data de envio para gráfica, dias úteis e classificação.</p>
+          </div>
+
+          <!-- Filtro só desta tabela (não muda cards nem gráficos) + análise consolidada dos atrasos -->
+          <div class="prg-detalhe-ferramentas">
+            <label class="prg-somente-fora">
+              <input type="checkbox" id="indPrevistoSomenteFora">
+              Somente fora do previsto
+            </label>
+            <button type="button" class="btn btn-outline prg-btn-analisar" id="btnAnalisarAtrasosPrevisto">Analisar atrasos</button>
           </div>
 
           <div class="table-wrapper pe-ano-table-scroll" id="indPrevistoDetalheTableWrapper">
@@ -3141,6 +3386,21 @@
       </div>
     </div>
 
+    <!-- Modal "Análise de Causa Raiz" (Previsto vs. Realizado): análise individual de uma prova
+         fora do previsto ou visão consolidada dos atrasos. Conteúdo montado em
+         renderizarAnaliseCausaRaiz/renderizarAnaliseConsolidadaAtrasos (dados em memória); PDF pelo
+         mesmo gerador A4 dos relatórios (gerarPdfRelatorioCobranca). -->
+    <div class="geral-evento-modal-backdrop" id="acrBackdrop" hidden>
+      <div class="report-modal-content acr-modal" role="dialog" aria-modal="true" aria-labelledby="acrTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharAcr" aria-label="Fechar">&times;</button>
+        <div id="acr-print-area" class="relatorio-elaborador-preview"></div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnFecharAcrRodape">Fechar</button>
+          <button type="button" class="btn btn-primary" id="btnExportarAcrPdf">Exportar análise em PDF</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal "Enviar relatório pelo WhatsApp" (envio assistido: baixa o PDF e abre wa.me com a
          mensagem; o usuário anexa o PDF e confirma o envio no próprio WhatsApp) -->
     <div class="geral-evento-modal-backdrop" id="envioWhatsAppBackdrop" hidden>
@@ -3823,6 +4083,6 @@
   <!-- Tooltip reutilizável do gráfico de performance de entrega do elaborador -->
   <div class="perf-tooltip" id="perfTooltip" hidden></div>
 
-  <script src="script.js?v=20261016g"></script>
+  <script src="script.js?v=20261019z"></script>
 </body>
 </html>
