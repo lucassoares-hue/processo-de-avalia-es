@@ -129,7 +129,6 @@ const elabFilterBadge = document.getElementById('elabFilterBadge');
 
 // Referências do botão "Indicadores" (no cabeçalho) e das duas visões internas da aba Elaborador
 const btnIndicadores = document.getElementById('btnIndicadores');
-const btnVoltarAcompanhamento = document.getElementById('btnVoltarAcompanhamento');
 const viewElaboradorAcompanhamento = document.getElementById('viewElaboradorAcompanhamento');
 const viewElaboradorIndicadores = document.getElementById('viewElaboradorIndicadores');
 // Título "Painel de Avaliações SGGE" da barra superior, substituído pelo botão
@@ -180,7 +179,6 @@ const coordFilterBadge = document.getElementById('coordFilterBadge');
 
 // Referências do botão "Indicadores" (no cabeçalho) e das duas visões internas da aba Coordenador
 const btnIndicadoresCoord = document.getElementById('btnIndicadoresCoord');
-const btnVoltarAcompanhamentoCoord = document.getElementById('btnVoltarAcompanhamentoCoord');
 const viewCoordenadorAcompanhamento = document.getElementById('viewCoordenadorAcompanhamento');
 const viewCoordenadorIndicadores = document.getElementById('viewCoordenadorIndicadores');
 let visaoCoordenador = 'acompanhamento'; // 'acompanhamento' | 'indicadores'
@@ -403,7 +401,8 @@ let etapaSelecionadaResumoProducao = null;
 
 // Filtros próprios da seção (isolados do resto do projeto) — mesmo padrão de
 // filtrosPrevistoRealizado
-let filtrosResumoProducao = { anoAplicacao: '', modulo: '', tipoAv: '', anoSerie: '', segmento: '', busca: '' };
+// Filtros de categoria guardam a lista de valores marcados (seleção múltipla; vazia = todos)
+let filtrosResumoProducao = { anoAplicacao: [], modulo: [], tipoAv: [], anoSerie: [], segmento: [], busca: '' };
 
 // Filtros interativos da seção "Indicadores — Processo Editorial" (cliques nos gráficos),
 // isolados dos demais filtros interativos de Elaborador/Coordenador
@@ -827,7 +826,200 @@ function renderTable(records) {
 // `placeholderLabel` (opcional) troca o texto da opção vazia/"Todos" — usado pelo filtro rápido
 // de Módulo da aba Elaboração, cuja opção vazia mostra "Módulo" em vez de "Todos" (ver seção
 // própria em script.js); todos os outros selects continuam com o padrão "Todos".
+// ======================================================================
+// Filtro de seleção múltipla (FiltroMultiplo): transforma um <select> existente num botão com
+// menu de checkboxes ("Selecionar todos" / "Limpar seleção"). O <select> continua sendo a fonte
+// do estado (vira multiple e fica oculto): cada seção segue com o próprio elemento, os mesmos
+// listeners de 'change' e as mesmas funções de preenchimento de opções. Nenhum valor marcado =
+// todos (mesmo significado da antiga opção vazia "Todos"/"Módulo"). Entre valores do mesmo filtro
+// vale OU; entre filtros diferentes, cada seção continua combinando com E.
+// ======================================================================
+
+// Valores marcados de um filtro (ignora a opção vazia de "todos")
+function valoresFiltro(select) {
+  if (!select) return [];
+  return Array.from(select.selectedOptions || [])
+    .map((o) => o.value)
+    .filter((v) => v !== '');
+}
+
+const FiltroMultiplo = {
+  instancias: new Set(),
+
+  criar(select) {
+    if (!select || select.dataset.filtroMultiplo) return;
+    select.dataset.filtroMultiplo = '1';
+    const atuais = valoresFiltro(select);
+    select.multiple = true;
+    Array.from(select.options).forEach((o) => { o.selected = atuais.includes(o.value); });
+    select.classList.add('fm-select-oculto');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'fm-wrap';
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = `${select.className.replace('fm-select-oculto', '').trim()} fm-trigger${
+      select.classList.contains('elab-modulo-rapido-select') ? '' : ' fm-trigger--campo'
+    }`;
+    botao.setAttribute('aria-haspopup', 'listbox');
+    botao.setAttribute('aria-expanded', 'false');
+    if (select.getAttribute('aria-label')) botao.setAttribute('aria-label', select.getAttribute('aria-label'));
+    const rotulo = document.createElement('span');
+    rotulo.className = 'fm-trigger-texto';
+    const seta = document.createElement('span');
+    seta.className = 'fm-trigger-seta';
+    seta.setAttribute('aria-hidden', 'true');
+    seta.textContent = '▾';
+    botao.append(rotulo, seta);
+
+    const menu = document.createElement('div');
+    menu.className = 'fm-menu';
+    menu.hidden = true;
+    menu.setAttribute('role', 'listbox');
+    menu.setAttribute('aria-multiselectable', 'true');
+
+    select.after(wrap);
+    wrap.append(select, botao, menu);
+    // O <label for=...> da seção passa a apontar para o botão
+    if (select.id) {
+      const label = document.querySelector(`label[for="${select.id}"]`);
+      if (label) {
+        botao.id = `${select.id}Botao`;
+        label.setAttribute('for', botao.id);
+      }
+    }
+
+    const inst = { select, botao, rotulo, menu };
+    FiltroMultiplo.instancias.add(inst);
+
+    botao.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (menu.hidden) FiltroMultiplo.abrir(inst);
+      else FiltroMultiplo.fechar(inst);
+    });
+    menu.addEventListener('click', (event) => event.stopPropagation());
+    menu.addEventListener('change', (event) => {
+      const check = event.target.closest('input[type="checkbox"]');
+      if (!check) return;
+      const opcao = Array.from(select.options).find((o) => o.value === check.value);
+      if (opcao) opcao.selected = check.checked;
+      FiltroMultiplo.atualizarRotulo(inst);
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    menu.addEventListener('click', (event) => {
+      const acao = event.target.closest('[data-fm-acao]');
+      if (!acao) return;
+      const marcar = acao.dataset.fmAcao === 'todos';
+      Array.from(select.options).forEach((o) => { o.selected = marcar && o.value !== ''; });
+      FiltroMultiplo.renderizarMenu(inst);
+      FiltroMultiplo.atualizarRotulo(inst);
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    // Opções recarregadas pelas funções de preenchimento de cada seção → atualiza o texto
+    new MutationObserver(() => {
+      FiltroMultiplo.atualizarRotulo(inst);
+      if (!menu.hidden) FiltroMultiplo.renderizarMenu(inst);
+    }).observe(select, { childList: true });
+    FiltroMultiplo.atualizarRotulo(inst);
+  },
+
+  placeholder(select) {
+    const vazia = Array.from(select.options).find((o) => o.value === '');
+    return vazia ? vazia.textContent : 'Todos';
+  },
+
+  atualizarRotulo(inst) {
+    const marcadas = Array.from(inst.select.options).filter((o) => o.selected && o.value !== '');
+    let texto = FiltroMultiplo.placeholder(inst.select);
+    if (marcadas.length === 1) texto = marcadas[0].textContent;
+    else if (marcadas.length === 2) texto = marcadas.map((o) => o.textContent).join(', ');
+    else if (marcadas.length > 2) texto = `${marcadas.length} selecionados`;
+    inst.rotulo.textContent = texto;
+    inst.botao.title = marcadas.length ? marcadas.map((o) => o.textContent).join(', ') : texto;
+    inst.botao.classList.toggle('fm-trigger--ativo', marcadas.length > 0);
+  },
+
+  renderizarMenu(inst) {
+    const opcoes = Array.from(inst.select.options).filter((o) => o.value !== '');
+    inst.menu.innerHTML = '';
+    const acoes = document.createElement('div');
+    acoes.className = 'fm-menu-acoes';
+    acoes.innerHTML = '<button type="button" data-fm-acao="todos">Selecionar todos</button><button type="button" data-fm-acao="limpar">Limpar seleção</button>';
+    const lista = document.createElement('div');
+    lista.className = 'fm-menu-lista';
+    if (!opcoes.length) {
+      const vazio = document.createElement('p');
+      vazio.className = 'fm-menu-vazio';
+      vazio.textContent = 'Nenhuma opção disponível.';
+      lista.appendChild(vazio);
+    }
+    opcoes.forEach((o) => {
+      const item = document.createElement('label');
+      item.className = 'fm-opcao';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.value = o.value;
+      check.checked = o.selected;
+      const texto = document.createElement('span');
+      texto.textContent = o.textContent;
+      item.append(check, texto);
+      lista.appendChild(item);
+    });
+    inst.menu.append(acoes, lista);
+  },
+
+  abrir(inst) {
+    FiltroMultiplo.instancias.forEach((outra) => { if (outra !== inst) FiltroMultiplo.fechar(outra); });
+    FiltroMultiplo.renderizarMenu(inst);
+    inst.menu.hidden = false;
+    inst.botao.setAttribute('aria-expanded', 'true');
+    // position:fixed sob o botão, sem ultrapassar a largura da tela (não é cortado por
+    // popovers com rolagem e não desloca cards/gráficos)
+    const rect = inst.botao.getBoundingClientRect();
+    const largura = Math.min(Math.max(rect.width, 220), window.innerWidth - 16);
+    inst.menu.style.width = `${largura}px`;
+    inst.menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - largura - 8))}px`;
+    const espacoAbaixo = window.innerHeight - rect.bottom - 12;
+    inst.menu.style.maxHeight = `${Math.max(160, Math.min(320, espacoAbaixo))}px`;
+    inst.menu.style.top = `${rect.bottom + 4}px`;
+  },
+
+  fechar(inst) {
+    if (inst.menu.hidden) return;
+    inst.menu.hidden = true;
+    inst.botao.setAttribute('aria-expanded', 'false');
+  },
+
+  fecharTodos() {
+    FiltroMultiplo.instancias.forEach((inst) => FiltroMultiplo.fechar(inst));
+  },
+
+  // Depois de alterar a seleção por código (ex.: "Limpar filtros" da seção)
+  sincronizar(select) {
+    FiltroMultiplo.instancias.forEach((inst) => {
+      if (!select || inst.select === select) FiltroMultiplo.atualizarRotulo(inst);
+    });
+  }
+};
+
+document.addEventListener('click', () => FiltroMultiplo.fecharTodos());
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') FiltroMultiplo.fecharTodos();
+});
+window.addEventListener('resize', () => FiltroMultiplo.fecharTodos());
+window.addEventListener('scroll', (event) => {
+  // rolar a própria lista do menu não fecha
+  if (event.target instanceof Element && event.target.closest('.fm-menu')) return;
+  FiltroMultiplo.fecharTodos();
+}, true);
+
+// Repõe a seleção múltipla depois que as opções foram recriadas (só valores que ainda existem)
+function restaurarSelecaoMultipla(selectEl, valores) {
+  Array.from(selectEl.options).forEach((o) => { o.selected = o.value !== '' && valores.includes(o.value); });
+}
+
 function populateSelectOptions(selectEl, records, field, placeholderLabel = 'Todos') {
+  const anteriores = selectEl.multiple ? valoresFiltro(selectEl) : null;
   const currentValue = selectEl.value;
   const uniqueValues = Array.from(
     new Set(records.map((r) => safe(r[field])).filter((v) => v !== ''))
@@ -841,7 +1033,8 @@ function populateSelectOptions(selectEl, records, field, placeholderLabel = 'Tod
     selectEl.appendChild(option);
   });
 
-  if (uniqueValues.includes(currentValue)) {
+  if (anteriores) restaurarSelecaoMultipla(selectEl, anteriores);
+  else if (uniqueValues.includes(currentValue)) {
     selectEl.value = currentValue;
   }
 }
@@ -1059,6 +1252,9 @@ function atualizarEstadoGrupoIndicadorProcesso() {
 
 // Alterna a aba ativa, atualiza o destaque visual dos botões e re-renderiza a visão correspondente
 function trocarAba(nomeAba) {
+  // Banco de Provas sempre abre na tela de seleção de módulos ao chegar de outra seção
+  if (nomeAba === 'banco-provas' && abaAtual !== 'banco-provas') moduloBancoProvasSelecionado = null;
+  if (nomeAba === 'gpa' && abaAtual !== 'gpa') moduloGPASelecionado = null;
   abaAtual = nomeAba;
 
   dom.tabsNav.querySelectorAll('.sidebar-btn').forEach((btn) => {
@@ -1245,7 +1441,6 @@ function trocarAba(nomeAba) {
   elabAnoRapidoWrapper.hidden = !ehAbaElaborador || visaoElaborador !== 'acompanhamento';
   // Na barra superior: título "Painel de Avaliações SGGE" + botão de filtro dos Indicadores
   // só aparecem quando a aba Elaborador (ou o atalho) está na visão de Indicadores
-  btnVoltarAcompanhamento.hidden = !emIndicadoresElaborador;
   indFilterPopoverWrapper.hidden = !emIndicadoresElaborador;
   indModuloRapidoWrapper.hidden = !emIndicadoresElaborador;
   btnRelatorioElaborador.hidden = !emIndicadoresElaborador;
@@ -1287,7 +1482,6 @@ function trocarAba(nomeAba) {
   // para o acompanhamento — fica sempre oculto (a lógica interna que ele disparava,
   // mostrarAcompanhamentoCoordenador, continua intacta, só não há mais botão para acioná-la
   // a partir daqui)
-  btnVoltarAcompanhamentoCoord.hidden = true;
   indFilterPopoverWrapperCoord.hidden = !emIndicadoresCoordenador;
   indModuloRapidoWrapperCoord.hidden = !emIndicadoresCoordenador;
   // Botão "2ª Validação": só aparece junto do filtro de Indicadores — Coordenador
@@ -1306,8 +1500,7 @@ function trocarAba(nomeAba) {
 
   // O título "Painel de Avaliações SGGE" da barra superior fica oculto sempre que uma das
   // telas de Indicadores (Elaborador, Coordenador ou Processo Editorial) estiver ativa
-  appHeaderTitles.hidden =
-    emIndicadoresElaborador || emIndicadoresCoordenador || emIndicadoresPE || emIndicadoresAssCoord;
+  appHeaderTitles.hidden = emIndicadoresPE || emIndicadoresAssCoord;
 
   renderAbaAtual();
 }
@@ -1494,6 +1687,7 @@ function obterAnoAplicacao(record) {
 // mesmo padrão visual/comportamental de populateSelectOptions, mas usando obterAnoAplicacao em
 // vez de um campo direto do registro.
 function populateAnoAplicacaoOptions(selectEl, records, placeholderLabel = 'Ano') {
+  const anteriores = selectEl.multiple ? valoresFiltro(selectEl) : null;
   const currentValue = selectEl.value;
   const uniqueValues = Array.from(new Set(records.map(obterAnoAplicacao).filter((v) => v !== ''))).sort();
 
@@ -1505,7 +1699,8 @@ function populateAnoAplicacaoOptions(selectEl, records, placeholderLabel = 'Ano'
     selectEl.appendChild(option);
   });
 
-  if (uniqueValues.includes(currentValue)) {
+  if (anteriores) restaurarSelecaoMultipla(selectEl, anteriores);
+  else if (uniqueValues.includes(currentValue)) {
     selectEl.value = currentValue;
   }
 }
@@ -2691,16 +2886,16 @@ function populateElabFilterOptions(records) {
 // Aplica os filtros próprios da aba Elaborador (grupos Encomendas/Devoluções/Validações + busca
 // + filtro rápido de Módulo do cabeçalho) sobre os registros já filtrados globalmente
 function aplicarFiltrosElaborador(records) {
-  const anoAplicacao = elabSelectFilters.ano.value;
-  const modulo = elabSelectFilters.modulo.value;
+  const anoAplicacao = valoresFiltro(elabSelectFilters.ano);
+  const modulo = valoresFiltro(elabSelectFilters.modulo);
   const busca = safe(elabFilterBusca.value).toLowerCase();
 
   return records.filter((record) => {
-    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
+    if (anoAplicacao.length && !anoAplicacao.includes(obterAnoAplicacao(record))) return false;
     if (!passaFiltroMultiplo(safe(record.ano), filtrosElaborador.anos)) return false;
     if (!passaFiltroMultiplo(safe(record.frente), filtrosElaborador.disciplinas)) return false;
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosElaborador.tiposAv)) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
 
     const statusEncomenda = safe(record.data_encomenda) ? 'Realizada' : 'Pendente';
     if (!passaFiltroMultiplo(statusEncomenda, filtrosElaborador.statusEncomenda)) return false;
@@ -2738,7 +2933,8 @@ function aplicarFiltrosElaborador(records) {
 
 // Limpa os filtros próprios da aba Elaborador (popover, busca e filtro rápido) e re-renderiza a visão
 function limparFiltrosElaborador() {
-  Object.values(elabSelectFilters).forEach((select) => (select.value = ''));
+  Object.values(elabSelectFilters).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosElaborador.anos = [];
   filtrosElaborador.disciplinas = [];
   filtrosElaborador.tiposAv = [];
@@ -2767,7 +2963,7 @@ function aplicarCheckboxesElaborador() {
 // Conta quantos filtros estão ativos (selects preenchidos + busca) e atualiza o badge/destaque do botão
 function atualizarIndicadorFiltrosElaborador() {
   const totalAtivos =
-    Object.values(elabSelectFilters).filter((select) => select.value !== '').length +
+    Object.values(elabSelectFilters).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosElaborador.anos.length +
     filtrosElaborador.disciplinas.length +
     filtrosElaborador.tiposAv.length +
@@ -2799,7 +2995,8 @@ function fecharPopoverFiltrosElaborador() {
 
 // Limpa os filtros do popover de Indicadores e re-renderiza a seção
 function limparFiltrosIndicadoresTopo() {
-  Object.values(indSelectFilters).forEach((select) => (select.value = ''));
+  Object.values(indSelectFilters).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosIndicadoresTopo.anos = [];
   filtrosIndicadoresTopo.disciplinas = [];
   filtrosIndicadoresTopo.tiposAv = [];
@@ -2822,7 +3019,7 @@ function aplicarCheckboxesIndicadoresTopo() {
 // Conta quantos filtros do popover de Indicadores estão ativos e atualiza o badge/destaque do botão
 function atualizarIndicadorFiltrosIndicadoresTopo() {
   const totalAtivos =
-    Object.values(indSelectFilters).filter((select) => select.value !== '').length +
+    Object.values(indSelectFilters).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosIndicadoresTopo.anos.length +
     filtrosIndicadoresTopo.disciplinas.length +
     filtrosIndicadoresTopo.tiposAv.length +
@@ -2860,7 +3057,8 @@ function alternarPopoverFiltrosIndicadoresTopo() {
 
 // Limpa os filtros do popover de Indicadores e re-renderiza a seção
 function limparFiltrosIndicadoresTopoCoord() {
-  Object.values(indSelectFiltersCoord).forEach((select) => (select.value = ''));
+  Object.values(indSelectFiltersCoord).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosIndicadoresTopoCoord.anos = [];
   filtrosIndicadoresTopoCoord.disciplinas = [];
   filtrosIndicadoresTopoCoord.coordenadores = [];
@@ -2882,7 +3080,7 @@ function aplicarCheckboxesIndicadoresTopoCoord() {
 // Conta quantos filtros do popover de Indicadores estão ativos e atualiza o badge/destaque do botão
 function atualizarIndicadorFiltrosIndicadoresTopoCoord() {
   const totalAtivos =
-    Object.values(indSelectFiltersCoord).filter((select) => select.value !== '').length +
+    Object.values(indSelectFiltersCoord).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosIndicadoresTopoCoord.anos.length +
     filtrosIndicadoresTopoCoord.disciplinas.length +
     filtrosIndicadoresTopoCoord.coordenadores.length +
@@ -2977,7 +3175,8 @@ function alternarPopoverFiltrosIndicadoresTopoPE() {
 
 // Limpa os filtros do popover do Processo Editorial e re-renderiza a seção
 function limparFiltrosProcessoEditorial() {
-  Object.values(peSelectFilters).forEach((select) => (select.value = ''));
+  Object.values(peSelectFilters).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosProcessoEditorial.anos = [];
   filtrosProcessoEditorial.disciplinas = [];
   filtrosProcessoEditorial.tiposAv = [];
@@ -3001,7 +3200,7 @@ function aplicarCheckboxesProcessoEditorial() {
 // Conta quantos filtros do popover estão ativos e atualiza o badge/destaque do botão
 function atualizarIndicadorFiltrosPE() {
   const totalAtivos =
-    Object.values(peSelectFilters).filter((select) => select.value !== '').length +
+    Object.values(peSelectFilters).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosProcessoEditorial.anos.length +
     filtrosProcessoEditorial.disciplinas.length +
     filtrosProcessoEditorial.tiposAv.length +
@@ -3124,8 +3323,6 @@ function mostrarIndicadoresElaborador() {
 
   // Na barra superior, o título "Painel de Avaliações SGGE" dá lugar ao botão
   // "← Voltar ao acompanhamento"; o botão de filtro passa a ser o dos Indicadores
-  appHeaderTitles.hidden = true;
-  btnVoltarAcompanhamento.hidden = false;
   fecharPopoverFiltrosElaborador();
   elabFilterPopoverWrapper.hidden = true;
   indFilterPopoverWrapper.hidden = false;
@@ -3153,8 +3350,6 @@ function mostrarAcompanhamentoElaborador() {
   btnIndicadores.hidden = false;
 
   // Restaura o título da barra superior e o botão de filtro do Acompanhamento
-  appHeaderTitles.hidden = false;
-  btnVoltarAcompanhamento.hidden = true;
   fecharPopoverFiltrosIndicadoresTopo();
   indFilterPopoverWrapper.hidden = true;
   indModuloRapidoWrapper.hidden = true;
@@ -4553,11 +4748,11 @@ function populateIndicadoresFilterOptions(records) {
 // Disciplina, Tipo de AV, Elaborador e busca), por cima do recorte já filtrado pelo
 // popover/busca/card da aba Elaborador
 function aplicarFiltrosIndicadoresTopo(dados, { ignorarElaborador = false } = {}) {
-  const modulo = indSelectFilters.modulo.value;
+  const modulo = valoresFiltro(indSelectFilters.modulo);
   const busca = safe(indFilterBusca.value).toLowerCase();
 
   return dados.filter((record) => {
-    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
     if (!passaFiltroMultiplo(safe(record.ano), filtrosIndicadoresTopo.anos)) return false;
     if (!passaFiltroMultiplo(safe(record.frente), filtrosIndicadoresTopo.disciplinas)) return false;
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosIndicadoresTopo.tiposAv)) return false;
@@ -4909,13 +5104,13 @@ function populateCoordFilterOptions(records) {
 // Aplica os filtros do popover (Avaliação/Coordenação/Prazo) + busca geral da aba Coordenador
 // sobre os registros já filtrados globalmente
 function aplicarFiltrosCoordenador(records) {
-  const anoAplicacao = coordSelectFilters.ano.value;
-  const modulo = coordSelectFilters.modulo.value;
+  const anoAplicacao = valoresFiltro(coordSelectFilters.ano);
+  const modulo = valoresFiltro(coordSelectFilters.modulo);
   const busca = safe(coordFilterBusca.value).toLowerCase();
 
   return records.filter((record) => {
-    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (anoAplicacao.length && !anoAplicacao.includes(obterAnoAplicacao(record))) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosCoordenador.tiposAv)) return false;
     if (!passaFiltroMultiplo(safe(record.ano), filtrosCoordenador.anos)) return false;
     if (!passaFiltroMultiplo(safe(record.frente), filtrosCoordenador.disciplinas)) return false;
@@ -4998,7 +5193,7 @@ function atualizarDestaqueCardsCoordenador() {
 // Conta quantos filtros do popover estão ativos (selects preenchidos + busca) e atualiza o badge
 function atualizarIndicadorFiltrosCoordenador() {
   const totalAtivos =
-    Object.values(coordSelectFilters).filter((select) => select.value !== '').length +
+    Object.values(coordSelectFilters).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosCoordenador.tiposAv.length +
     filtrosCoordenador.anos.length +
     filtrosCoordenador.disciplinas.length +
@@ -5047,7 +5242,8 @@ function alternarPopoverFiltrosCoordenador() {
 
 // Limpa os filtros próprios da aba Coordenador (popover, busca e filtro rápido) e re-renderiza
 function limparFiltrosCoordenador() {
-  Object.values(coordSelectFilters).forEach((select) => (select.value = ''));
+  Object.values(coordSelectFilters).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosCoordenador.tiposAv = [];
   filtrosCoordenador.anos = [];
   filtrosCoordenador.disciplinas = [];
@@ -5589,8 +5785,6 @@ function mostrarIndicadoresCoordenador() {
 
   // Na barra superior, o título "Painel de Avaliações SGGE" dá lugar ao botão
   // "← Voltar ao acompanhamento"
-  appHeaderTitles.hidden = true;
-  btnVoltarAcompanhamentoCoord.hidden = false;
 
   // O botão de filtro do Acompanhamento some; o botão de filtro dos Indicadores aparece
   fecharPopoverFiltrosCoordenador();
@@ -5618,8 +5812,6 @@ function mostrarAcompanhamentoCoordenador() {
   btnIndicadoresCoord.hidden = false;
 
   // Restaura o título da barra superior
-  appHeaderTitles.hidden = false;
-  btnVoltarAcompanhamentoCoord.hidden = true;
 
   fecharPopoverFiltrosIndicadoresTopoCoord();
   indFilterPopoverWrapperCoord.hidden = true;
@@ -5674,7 +5866,7 @@ function populateIndicadoresFilterOptionsCoord(records) {
 // Coordenador, Tipo de AV e busca), por cima do recorte já filtrado pelo popover/busca/card
 // da aba Coordenador
 function aplicarFiltrosIndicadoresTopoCoord(dados, { ignorarCoordenador = false } = {}) {
-  const modulo = indSelectFiltersCoord.modulo.value;
+  const modulo = valoresFiltro(indSelectFiltersCoord.modulo);
   const busca = safe(indFilterBuscaCoord.value).toLowerCase();
 
   return dados.filter((record) => {
@@ -5687,7 +5879,7 @@ function aplicarFiltrosIndicadoresTopoCoord(dados, { ignorarCoordenador = false 
       return false;
     }
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosIndicadoresTopoCoord.tiposAv)) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
 
     if (busca) {
       const matchesBusca = Object.values(record).some((value) =>
@@ -7279,13 +7471,13 @@ function populatePEFilterOptions(records) {
 // Aplica os filtros do popover (Módulo, Ano, Disciplina, Tipo de AV, Responsável, Status do
 // processo e busca) sobre o recorte global já filtrado (filteredRecords)
 function aplicarFiltrosProcessoEditorial(dados) {
-  const anoAplicacao = peSelectFilters.ano.value;
-  const modulo = peSelectFilters.modulo.value;
+  const anoAplicacao = valoresFiltro(peSelectFilters.ano);
+  const modulo = valoresFiltro(peSelectFilters.modulo);
   const busca = safe(peFilterBusca.value).toLowerCase();
 
   return dados.filter((record) => {
-    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (anoAplicacao.length && !anoAplicacao.includes(obterAnoAplicacao(record))) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
     if (!passaFiltroMultiplo(safe(record.ano), filtrosProcessoEditorial.anos)) return false;
     if (!passaFiltroMultiplo(safe(record.frente), filtrosProcessoEditorial.disciplinas)) return false;
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosProcessoEditorial.tiposAv)) return false;
@@ -8934,6 +9126,8 @@ function aplicarFiltrosBancoProvas(dados) {
   const busca = safe(bpFilterBusca.value).toLowerCase();
 
   return dados.filter((record) => {
+    // Módulo escolhido na tela de cards: filtro obrigatório da visualização
+    if (moduloBancoProvasSelecionado && !moduloCorrespondeBP(record.modulo, moduloBancoProvasSelecionado)) return false;
     if (modulo && safe(record.modulo) !== modulo) return false;
     if (!passaFiltroMultiplo(safe(record.ano), filtrosBancoProvas.anos)) return false;
     if (!pertenceAoSegmento(record.ano, filtrosBancoProvas.segmentos)) return false;
@@ -9634,15 +9828,15 @@ function populateAFEFilterOptions(records) {
 // cabeçalho da seção Arte-finalização e Envio sobre os registros já filtrados globalmente —
 // mesmo padrão de aplicarFiltrosProcessoEditorial
 function aplicarFiltrosPopoverArteFinalizacaoEnvio(records) {
-  const modulo = afeSelectFilters.modulo.value;
-  const anoAplicacao = afeSelectFilters.ano.value;
+  const modulo = valoresFiltro(afeSelectFilters.modulo);
+  const anoAplicacao = valoresFiltro(afeSelectFilters.ano);
   const busca = safe(afeFilterBusca.value).toLowerCase();
 
   return records.filter((record) => {
     if (!passaFiltroMultiplo(safe(record.ano), filtrosArteFinalizacaoEnvio.anos)) return false;
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosArteFinalizacaoEnvio.tiposAv)) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
-    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
+    if (anoAplicacao.length && !anoAplicacao.includes(obterAnoAplicacao(record))) return false;
 
     const statusRegistro = calcularStatusGeralArteFinalizacao(record);
     if (!passaFiltroMultiplo(statusRegistro, filtrosArteFinalizacaoEnvio.status)) return false;
@@ -9680,7 +9874,7 @@ function aplicarFiltrosArteFinalizacaoEnvio(dados) {
 // Conta quantos filtros do popover estão ativos (selects preenchidos + busca) e atualiza o badge
 function atualizarIndicadorFiltrosArteFinalizacaoEnvio() {
   const totalAtivos =
-    Object.values(afeSelectFilters).filter((select) => select.value !== '').length +
+    Object.values(afeSelectFilters).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosArteFinalizacaoEnvio.anos.length +
     filtrosArteFinalizacaoEnvio.tiposAv.length +
     filtrosArteFinalizacaoEnvio.status.length +
@@ -9715,7 +9909,8 @@ function alternarPopoverFiltrosArteFinalizacaoEnvio() {
 
 // Limpa os filtros próprios da seção (popover, módulo e busca) e re-renderiza
 function limparFiltrosArteFinalizacaoEnvio() {
-  Object.values(afeSelectFilters).forEach((select) => (select.value = ''));
+  Object.values(afeSelectFilters).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosArteFinalizacaoEnvio.anos = [];
   filtrosArteFinalizacaoEnvio.tiposAv = [];
   filtrosArteFinalizacaoEnvio.status = [];
@@ -10385,7 +10580,70 @@ function renderizarFiltroAnoBancoProvas(dados) {
   });
 }
 
+// --- Banco de Provas: tela inicial de seleção de módulo (4 cards) → tabela do módulo -------
+// O módulo escolhido vale só para esta seção (moduloBancoProvasSelecionado); a barra de filtros,
+// a busca e a tabela continuam as mesmas, filtradas dentro do módulo.
+let moduloBancoProvasSelecionado = null; // null = tela de cards; 1..4 = módulo aberto
+const MODULOS_BANCO_PROVAS = [1, 2, 3, 4];
+const ICONES_MODULOS_BP = [
+  '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z"/><path d="M9 8h7M9 11.5h5"/>',
+  '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13l2 2 4-4"/>',
+  '<path d="M3 9l9-5 9 5-9 5z"/><path d="M7 11.2V16c0 1.4 2.2 3 5 3s5-1.6 5-3v-4.8"/><path d="M21 9v5"/>',
+  '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 10h6M9 14h6M9 18h3"/>'
+];
+
+// "M1", "M01", "MÓDULO 1", "Modulo 1" → 1 (valores reais da base)
+function numeroModuloBP(valor) {
+  const texto = removerAcentos(safe(valor)).toUpperCase().replace(/\s+/g, '');
+  const match = texto.match(/^M(?:ODULO)?0*(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
+function moduloCorrespondeBP(valor, numero) {
+  return numeroModuloBP(valor) === numero;
+}
+
+function renderizarCardsModulosBP() {
+  document.getElementById('bpModulosGrid').innerHTML = MODULOS_BANCO_PROVAS.map(
+    (n, i) => `<article class="bp-modulo-card">
+      <span class="bp-modulo-icone" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONES_MODULOS_BP[0]}</svg></span>
+      <h3 class="bp-modulo-card-titulo">MÓDULO ${n}</h3>
+      <p class="bp-modulo-card-texto">Acessar as provas nas versões com e sem gabarito.</p>
+      <button type="button" class="bp-modulo-acessar" data-bp-modulo="${n}">ACESSAR <span aria-hidden="true">→</span></button>
+    </article>`
+  ).join('');
+}
+
+function abrirModuloBancoProvas(numero) {
+  moduloBancoProvasSelecionado = numero;
+  // O seletor de Módulo da barra fica oculto dentro do módulo (o card já define o módulo)
+  bpSelectFilters.modulo.value = '';
+  renderizarBancoProvas();
+  window.scrollTo(0, 0);
+}
+
+function voltarModulosBancoProvas() {
+  moduloBancoProvasSelecionado = null; // limpa só o módulo do Banco de Provas
+  fecharPopoverFiltrosBancoProvas();
+  renderizarBancoProvas();
+  window.scrollTo(0, 0);
+}
+
 function renderizarBancoProvas() {
+  const secao = document.getElementById('banco-provas-section');
+  const selecionando = moduloBancoProvasSelecionado === null;
+  secao.classList.toggle('bp-modo-selecao', selecionando);
+  if (selecionando) {
+    if (!document.getElementById('bpModulosGrid').children.length) renderizarCardsModulosBP();
+    return;
+  }
+
+  document.getElementById('bpModuloTitulo').textContent = `Banco de Provas — Módulo ${moduloBancoProvasSelecionado}`;
+  const temProvas = filteredRecords.some((r) => moduloCorrespondeBP(r.modulo, moduloBancoProvasSelecionado));
+  const aviso = document.getElementById('bpModuloSemProvas');
+  aviso.hidden = temProvas;
+  aviso.textContent = temProvas ? '' : `Ainda não há provas cadastradas para o Módulo ${moduloBancoProvasSelecionado}.`;
+
   populateBPFilterOptions(filteredRecords);
   atualizarIndicadorFiltrosBP();
 
@@ -10393,6 +10651,12 @@ function renderizarBancoProvas() {
 
   renderizarTabelaBancoProvas(dados);
 }
+
+document.getElementById('bpModulosGrid').addEventListener('click', (event) => {
+  const botao = event.target.closest('[data-bp-modulo]');
+  if (botao) abrirModuloBancoProvas(Number(botao.dataset.bpModulo));
+});
+document.getElementById('btnVoltarModulosBP').addEventListener('click', voltarModulosBancoProvas);
 
 // --- Aba Assinatura Coordenador: acompanhamento do envio, assinatura e devolutiva da
 // assinatura da coordenação. Estrutura e comportamento idênticos à aba Coordenador (ver
@@ -10487,8 +10751,8 @@ function populateAssCoordFilterOptions(records) {
 // rápido de Módulo do cabeçalho da aba Assinatura Coordenador sobre os registros já filtrados
 // globalmente
 function aplicarFiltrosAssinaturaCoordenador(records) {
-  const modulo = assCoordSelectFilters.modulo.value;
-  const anoAplicacao = assCoordSelectFilters.ano.value;
+  const modulo = valoresFiltro(assCoordSelectFilters.modulo);
+  const anoAplicacao = valoresFiltro(assCoordSelectFilters.ano);
   const busca = safe(assCoordFilterBusca.value).toLowerCase();
 
   return records.filter((record) => {
@@ -10496,8 +10760,8 @@ function aplicarFiltrosAssinaturaCoordenador(records) {
     if (!passaFiltroMultiplo(safe(record.frente), filtrosAssinaturaCoordenador.disciplinas)) return false;
     if (!passaFiltroMultiplo(safe(record.tipo_av), filtrosAssinaturaCoordenador.tiposAv)) return false;
     if (!passaFiltroMultiplo(safe(record.coordenador), filtrosAssinaturaCoordenador.coordenadores)) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
-    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
+    if (anoAplicacao.length && !anoAplicacao.includes(obterAnoAplicacao(record))) return false;
 
     const statusAssinatura = calcularStatusAssinatura(record);
     if (!passaFiltroMultiplo(statusAssinatura, filtrosAssinaturaCoordenador.status)) return false;
@@ -10577,7 +10841,7 @@ function aplicarCheckboxesAssinaturaCoordenador() {
 
 function atualizarIndicadorFiltrosAssinaturaCoordenador() {
   const totalAtivos =
-    Object.values(assCoordSelectFilters).filter((select) => select.value !== '').length +
+    Object.values(assCoordSelectFilters).filter((select) => valoresFiltro(select).length > 0).length +
     filtrosAssinaturaCoordenador.anos.length +
     filtrosAssinaturaCoordenador.disciplinas.length +
     filtrosAssinaturaCoordenador.tiposAv.length +
@@ -10615,7 +10879,8 @@ function alternarPopoverFiltrosAssinaturaCoordenador() {
 // Limpa os filtros próprios da aba Assinatura Coordenador (popover, busca e filtro rápido) e
 // re-renderiza
 function limparFiltrosAssinaturaCoordenador() {
-  Object.values(assCoordSelectFilters).forEach((select) => (select.value = ''));
+  Object.values(assCoordSelectFilters).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   filtrosAssinaturaCoordenador.anos = [];
   filtrosAssinaturaCoordenador.disciplinas = [];
   filtrosAssinaturaCoordenador.tiposAv = [];
@@ -11624,7 +11889,8 @@ const domPrevisto = {
 };
 
 // Filtros próprios da seção (isolados do resto do projeto)
-let filtrosPrevistoRealizado = { modulo: '', ano: '', tipoAv: '', busca: '' };
+// Filtros de categoria guardam a lista de valores marcados (seleção múltipla; vazia = todos)
+let filtrosPrevistoRealizado = { modulo: [], ano: [], tipoAv: [], busca: '' };
 
 // Filtro de status aplicado ao clicar nos cards "Dentro do previsto"/"Fora do previsto" (ver
 // alternarFiltroStatusPrevistoRealizado) — null quando nenhum filtro de status está ativo
@@ -11779,14 +12045,14 @@ function aplicarFiltrosPrevistoRealizado(dados) {
   const buscaLower = busca.trim().toLowerCase();
 
   return dados.filter((record) => {
-    if (modulo && safe(record.modulo) !== modulo) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
 
-    if (ano) {
+    if (ano.length) {
       const numero = normalizarAnoSegmento(record.ano);
-      if (numero === null || `${numero}º` !== ano) return false;
+      if (numero === null || !ano.includes(`${numero}º`)) return false;
     }
 
-    if (tipoAv && normalizarTipoAvPerformance(record.tipo_av) !== tipoAv) return false;
+    if (tipoAv.length && !tipoAv.includes(normalizarTipoAvPerformance(record.tipo_av))) return false;
 
     if (buscaLower) {
       const alvo = [record.id, record.modulo, record.ano, record.tipo_av, record.frente]
@@ -12773,20 +13039,22 @@ document.getElementById('acrBackdrop').addEventListener('click', (event) => {
 document.getElementById('btnExportarAcrPdf').addEventListener('click', exportarAnaliseCausaRaizPdf);
 
 domPrevisto.filtroModulo.addEventListener('change', () => {
-  filtrosPrevistoRealizado.modulo = domPrevisto.filtroModulo.value;
+  filtrosPrevistoRealizado.modulo = valoresFiltro(domPrevisto.filtroModulo);
   filtroStatusPrevistoRealizado = null;
   renderizarIndicadorPrevistoRealizado();
 });
 domPrevisto.filtroAno.addEventListener('change', () => {
-  filtrosPrevistoRealizado.ano = domPrevisto.filtroAno.value;
+  filtrosPrevistoRealizado.ano = valoresFiltro(domPrevisto.filtroAno);
   filtroStatusPrevistoRealizado = null;
   renderizarIndicadorPrevistoRealizado();
 });
 domPrevisto.filtroTipoAv.addEventListener('change', () => {
-  filtrosPrevistoRealizado.tipoAv = domPrevisto.filtroTipoAv.value;
+  filtrosPrevistoRealizado.tipoAv = valoresFiltro(domPrevisto.filtroTipoAv);
   filtroStatusPrevistoRealizado = null;
   renderizarIndicadorPrevistoRealizado();
 });
+// Seleção múltipla com checkboxes (Módulo do cabeçalho, Ano e Tipo de AV dos filtros avançados)
+[domPrevisto.filtroModulo, domPrevisto.filtroAno, domPrevisto.filtroTipoAv].forEach((select) => FiltroMultiplo.criar(select));
 domPrevisto.filtroBusca.addEventListener('input', () => {
   filtrosPrevistoRealizado.busca = domPrevisto.filtroBusca.value;
   filtroStatusPrevistoRealizado = null;
@@ -12801,7 +13069,9 @@ const previstoFiltersPopover = document.getElementById('previstoFiltersPopover')
 
 // Badge do funil = filtros avançados ativos (Ano, Tipo de AV, Busca); Módulo fica no cabeçalho
 function atualizarIndicadorFiltrosPrevisto() {
-  const ativos = ['ano', 'tipoAv', 'busca'].filter((chave) => safe(filtrosPrevistoRealizado[chave]) !== '').length;
+  const ativos = ['ano', 'tipoAv', 'busca'].filter((chave) =>
+    Array.isArray(filtrosPrevistoRealizado[chave]) ? filtrosPrevistoRealizado[chave].length > 0 : safe(filtrosPrevistoRealizado[chave]) !== ''
+  ).length;
   const badge = document.getElementById('previstoFilterBadge');
   badge.hidden = ativos === 0;
   badge.textContent = ativos;
@@ -12831,9 +13101,10 @@ document.getElementById('btnFecharFiltrosPrevisto').addEventListener('click', fe
 document.getElementById('btnFecharFiltrosPrevistoRodape').addEventListener('click', fecharPopoverFiltrosPrevisto);
 // Limpa Ano, Tipo de AV, Busca e também o Módulo do cabeçalho
 document.getElementById('btnLimparFiltrosPrevisto').addEventListener('click', () => {
-  [domPrevisto.filtroModulo, domPrevisto.filtroAno, domPrevisto.filtroTipoAv].forEach((select) => (select.value = ''));
+  [domPrevisto.filtroModulo, domPrevisto.filtroAno, domPrevisto.filtroTipoAv].forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   domPrevisto.filtroBusca.value = '';
-  filtrosPrevistoRealizado = { modulo: '', ano: '', tipoAv: '', busca: '' };
+  filtrosPrevistoRealizado = { modulo: [], ano: [], tipoAv: [], busca: '' };
   filtroStatusPrevistoRealizado = null;
   renderizarIndicadorPrevistoRealizado();
 });
@@ -13043,20 +13314,21 @@ function popularFiltrosResumoProducao(records) {
 // afetados pelo filtro de Módulo
 function aplicarFiltrosResumoProducao(dados, ignorarModulo = false) {
   const { anoAplicacao, tipoAv, anoSerie, segmento, busca } = filtrosResumoProducao;
-  const modulo = ignorarModulo ? '' : filtrosResumoProducao.modulo;
+  const modulo = ignorarModulo ? [] : filtrosResumoProducao.modulo;
   const buscaLower = busca.trim().toLowerCase();
 
   return dados.filter((record) => {
-    if (anoAplicacao && obterAnoAplicacao(record) !== anoAplicacao) return false;
-    if (modulo && safe(record.modulo) !== modulo) return false;
-    if (tipoAv && normalizarTipoAvPerformance(record.tipo_av) !== tipoAv) return false;
+    // Seleção múltipla: OU entre valores do mesmo filtro, E entre filtros
+    if (anoAplicacao.length && !anoAplicacao.includes(obterAnoAplicacao(record))) return false;
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return false;
+    if (tipoAv.length && !tipoAv.includes(normalizarTipoAvPerformance(record.tipo_av))) return false;
 
-    if (anoSerie) {
+    if (anoSerie.length) {
       const numero = normalizarAnoSegmento(record.ano);
-      if (numero === null || `${numero}º` !== anoSerie) return false;
+      if (numero === null || !anoSerie.includes(`${numero}º`)) return false;
     }
 
-    if (segmento && identificarSegmentoPorAno(record.ano) !== segmento) return false;
+    if (segmento.length && !segmento.includes(identificarSegmentoPorAno(record.ano))) return false;
 
     if (buscaLower) {
       const alvo = [record.id, record.modulo, record.ano, record.tipo_av, record.frente]
@@ -13628,35 +13900,39 @@ function renderizarResumoProducao() {
 }
 
 filterResumoAnoAplicacao.addEventListener('change', () => {
-  filtrosResumoProducao.anoAplicacao = filterResumoAnoAplicacao.value;
+  filtrosResumoProducao.anoAplicacao = valoresFiltro(filterResumoAnoAplicacao);
   renderizarResumoProducao();
 });
 filterResumoModulo.addEventListener('change', () => {
-  filtrosResumoProducao.modulo = filterResumoModulo.value;
+  filtrosResumoProducao.modulo = valoresFiltro(filterResumoModulo);
   renderizarResumoProducao();
 });
 filterResumoTipoAv.addEventListener('change', () => {
-  filtrosResumoProducao.tipoAv = filterResumoTipoAv.value;
+  filtrosResumoProducao.tipoAv = valoresFiltro(filterResumoTipoAv);
   renderizarResumoProducao();
 });
 filterResumoAnoSerie.addEventListener('change', () => {
-  filtrosResumoProducao.anoSerie = filterResumoAnoSerie.value;
+  filtrosResumoProducao.anoSerie = valoresFiltro(filterResumoAnoSerie);
   renderizarResumoProducao();
 });
 filterResumoSegmento.addEventListener('change', () => {
-  filtrosResumoProducao.segmento = filterResumoSegmento.value;
+  filtrosResumoProducao.segmento = valoresFiltro(filterResumoSegmento);
   renderizarResumoProducao();
 });
 filterResumoBusca.addEventListener('input', () => {
   filtrosResumoProducao.busca = filterResumoBusca.value;
   renderizarResumoProducao();
 });
+// Seleção múltipla com checkboxes (Ano/Módulo do cabeçalho e filtros avançados da seção)
+[filterResumoAnoAplicacao, filterResumoModulo, filterResumoTipoAv, filterResumoAnoSerie, filterResumoSegmento].forEach((select) =>
+  FiltroMultiplo.criar(select)
+);
 
 // --- Popover "Filtros avançados" do Resumo da Produção (mesmo padrão dos demais popovers do
 // cabeçalho). Os campos aplicam na hora (mesmos listeners acima); "Aplicar filtros" só fecha.
 function atualizarIndicadorFiltrosResumoProducao() {
   const totalAtivos = ['tipoAv', 'anoSerie', 'segmento', 'busca'].filter(
-    (chave) => safe(filtrosResumoProducao[chave]) !== ''
+    (chave) => (Array.isArray(filtrosResumoProducao[chave]) ? filtrosResumoProducao[chave].length > 0 : safe(filtrosResumoProducao[chave]) !== '')
   ).length;
   resumoFilterBadge.hidden = totalAtivos === 0;
   resumoFilterBadge.textContent = totalAtivos;
@@ -13680,10 +13956,11 @@ function fecharPopoverFiltrosResumoProducao() {
 // Limpa Tipo de AV/Ano-Série/Segmento/Busca e também Ano/Módulo do cabeçalho
 function limparFiltrosResumoProducao() {
   [filterResumoAnoAplicacao, filterResumoModulo, filterResumoTipoAv, filterResumoAnoSerie, filterResumoSegmento].forEach(
-    (select) => (select.value = '')
+    (select) => restaurarSelecaoMultipla(select, [])
   );
+  FiltroMultiplo.sincronizar();
   filterResumoBusca.value = '';
-  filtrosResumoProducao = { anoAplicacao: '', modulo: '', tipoAv: '', anoSerie: '', segmento: '', busca: '' };
+  filtrosResumoProducao = { anoAplicacao: [], modulo: [], tipoAv: [], anoSerie: [], segmento: [], busca: '' };
   renderizarResumoProducao();
 }
 
@@ -14141,13 +14418,58 @@ function renderizarTabelaGPA(dados) {
 // dadosGPA estiver vazio (nada carregado ainda/API sem registros), mostra o estado vazio geral;
 // se houver dados mas o recorte filtrado ficar vazio, a própria renderizarTabelaGPA mostra a
 // mensagem "Nenhum Guia Para Avaliação encontrado."
+// --- GPA: seleção de módulo (4 cards, mesmo padrão do Banco de Provas) → tabela do módulo ---
+let moduloGPASelecionado = null; // null = tela de cards; 1..4 = módulo aberto
+// Prancheta com checklist (clipboard-check), mesmo traço dos demais ícones SVG do projeto
+const ICONE_GPA_PRANCHETA =
+  '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4"/><path d="M8.5 10.5l1.2 1.2 2.3-2.3"/><path d="M13.5 10.5H16"/><path d="M8.5 15.5l1.2 1.2 2.3-2.3"/><path d="M13.5 15.5H16"/>';
+
+function renderizarCardsModulosGPA() {
+  document.getElementById('gpaModulosGrid').innerHTML = MODULOS_BANCO_PROVAS.map(
+    (n) => `<article class="bp-modulo-card">
+      <span class="bp-modulo-icone" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONE_GPA_PRANCHETA}</svg></span>
+      <h3 class="bp-modulo-card-titulo">MÓDULO ${n}</h3>
+      <p class="bp-modulo-card-texto">Acessar Guia para Avaliações</p>
+      <button type="button" class="bp-modulo-acessar" data-gpa-modulo="${n}">ACESSAR <span aria-hidden="true">→</span></button>
+    </article>`
+  ).join('');
+}
+
 function renderizarGPA() {
+  const secao = document.getElementById('gpa-section');
+  const selecionando = moduloGPASelecionado === null;
+  secao.classList.toggle('gpa-modo-selecao', selecionando);
+  if (selecionando) {
+    if (!document.getElementById('gpaModulosGrid').children.length) renderizarCardsModulosGPA();
+    return;
+  }
+
+  document.getElementById('gpaModuloTitulo').textContent = `GPA — Módulo ${moduloGPASelecionado}`;
+  const temGuias = dadosGPA.some((r) => numeroModuloBP(r.mod) === moduloGPASelecionado);
+  const aviso = document.getElementById('gpaModuloSemGuias');
+  aviso.hidden = temGuias || dadosGPA.length === 0;
+  aviso.textContent = `Ainda não há Guias para Avaliações cadastrados para o Módulo ${moduloGPASelecionado}.`;
+
   populateGPAFilterOptions(dadosGPA);
   atualizarIndicadorFiltrosGPA();
 
-  const dados = aplicarFiltrosGPA(dadosGPA);
+  const dados = aplicarFiltrosGPA(dadosGPA).filter((r) => numeroModuloBP(r.mod) === moduloGPASelecionado);
   renderizarTabelaGPA(dados);
 }
+
+document.getElementById('gpaModulosGrid').addEventListener('click', (event) => {
+  const botao = event.target.closest('[data-gpa-modulo]');
+  if (!botao) return;
+  moduloGPASelecionado = Number(botao.dataset.gpaModulo);
+  gpaSelectFilters.modulo.value = ''; // o card já define o módulo
+  renderizarGPA();
+  window.scrollTo(0, 0);
+});
+document.getElementById('btnVoltarModulosGPA').addEventListener('click', () => {
+  moduloGPASelecionado = null; // limpa só o módulo do GPA
+  renderizarGPA();
+  window.scrollTo(0, 0);
+});
 
 btnLimparFiltrosGPA.addEventListener('click', limparFiltrosGPA);
 gpaFilterBusca.addEventListener('input', renderizarGPA);
@@ -15071,6 +15393,120 @@ const RELATORIO_ELABORADOR_PRINT_CSS = `
     page-break-inside: avoid;
     break-inside: avoid;
   }
+
+  /* "Relatório de Atividades Pendentes por Coordenador" */
+  .pcr-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .pcr-tabela tbody tr:nth-child(even) td { background: #f4f6f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pcr-check { display: none; }
+  .pcr-orientacao {
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-left: 5px solid #0b315f;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1f2937;
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: left;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pcr-orientacao p { margin: 0 0 6px; }
+  .pcr-orientacao-titulo { margin: 0 0 6px; color: #0b315f; font-size: 13px; font-weight: 800; }
+  .pcr-orientacao-alerta { color: #c62828; font-weight: 800; }
+  .pcr-orientacao .pcr-orientacao-final { margin: 0; color: #0b315f; font-weight: 800; }  .pcr-grupo { margin-top: 14px; }
+  .pcr-grupo-faixa {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    border-radius: 6px 6px 0 0;
+    background: #1555a5;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pcr-grupo--atraso .pcr-grupo-faixa { background: #9b1c1c; }
+  .pcr-grupo--hoje .pcr-grupo-faixa { background: #b5121b; }
+  .pcr-grupo--futuro .pcr-grupo-faixa { background: #0b315f; }
+  .pcr-grupo--sem-prazo .pcr-grupo-faixa { background: #64748b; }
+  .pcr-grupo-coord { font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .pcr-grupo-qtd { white-space: nowrap; text-transform: none; letter-spacing: 0; }
+  .report-section-title.pcr-grupo-alerta {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pcr-grupo-alerta--atraso { background: #fef2f2; color: #9b1c1c; }
+  .pcr-grupo-alerta--hoje { background: #fdecec; color: #7f0d13; }
+  .pcr-tabela-venc th {
+    background: #eef2f7;
+    color: #334155;
+    border: none;
+    border-bottom: 1px solid #cbd5e1;
+    font-size: 9px;
+    text-transform: uppercase;
+  }
+  .pcr-tabela-venc td { border: none; border-bottom: 1px solid #e2e8f0; font-size: 10px; padding: 6px 5px; }
+  .pcr-tabela.pcr-tabela-venc tbody tr:nth-child(even) td { background: #ffffff; }
+  .pcr-discs { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .pcr-disc { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .pcr-prazo-vencido { display: block; font-size: 8.5px; color: #b91c1c; font-weight: 700; }
+  .pcr-devolvido { color: #94a3b8; letter-spacing: 0.05em; }
+  .pcr-check-print {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #0b315f;
+    border-radius: 3px;
+    background: #ffffff;
+    color: #0b315f;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .pcr-kpi { min-height: 0; padding: 8px 10px; border-top: 3px solid #1555a5; }
+  .pcr-kpi .report-kpi-label { margin-bottom: 3px; }
+  .pcr-kpi .report-kpi-value { font-size: 18px; }
+  .pcr-kpi--verde { border-top-color: #15803d; }
+  .pcr-kpi--verde .report-kpi-value { color: #15803d; }
+  .pcr-kpi--vermelho { border-top-color: #b91c1c; }
+  .pcr-kpi--vermelho .report-kpi-value { color: #b91c1c; }
+  .pcr-kpi--cinza { border-top-color: #64748b; }
+  .pcr-kpi--cinza .report-kpi-value { color: #475569; }
+  .pcr-etapa-qtd, .pcr-etapa-coord { font-weight: 700; color: #475569; font-size: 12px; }
+  .pcr-etapa-desc { display: block; margin-top: 1px; font-size: 10px; font-weight: 400; color: #667085; }
+  .pcr-sem-itens { margin: 0 0 8px; font-size: 11px; color: #667085; }
+  .pcr-dias-restantes { color: #15803d; font-weight: 700; }
+  .pcr-badge--atraso { background-color: #fee2e2; color: #b91c1c; }
+  .pcr-badge--prazo { background-color: #dcfce7; color: #15803d; }
+  .pcr-badge--sem-prazo { background-color: #e2e8f0; color: #475569; }
+  .pcr-tabela tbody tr.pcr-linha--atraso td { background: #fef2f2; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pcr-coord-titulo {
+    margin: 18px 0 2px;
+    padding: 6px 10px;
+    border-left: 4px solid #0b315f;
+    background: #e8eef7;
+    color: #0b315f;
+    font-size: 13px;
+    font-weight: 800;
+    border-radius: 6px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pcr-coord-titulo span { font-weight: 600; color: #475569; font-size: 11px; }
 `;
 
 // Impressão em janela separada, só com o HTML do relatório + o CSS acima — evita a abordagem
@@ -15358,7 +15794,38 @@ function gerarRelatorioCoordenador() {
   btnImprimirRelatorioCoordenador.disabled = false;
 }
 
-btnRelatorioCoordenador.addEventListener('click', abrirModalRelatorioCoordenador);
+// Botão RELATÓRIOS: abre o menu (mesmo padrão do menu "Relatórios" da Elaboração). A opção
+// "Performance do Coordenador" abre o relatório acima, sem alterações.
+const menuRelatoriosCoord = document.getElementById('menuRelatoriosCoord');
+
+function fecharMenuRelatoriosCoord() {
+  menuRelatoriosCoord.hidden = true;
+  btnRelatorioCoordenador.setAttribute('aria-expanded', 'false');
+}
+
+btnRelatorioCoordenador.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (!menuRelatoriosCoord.hidden) {
+    fecharMenuRelatoriosCoord();
+    return;
+  }
+  const rect = btnRelatorioCoordenador.getBoundingClientRect();
+  menuRelatoriosCoord.hidden = false;
+  const largura = menuRelatoriosCoord.offsetWidth;
+  menuRelatoriosCoord.style.top = `${rect.bottom + 6}px`;
+  menuRelatoriosCoord.style.left = `${Math.max(8, Math.min(rect.right - largura, window.innerWidth - largura - 8))}px`;
+  btnRelatorioCoordenador.setAttribute('aria-expanded', 'true');
+});
+menuRelatoriosCoord.addEventListener('click', fecharMenuRelatoriosCoord);
+document.addEventListener('click', (event) => {
+  if (!menuRelatoriosCoord.hidden && !menuRelatoriosCoord.contains(event.target)) fecharMenuRelatoriosCoord();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !menuRelatoriosCoord.hidden) fecharMenuRelatoriosCoord();
+});
+window.addEventListener('resize', fecharMenuRelatoriosCoord);
+window.addEventListener('scroll', fecharMenuRelatoriosCoord, true);
+document.getElementById('btnRelCoordPerformance').addEventListener('click', abrirModalRelatorioCoordenador);
 document.getElementById('btnFecharRelatorioCoordenador').addEventListener('click', fecharModalRelatorioCoordenador);
 document.getElementById('btnCancelarRelatorioCoordenador').addEventListener('click', fecharModalRelatorioCoordenador);
 relatorioCoordenadorModalBackdrop.addEventListener('click', (event) => {
@@ -15787,8 +16254,8 @@ let relatorioElabIndividualResumoTexto = '';
 // "Ano: 2026 · Módulo: M4" (só os filtros rápidos aplicados; vazio quando não há nenhum)
 function textoFiltrosRelatorioElabIndividual() {
   const partes = [];
-  if (elabSelectFilters.ano.value) partes.push(`Ano: ${elabSelectFilters.ano.value}`);
-  if (elabSelectFilters.modulo.value) partes.push(`Módulo: ${elabSelectFilters.modulo.value}`);
+  if (valoresFiltro(elabSelectFilters.ano).length) partes.push(`Ano: ${valoresFiltro(elabSelectFilters.ano).join(', ')}`);
+  if (valoresFiltro(elabSelectFilters.modulo).length) partes.push(`Módulo: ${valoresFiltro(elabSelectFilters.modulo).join(', ')}`);
   return partes.join(' · ');
 }
 
@@ -16033,6 +16500,576 @@ relatorioElabIndividualBackdrop.addEventListener('click', (event) => {
 btnCopiarRelatorioElabIndividual.addEventListener('click', copiarResumoRelatorioElabIndividual);
 
 // ======================================================================
+// "Relatório de Atividades Pendentes por Coordenador" (Indicadores — Coordenador → RELATÓRIOS →
+// Atividades Pendentes). Componente independente do relatório de desempenho. Calculado só ao
+// abrir a opção, a partir de allRecords (já em memória, sem novas requisições). Uma atividade =
+// etapa iniciada (data de envio preenchida) e sem devolutiva. Situação pelo prazo da etapa, em
+// dias corridos: prazo anterior a hoje = em atraso; igual/posterior = no prazo; sem prazo válido =
+// "Sem prazo definido" (nunca é tratada como atrasada nem recebe prazo inventado). Elaboração
+// aparece para acompanhamento: o coordenador não é apontado como responsável pelo atraso do
+// elaborador. Filtro de Módulo da página respeitado; as etapas vêm explícitas na seleção.
+// ======================================================================
+
+const ETAPAS_PEND_COORD = [
+  {
+    chave: 'validacao',
+    titulo: '1ª Validação',
+    atividade: '1ª Validação — Aguardando devolutiva',
+    descricao: 'Avaliações enviadas ao coordenador e aguardando devolutiva.',
+    inicio: (r) => safe(r.data_envio_coord),
+    prazo: (r) => safe(r.prazo_coord),
+    fim: (r) => safe(r.devolutiva_coord)
+  },
+  {
+    chave: 'assinatura',
+    titulo: 'Assinatura do Coordenador',
+    atividade: 'Assinatura — Aguardando assinatura',
+    descricao: 'Avaliações enviadas para assinatura e aguardando devolutiva do coordenador.',
+    inicio: (r) => safe(obterValorCampoEtapaProcessoEditorial(r, 'envio_assinatura_coord')),
+    prazo: (r) => safe(r.prazo_assinatura_coord),
+    fim: (r) => safe(obterValorCampoEtapaProcessoEditorial(r, 'devolutiva_assinatura_coord'))
+  }
+];
+const ORDEM_SITUACAO_PEND_COORD = { atraso: 0, prazo: 1, 'sem-prazo': 2 };
+const TODOS_COORDENADORES_PEND = '__todos__';
+
+const selecaoAtivPendBackdrop = document.getElementById('selecaoAtivPendBackdrop');
+const buscaAtivPend = document.getElementById('buscaAtivPend');
+const listaAtivPend = document.getElementById('listaAtivPend');
+const btnGerarRelatorioAtivPend = document.getElementById('btnGerarRelatorioAtivPend');
+const relatorioAtivPendBackdrop = document.getElementById('relatorioAtivPendBackdrop');
+const areaRelatorioAtivPend = document.getElementById('ativ-pend-report-print-area');
+const btnImprimirRelatorioAtivPend = document.getElementById('btnImprimirRelatorioAtivPend');
+const checksEtapasAtivPend = Array.from(document.querySelectorAll('.ativ-pend-etapas input[type="checkbox"]'));
+let atividadesAtivPend = [];
+let coordenadorSelecionadoPend = '';
+
+function etapasSelecionadasAtivPend() {
+  return new Set(checksEtapasAtivPend.filter((c) => c.checked).map((c) => c.value));
+}
+
+function textoRecorteAtivPend() {
+  const modulo = valoresFiltro(indSelectFiltersCoord.modulo).join(', ');
+  const etapas = ETAPAS_PEND_COORD.filter((e) => etapasSelecionadasAtivPend().has(e.chave)).map((e) => e.titulo);
+  return `Módulo: ${modulo || 'Todos'} · Etapas: ${etapas.length ? etapas.join(', ') : 'nenhuma'}`;
+}
+
+function calcularAtividadesPendentesCoord() {
+  const etapas = etapasSelecionadasAtivPend();
+  const modulo = valoresFiltro(indSelectFiltersCoord.modulo);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const vistos = new Set();
+  const itens = [];
+  allRecords.forEach((record) => {
+    if (modulo.length && !modulo.includes(safe(record.modulo))) return;
+    ETAPAS_PEND_COORD.forEach((etapa) => {
+      if (!etapas.has(etapa.chave)) return;
+      const inicio = etapa.inicio(record);
+      if (!inicio || etapa.fim(record)) return;
+      const coordenador = safe(record.coordenador) || 'Não informado';
+      // Linhas repetidas da base (mesma avaliação/etapa/envio) contam uma única vez
+      const chave = [etapa.chave, coordenador, record.modulo, record.ano, record.tipo_av, record.frente, inicio]
+        .map(safe)
+        .join('|');
+      if (vistos.has(chave)) return;
+      vistos.add(chave);
+      const prazoTexto = etapa.prazo(record);
+      const prazo = parseDataAplicacao(prazoTexto);
+      let situacao = 'sem-prazo';
+      let dias = null;
+      if (prazo) {
+        const diferenca = Math.round((hoje.getTime() - prazo.getTime()) / 86400000);
+        situacao = diferenca > 0 ? 'atraso' : 'prazo';
+        dias = Math.abs(diferenca);
+      }
+      itens.push({ record, etapa, coordenador, inicio, prazoTexto, situacao, dias });
+    });
+  });
+  return itens;
+}
+
+function ordenarAtividadesAtivPend(itens) {
+  return itens.sort(
+    (a, b) =>
+      ORDEM_SITUACAO_PEND_COORD[a.situacao] - ORDEM_SITUACAO_PEND_COORD[b.situacao] ||
+      (a.situacao === 'atraso' ? b.dias - a.dias : a.situacao === 'prazo' ? a.dias - b.dias : 0) ||
+      safe(a.record.modulo).localeCompare(safe(b.record.modulo), 'pt-BR', { numeric: true }) ||
+      safe(a.record.ano).localeCompare(safe(b.record.ano), 'pt-BR', { numeric: true })
+  );
+}
+
+function resumirAtivPend(itens) {
+  return {
+    total: itens.length,
+    prazo: itens.filter((i) => i.situacao === 'prazo').length,
+    atraso: itens.filter((i) => i.situacao === 'atraso').length,
+    semPrazo: itens.filter((i) => i.situacao === 'sem-prazo').length
+  };
+}
+
+const textoQtdAtivPend = (qtd) => `${qtd} atividade${qtd === 1 ? '' : 's'} pendente${qtd === 1 ? '' : 's'}`;
+
+function renderizarListaAtivPend() {
+  const porCoordenador = new Map();
+  atividadesAtivPend.forEach((i) => porCoordenador.set(i.coordenador, (porCoordenador.get(i.coordenador) || 0) + 1));
+  const termo = removerAcentos(safe(buscaAtivPend.value)).toLowerCase();
+  const opcoes = [
+    ...(atividadesAtivPend.length ? [{ valor: TODOS_COORDENADORES_PEND, nome: 'Todos os coordenadores', qtd: atividadesAtivPend.length }] : []),
+    ...Array.from(porCoordenador, ([nome, qtd]) => ({ valor: nome, nome, qtd })).sort(
+      (a, b) => b.qtd - a.qtd || a.nome.localeCompare(b.nome, 'pt-BR')
+    )
+  ].filter((o) => !termo || removerAcentos(o.nome).toLowerCase().includes(termo));
+  if (!opcoes.some((o) => o.valor === coordenadorSelecionadoPend)) coordenadorSelecionadoPend = '';
+
+  listaAtivPend.innerHTML = '';
+  opcoes.forEach(({ valor, nome, qtd }) => {
+    const linha = document.createElement('div');
+    linha.className = 'elab-ind-item';
+    linha.classList.toggle('is-selected', valor === coordenadorSelecionadoPend);
+    const opcao = document.createElement('button');
+    opcao.type = 'button';
+    opcao.className = 'elab-ind-item-nome';
+    opcao.setAttribute('role', 'option');
+    opcao.setAttribute('aria-selected', String(valor === coordenadorSelecionadoPend));
+    opcao.textContent = `${nome} — ${textoQtdAtivPend(qtd)}`;
+    opcao.addEventListener('click', () => {
+      coordenadorSelecionadoPend = valor;
+      renderizarListaAtivPend();
+    });
+    opcao.addEventListener('dblclick', () => {
+      coordenadorSelecionadoPend = valor;
+      abrirRelatorioAtivPend();
+    });
+    linha.appendChild(opcao);
+    listaAtivPend.appendChild(linha);
+  });
+
+  const vazio = document.getElementById('selecaoAtivPendVazio');
+  vazio.textContent = atividadesAtivPend.length
+    ? 'Nenhum coordenador encontrado para a pesquisa.'
+    : 'Nenhuma atividade pendente no recorte selecionado.';
+  vazio.hidden = opcoes.length > 0;
+  btnGerarRelatorioAtivPend.disabled = !coordenadorSelecionadoPend;
+}
+
+function atualizarSelecaoAtivPend() {
+  atividadesAtivPend = calcularAtividadesPendentesCoord();
+  document.getElementById('selecaoAtivPendFiltros').textContent = textoRecorteAtivPend();
+  renderizarListaAtivPend();
+}
+
+function abrirSelecaoAtivPend() {
+  checksEtapasAtivPend.forEach((c) => { c.checked = true; });
+  buscaAtivPend.value = '';
+  coordenadorSelecionadoPend = '';
+  atualizarSelecaoAtivPend();
+  if (!geracaoLoteAtivPendEmAndamento) document.getElementById('loteAtivPendProgresso').hidden = true;
+  selecaoAtivPendBackdrop.hidden = false;
+  buscaAtivPend.focus();
+}
+
+function fecharSelecaoAtivPend() {
+  selecaoAtivPendBackdrop.hidden = true;
+}
+
+function formatarDataAtivPend(texto) {
+  const data = parseDataAplicacao(texto);
+  return data ? formatarDataAplicacaoExibicao(data) : texto || '—';
+}
+
+// Checklist auxiliar do coordenador: marca uma atividade como "conferida". Não altera situação,
+// prazo, dias, totais nem a BD_SGGE. Fica só em memória nesta sessão da página (persiste ao
+// fechar/reabrir/regerar o relatório; some ao recarregar). Interface única (obter/definir) para
+// uma futura integração com uma base de acompanhamento, sem endpoint de gravação por ora.
+const ChecklistAtivPend = {
+  marcados: new Set(),
+  obter(id) {
+    return this.marcados.has(id);
+  },
+  definir(id, marcado) {
+    if (marcado) this.marcados.add(id);
+    else this.marcados.delete(id);
+  }
+};
+
+// Identificador estável da atividade (não depende da posição na tabela)
+function idChecklistAtivPend(item) {
+  const r = item.record;
+  return [item.etapa.chave, safe(r.id || r.id_avaliacao), r.modulo, r.ano, normalizarTipoAvPerformance(r.tipo_av), r.frente, item.coordenador]
+    .map(safe)
+    .join('|');
+}
+
+
+function htmlKpisAtivPend(resumo) {
+  const kpi = (rotulo, valor, mod) => `<div class="report-kpi pcr-kpi pcr-kpi--${mod}">
+      <span class="report-kpi-label">${rotulo}</span><span class="report-kpi-value">${valor}</span></div>`;
+  return `<div class="report-kpis pcr-kpis">
+    ${kpi('Total de atividades pendentes', resumo.total, 'azul')}
+    ${kpi('Pendentes no prazo', resumo.prazo, 'verde')}
+    ${kpi('Pendentes em atraso', resumo.atraso, 'vermelho')}
+  </div>`;
+}
+
+// Detalhamento por vencimento: grupos dinâmicos a partir do prazo real de cada atividade (dias
+// corridos até a data de geração) — Pendências em atraso, Vence hoje, um grupo por data futura
+// (ordem crescente) e, se houver, Sem prazo definido. Dentro do grupo, as atividades com mesmo
+// coordenador, etapa, módulo, avaliação, ano, envio e prazo viram UMA linha (só apresentação),
+// com uma caixa de checklist por disciplina; a contagem do grupo é sempre por atividade.
+const DIAS_SEMANA_ATIV_PEND = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+function rotuloDataCurtaAtivPend(data) {
+  return `${String(data.getDate()).padStart(2, '0')}/${String(data.getMonth() + 1).padStart(2, '0')} (${DIAS_SEMANA_ATIV_PEND[data.getDay()]})`;
+}
+
+function segmentoCurtoAtivPend(ano) {
+  const segmento = classificarSegmentoRelatorioElaborador(ano);
+  return segmento === 'Fundamental II' ? 'Fund. II' : segmento === 'Ensino Médio' ? 'Médio' : '-';
+}
+
+function agruparPorVencimentoAtivPend(itens) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const grupos = new Map();
+  itens.forEach((item) => {
+    let chave;
+    if (item.situacao === 'atraso') chave = 'atraso';
+    else if (item.situacao === 'sem-prazo') chave = 'sem-prazo';
+    else chave = `d${String(item.dias).padStart(5, '0')}`;
+    if (!grupos.has(chave)) {
+      let titulo;
+      let tom;
+      if (chave === 'atraso') {
+        titulo = 'Pendências em atraso';
+        tom = 'atraso';
+      } else if (chave === 'sem-prazo') {
+        titulo = 'Sem prazo definido';
+        tom = 'sem-prazo';
+      } else if (item.dias === 0) {
+        titulo = `Vence hoje — ${rotuloDataCurtaAtivPend(hoje)}`;
+        tom = 'hoje';
+      } else {
+        const data = new Date(hoje.getTime());
+        data.setDate(data.getDate() + item.dias);
+        titulo = `Vence em ${item.dias} ${item.dias === 1 ? 'dia' : 'dias'} — ${rotuloDataCurtaAtivPend(data)}`;
+        tom = item.dias <= 7 ? 'proximo' : 'futuro';
+      }
+      grupos.set(chave, { chave, titulo, tom, itens: [] });
+    }
+    grupos.get(chave).itens.push(item);
+  });
+  // atraso → hoje/futuros (d00000, d00003…) → sem prazo
+  const peso = (g) => (g.chave === 'atraso' ? '0' : g.chave === 'sem-prazo' ? '2' : `1${g.chave}`);
+  return Array.from(grupos.values()).sort((a, b) => peso(a).localeCompare(peso(b)));
+}
+
+function consolidarLinhasAtivPend(itens) {
+  const linhas = new Map();
+  itens.forEach((item) => {
+    const r = item.record;
+    const chave = [item.coordenador, item.etapa.chave, r.modulo, normalizarTipoAvPerformance(r.tipo_av), r.ano, item.inicio, item.prazoTexto]
+      .map(safe)
+      .join('|');
+    if (!linhas.has(chave)) linhas.set(chave, { base: item, itens: [] });
+    linhas.get(chave).itens.push(item);
+  });
+  const prazoMs = (l) => (parseDataAplicacao(l.base.prazoTexto) || { getTime: () => 0 }).getTime();
+  return Array.from(linhas.values()).sort(
+    (a, b) =>
+      prazoMs(a) - prazoMs(b) ||
+      ETAPAS_PEND_COORD.indexOf(a.base.etapa) - ETAPAS_PEND_COORD.indexOf(b.base.etapa) ||
+      safe(a.base.record.modulo).localeCompare(safe(b.base.record.modulo), 'pt-BR', { numeric: true }) ||
+      normalizarTipoAvPerformance(a.base.record.tipo_av).localeCompare(normalizarTipoAvPerformance(b.base.record.tipo_av), 'pt-BR') ||
+      safe(a.base.record.ano).localeCompare(safe(b.base.record.ano), 'pt-BR', { numeric: true })
+  );
+}
+
+function htmlDisciplinaAtivPend(item) {
+  const id = idChecklistAtivPend(item);
+  const marcado = ChecklistAtivPend.obter(id);
+  return `<label class="pcr-disc"><input type="checkbox" class="pcr-check" data-check-id="${escaparTextoSvg(id)}"${
+    marcado ? ' checked' : ''
+  }><span class="pcr-check-print" aria-hidden="true">${marcado ? '✓' : ''}</span>${escaparTextoSvg(safe(item.record.frente)) || '-'}</label>`;
+}
+
+const MENSAGENS_GRUPO_ATIV_PEND = {
+  atraso: 'Atenção! Existem atividades com prazo vencido que ainda aguardam devolutiva.',
+  hoje: 'Prazo encerra hoje. Priorize a regularização das atividades pendentes.'
+};
+
+function htmlGrupoVencimentoAtivPend(grupo, nomeCoordenador) {
+  const qtd = grupo.itens.length;
+  const linhas = consolidarLinhasAtivPend(grupo.itens)
+    .map(({ base, itens }) => {
+      const r = base.record;
+      const disciplinas = [...itens]
+        .sort((a, b) => safe(a.record.frente).localeCompare(safe(b.record.frente), 'pt-BR', { numeric: true }))
+        .map(htmlDisciplinaAtivPend)
+        .join('');
+      const prazoAtraso = grupo.tom === 'atraso' && base.prazoTexto
+        ? `<span class="pcr-prazo-vencido">prazo ${escaparTextoSvg(formatarDataAtivPend(base.prazoTexto))}</span>`
+        : '';
+      return `<tr>
+        <td class="text-left">${base.etapa.titulo}</td>
+        <td><strong>${escaparTextoSvg(safe(r.modulo)) || '-'}</strong></td>
+        <td><strong>${escaparTextoSvg(normalizarTipoAvPerformance(r.tipo_av)) || '-'}</strong></td>
+        <td><strong>${escaparTextoSvg(safe(r.ano)) || '-'}</strong></td>
+        <td>${segmentoCurtoAtivPend(r.ano)}</td>
+        <td class="text-left"><div class="pcr-discs">${disciplinas}</div></td>
+        <td>${escaparTextoSvg(formatarDataAtivPend(base.inicio))}${prazoAtraso}</td>
+        <td class="pcr-devolvido">____/____</td>
+      </tr>`;
+    })
+    .join('');
+  const coord = nomeCoordenador ? ` <span class="pcr-grupo-coord">· ${escaparTextoSvg(nomeCoordenador)}</span>` : '';
+  const mensagem = MENSAGENS_GRUPO_ATIV_PEND[grupo.tom]
+    ? `<p class="report-section-title pcr-grupo-alerta pcr-grupo-alerta--${grupo.tom}">${MENSAGENS_GRUPO_ATIV_PEND[grupo.tom]}</p>`
+    : '';
+  return `<div class="report-section pcr-grupo pcr-grupo--${grupo.tom}">
+    <div class="pcr-grupo-faixa"><span class="pcr-grupo-titulo">${escaparTextoSvg(grupo.titulo)}${coord}</span><span class="pcr-grupo-qtd">${qtd} ${qtd === 1 ? 'pendência' : 'pendências'}</span></div>
+    ${mensagem}
+    <div class="report-table-wrap"><table class="report-table pcr-tabela pcr-tabela-venc">
+      <colgroup><col style="width:13%"><col style="width:7%"><col style="width:10%"><col style="width:6%"><col style="width:8%"><col style="width:33%"><col style="width:11%"><col style="width:12%"></colgroup>
+      <thead><tr><th>Etapa</th><th>Mód.</th><th>Avaliação</th><th>Ano</th><th>Seg.</th><th>Disciplinas (marcar ao enviar)</th><th>Envio</th><th>Devolvido em</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function htmlSecoesCoordenadorAtivPend(itens, etapas, nomeCoordenador) {
+  if (!itens.length) return '<p class="pcr-sem-itens">Nenhuma atividade pendente no recorte selecionado.</p>';
+  return agruparPorVencimentoAtivPend(itens)
+    .map((grupo) => htmlGrupoVencimentoAtivPend(grupo, nomeCoordenador))
+    .join('');
+}
+function gerarRelatorioAtivPend(selecao) {
+  const todos = selecao === TODOS_COORDENADORES_PEND;
+  const itens = todos ? atividadesAtivPend : atividadesAtivPend.filter((i) => i.coordenador === selecao);
+  const etapas = etapasSelecionadasAtivPend();
+  const resumo = resumirAtivPend(itens);
+  const nome = todos ? 'Todos os coordenadores' : selecao;
+
+  let corpo;
+  if (todos) {
+    const linhaResumo = (rotulo, lista) => {
+      const r = resumirAtivPend(lista);
+      return `<tr><td class="text-left">${escaparTextoSvg(rotulo)}</td><td>${r.total}</td><td>${r.prazo}</td><td class="${r.atraso ? 'delay-positive' : ''}">${r.atraso}</td><td>${r.semPrazo}</td></tr>`;
+    };
+    const cabecalho = (primeira) =>
+      `<thead><tr><th>${primeira}</th><th>Total</th><th>No prazo</th><th>Em atraso</th><th>Sem prazo</th></tr></thead>`;
+    const coordenadores = Array.from(new Set(itens.map((i) => i.coordenador))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    corpo = `
+      <div class="report-section report-section--compacto">
+        <h3 class="report-section-title">Distribuição por etapa</h3>
+        <div class="report-table-wrap"><table class="report-table report-table--elab-ind pcr-tabela">
+          ${cabecalho('Etapa')}
+          <tbody>${ETAPAS_PEND_COORD.filter((e) => etapas.has(e.chave)).map((e) => linhaResumo(e.titulo, itens.filter((i) => i.etapa === e))).join('')}</tbody>
+        </table></div>
+      </div>
+      <div class="report-section report-section--compacto">
+        <h3 class="report-section-title">Resumo por coordenador</h3>
+        <div class="report-table-wrap"><table class="report-table report-table--elab-ind pcr-tabela">
+          ${cabecalho('Coordenador')}
+          <tbody>${coordenadores.map((c) => linhaResumo(c, itens.filter((i) => i.coordenador === c))).join('')}</tbody>
+        </table></div>
+      </div>
+      ${coordenadores
+        .map((c) => {
+          const doCoord = itens.filter((i) => i.coordenador === c);
+          return `<div class="pcr-coord-titulo">${escaparTextoSvg(c)} <span>— ${textoQtdAtivPend(doCoord.length)}</span></div>${htmlSecoesCoordenadorAtivPend(doCoord, etapas, c)}`;
+        })
+        .join('')}`;
+  } else {
+    corpo = htmlSecoesCoordenadorAtivPend(itens, etapas, '');
+  }
+
+  areaRelatorioAtivPend.innerHTML = `
+    <div class="report-print-header">
+      <div class="report-header-left"><img src="assets/logo/logo-sgge.png" alt="Logo GGE"></div>
+      <div class="report-title-wrap">
+        <h1 class="report-title">Relatório de Atividades Pendentes</h1>
+        <p class="report-section-subtitle">Acompanhamento das atividades em aberto nas etapas de 1ª validação e assinatura das avaliações.</p>
+        <p class="report-elab-nome">${escaparTextoSvg(nome)}</p>
+        <p class="report-section-subtitle report-generated-at">Gerado em: ${formatarDataHoraAtual().replace(' ', ' às ')}</p>
+        <p class="report-section-subtitle">${escaparTextoSvg(textoRecorteAtivPend())}</p>
+      </div>
+    </div>
+    ${htmlKpisAtivPend(resumo)}
+    ${corpo}
+    <div class="pcr-orientacao"><h4 class="pcr-orientacao-titulo">Atenção aos prazos!</h4><p>O cumprimento dos prazos estabelecidos é fundamental para garantir o bom andamento do processo de avaliações, evitando impactos nas etapas posteriores.</p><p>Em caso de possíveis <strong class="pcr-orientacao-alerta">atrasos</strong>, solicitamos que a equipe administrativa de Avaliações seja comunicada com antecedência, permitindo o alinhamento e a adoção das medidas necessárias.</p><p>Contamos com sua colaboração para o cumprimento dos prazos e a continuidade das atividades.</p><p class="pcr-orientacao-final">Bom trabalho!</p></div>`;
+}
+
+function abrirRelatorioAtivPend() {
+  if (!coordenadorSelecionadoPend) return;
+  fecharSelecaoAtivPend();
+  gerarRelatorioAtivPend(coordenadorSelecionadoPend);
+  relatorioAtivPendBackdrop.hidden = false;
+}
+
+function fecharRelatorioAtivPend() {
+  relatorioAtivPendBackdrop.hidden = true;
+}
+
+async function salvarPdfRelatorioAtivPend() {
+  const nome = coordenadorSelecionadoPend === TODOS_COORDENADORES_PEND ? 'Todos os coordenadores' : coordenadorSelecionadoPend;
+  const titulo = `Relatório de Atividades Pendentes — ${nome}`;
+  const textoOriginal = btnImprimirRelatorioAtivPend.textContent;
+  btnImprimirRelatorioAtivPend.disabled = true;
+  btnImprimirRelatorioAtivPend.textContent = 'Gerando PDF…';
+  const iframe = criarIframePdf();
+  try {
+    await garantirBibliotecasPdf();
+    const blob = await gerarPdfRelatorioCobranca(iframe, areaRelatorioAtivPend.innerHTML, titulo, true);
+    const base = removerAcentos(nome).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'COORDENADOR';
+    baixarArquivo(blob, `RELATORIO_ATIVIDADES_PENDENTES_${base}_${dataArquivoLoteCobranca()}.pdf`);
+  } catch (erro) {
+    console.error('Falha ao gerar o PDF; abrindo a impressão do navegador:', erro);
+    imprimirAreaRelatorio('ativ-pend-report-print-area', titulo);
+  } finally {
+    iframe.remove();
+    btnImprimirRelatorioAtivPend.disabled = false;
+    btnImprimirRelatorioAtivPend.textContent = textoOriginal;
+  }
+}
+
+// "Gerar Todos os PDFs": um PDF por coordenador com atividades no recorte atual (etapas
+// marcadas + Módulo da página), com o MESMO template do relatório individual
+// (gerarRelatorioAtivPend + gerarPdfRelatorioCobranca), reunidos num ZIP baixado localmente.
+// Sequencial, devolvendo o controle ao navegador entre um PDF e outro; falhas não interrompem.
+const btnGerarTodosPdfsAtivPend = document.getElementById('btnGerarTodosPdfsAtivPend');
+let geracaoLoteAtivPendEmAndamento = false;
+
+function atualizarProgressoLoteAtivPend(texto, percentual) {
+  document.getElementById('loteAtivPendStatus').textContent = texto;
+  document.getElementById('loteAtivPendBarra').style.width = `${Math.max(0, Math.min(100, percentual))}%`;
+}
+
+function nomeArquivoPdfAtivPend(coordenador, data, usados) {
+  const base = removerAcentos(coordenador).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Coordenador';
+  let nome = `SIGPA_Pendencias_Coordenador_${base}_${data}.pdf`;
+  let sufixo = 2;
+  while (usados.has(nome)) nome = `SIGPA_Pendencias_Coordenador_${base}_${sufixo++}_${data}.pdf`;
+  usados.add(nome);
+  return nome;
+}
+
+async function gerarTodosPdfsAtivPend() {
+  if (geracaoLoteAtivPendEmAndamento) return;
+  atividadesAtivPend = calcularAtividadesPendentesCoord();
+  const semCoordenador = atividadesAtivPend.filter((i) => i.coordenador === 'Não informado').length;
+  const coordenadores = Array.from(new Set(atividadesAtivPend.map((i) => i.coordenador)))
+    .filter((nome) => nome !== 'Não informado')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const progresso = document.getElementById('loteAtivPendProgresso');
+  const resultado = document.getElementById('loteAtivPendResultado');
+  progresso.hidden = false;
+  resultado.hidden = true;
+
+  if (coordenadores.length === 0) {
+    atualizarProgressoLoteAtivPend('Nenhum coordenador possui atividades pendentes no recorte selecionado.', 0);
+    return;
+  }
+
+  geracaoLoteAtivPendEmAndamento = true;
+  btnGerarTodosPdfsAtivPend.disabled = true;
+  btnGerarRelatorioAtivPend.disabled = true;
+  const iframe = criarIframePdf();
+  const falhas = [];
+  let gerados = 0;
+  try {
+    atualizarProgressoLoteAtivPend(`Preparando geração — ${coordenadores.length} coordenadores identificados…`, 0);
+    await garantirBibliotecasPdf(true);
+    const zip = new window.JSZip();
+    const data = dataArquivoLoteCobranca();
+    const nomesUsados = new Set();
+
+    for (let i = 0; i < coordenadores.length; i += 1) {
+      const nome = coordenadores[i];
+      atualizarProgressoLoteAtivPend(
+        `Gerando relatório ${i + 1} de ${coordenadores.length} — ${nome} (${gerados} concluído${gerados === 1 ? '' : 's'})`,
+        (i / coordenadores.length) * 100
+      );
+      try {
+        gerarRelatorioAtivPend(nome); // mesmo template; só as atividades deste coordenador
+        const blob = await gerarPdfRelatorioCobranca(
+          iframe,
+          areaRelatorioAtivPend.innerHTML,
+          `Relatório de Atividades Pendentes — ${nome}`,
+          true
+        );
+        zip.file(nomeArquivoPdfAtivPend(nome, data, nomesUsados), blob);
+        gerados += 1;
+      } catch (erro) {
+        console.error(`Falha ao gerar o PDF de ${nome}:`, erro);
+        falhas.push(nome);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    if (gerados > 0) {
+      atualizarProgressoLoteAtivPend(`Compactando ${gerados} PDF${gerados === 1 ? '' : 's'} no arquivo ZIP…`, 100);
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      baixarArquivo(zipBlob, `SIGPA_Relatorios_Pendencias_Coordenadores_${data}.zip`);
+      atualizarProgressoLoteAtivPend(
+        falhas.length
+          ? `Concluído com falhas: ${gerados} de ${coordenadores.length} PDFs gerados e baixados no ZIP.`
+          : `Concluído: ${gerados} de ${coordenadores.length} PDFs gerados e baixados no ZIP.`,
+        100
+      );
+    } else {
+      atualizarProgressoLoteAtivPend('Nenhum PDF pôde ser gerado.', 100);
+    }
+    const avisos = [];
+    if (falhas.length) avisos.push(`Falha em ${falhas.length} coordenador${falhas.length === 1 ? '' : 'es'}: ${falhas.join(', ')}. Detalhes no console do navegador.`);
+    if (semCoordenador) avisos.push(`${semCoordenador} atividade${semCoordenador === 1 ? '' : 's'} sem coordenador informado na base não entraram no lote.`);
+    if (avisos.length) {
+      resultado.hidden = false;
+      resultado.textContent = avisos.join(' ');
+    }
+  } catch (erro) {
+    console.error('Erro na geração em lote:', erro);
+    atualizarProgressoLoteAtivPend(
+      `Não foi possível gerar os PDFs: ${erro.message} Verifique a conexão (as bibliotecas de PDF/ZIP são carregadas da internet).`,
+      0
+    );
+  } finally {
+    iframe.remove();
+    geracaoLoteAtivPendEmAndamento = false;
+    btnGerarTodosPdfsAtivPend.disabled = false;
+    btnGerarRelatorioAtivPend.disabled = !coordenadorSelecionadoPend;
+  }
+}
+
+btnGerarTodosPdfsAtivPend.addEventListener('click', gerarTodosPdfsAtivPend);
+
+// Marcação do checklist: guarda o estado e espelha na caixa estática (o PDF usa o innerHTML,
+// que não reflete a propriedade checked); indicadores e linhas não mudam
+areaRelatorioAtivPend.addEventListener('change', (event) => {
+  const check = event.target.closest('.pcr-check');
+  if (!check) return;
+  ChecklistAtivPend.definir(check.dataset.checkId, check.checked);
+  check.toggleAttribute('checked', check.checked);
+  check.nextElementSibling.textContent = check.checked ? '✓' : '';
+});
+
+document.getElementById('btnRelCoordPendencias').addEventListener('click', abrirSelecaoAtivPend);
+checksEtapasAtivPend.forEach((c) => c.addEventListener('change', atualizarSelecaoAtivPend));
+buscaAtivPend.addEventListener('input', renderizarListaAtivPend);
+btnGerarRelatorioAtivPend.addEventListener('click', abrirRelatorioAtivPend);
+document.getElementById('btnCancelarSelecaoAtivPend').addEventListener('click', fecharSelecaoAtivPend);
+document.getElementById('btnFecharSelecaoAtivPend').addEventListener('click', fecharSelecaoAtivPend);
+selecaoAtivPendBackdrop.addEventListener('click', (event) => {
+  if (event.target === selecaoAtivPendBackdrop) fecharSelecaoAtivPend();
+});
+document.getElementById('btnFecharRelatorioAtivPend').addEventListener('click', fecharRelatorioAtivPend);
+document.getElementById('btnCancelarRelatorioAtivPend').addEventListener('click', fecharRelatorioAtivPend);
+relatorioAtivPendBackdrop.addEventListener('click', (event) => {
+  if (event.target === relatorioAtivPendBackdrop) fecharRelatorioAtivPend();
+});
+btnImprimirRelatorioAtivPend.addEventListener('click', salvarPdfRelatorioAtivPend);
+
+// ======================================================================
 // PDF do "Relatório de Pendências em Atraso" (individual e em lote): o MESMO template do
 // relatório individual (área de impressão do modal, preenchida por gerarRelatorioElabIndividual)
 // é renderizado num iframe fora da tela com o mesmo documento/CSS da impressão
@@ -16176,7 +17213,8 @@ function paginarRelatorioPdf(doc, origem) {
 }
 
 // Converte o HTML do relatório num PDF A4 (Blob) — ver comentário do bloco
-async function gerarPdfRelatorioCobranca(iframe, reportHTML, titulo) {
+// numerarPaginas (opcional, padrão false): escreve "Página X de Y" no rodapé de cada folha
+async function gerarPdfRelatorioCobranca(iframe, reportHTML, titulo, numerarPaginas = false) {
   const doc = iframe.contentDocument;
   doc.open();
   doc.write(montarDocumentoImpressaoRelatorio(reportHTML, titulo));
@@ -16204,6 +17242,15 @@ async function gerarPdfRelatorioCobranca(iframe, reportHTML, titulo) {
     if (i > 0) pdf.addPage();
     const alturaMm = (canvas.height * PDF_LARGURA_UTIL_MM) / canvas.width;
     pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', PDF_MARGEM_MM, PDF_MARGEM_MM, PDF_LARGURA_UTIL_MM, alturaMm);
+  }
+  if (numerarPaginas) {
+    const total = pdf.getNumberOfPages();
+    for (let i = 1; i <= total; i += 1) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(102, 112, 133);
+      pdf.text(`Página ${i} de ${total}`, 200, 292, { align: 'right' });
+    }
   }
   return pdf.output('blob');
 }
@@ -16893,8 +17940,9 @@ btnImprimirRelatorioPendCoord.addEventListener('click', () =>
 //    espaços). Linhas sem esses três campos = sem erro registrado.
 //  • "Total de erros" = quantidade de LINHAS com erro (uma avaliação pode ter mais de uma linha
 //    de erro — a base tem IDs repetidos exatamente nesses casos).
-//  • "% Avaliações com erro" = IDs DISTINTOS com erro ÷ IDs DISTINTOS no recorte (os IDs
-//    repetidos não inflam o numerador nem o denominador). `tt_questao` não entra no cálculo.
+//  • "Total de questões" = soma de `tt_questao` das provas do recorte (com e sem erro), uma vez
+//    por id. "% de erros por questões" = total de erros ÷ total de questões × 100 (taxa de
+//    ocorrências, não de questões distintas). "% Qualidade" = 100 − % de erros por questões.
 //  • Gráficos contam linhas com erro (somam o "Total de erros").
 // ======================================================================
 
@@ -16918,8 +17966,14 @@ function normalizarRegistroQualidade(r) {
   const acao = texto(r.acao);
   const descricao = texto(r.descricao);
   const correlacao = texto(r.correlacao);
+  // tt_questao: número de questões da prova; vazio/inválido = null (não entra na soma, sem NaN)
+  const textoQuestoes = texto(r.tt_questao).replace(',', '.');
+  const ttQuestao = textoQuestoes !== '' && Number.isFinite(Number(textoQuestoes)) && Number(textoQuestoes) >= 0
+    ? Number(textoQuestoes)
+    : null;
   return {
     id: texto(r.id),
+    ttQuestao,
     modulo: texto(r.mod),
     ano,
     segmento,
@@ -16937,7 +17991,7 @@ function normalizarRegistroQualidade(r) {
 }
 
 function preencherSelectErros(select, valores, rotuloTodos) {
-  const atual = select.value;
+  const atuais = valoresFiltro(select);
   select.innerHTML = `<option value="">${rotuloTodos}</option>`;
   valores.forEach((valor) => {
     const option = document.createElement('option');
@@ -16945,7 +17999,7 @@ function preencherSelectErros(select, valores, rotuloTodos) {
     option.textContent = valor;
     select.appendChild(option);
   });
-  select.value = valores.includes(atual) ? atual : '';
+  restaurarSelecaoMultipla(select, atuais);
 }
 
 // Contagem por chave → [{ rotulo, qtd }], na ordem pedida (fixos primeiro, depois alfabética)
@@ -17102,14 +18156,16 @@ function renderizarErrosAvaliacoes() {
   preencherSelectErros(errosFiltros.disciplina, unicos('frente').sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })), 'Todas');
 
   // 1) Filtros do cabeçalho (globais da seção)
-  const f = Object.fromEntries(Object.entries(errosFiltros).map(([chave, select]) => [chave, select.value]));
+  // Seleção múltipla: OU entre valores do mesmo filtro, E entre filtros
+  const f = Object.fromEntries(Object.entries(errosFiltros).map(([chave, select]) => [chave, valoresFiltro(select)]));
+  const aceita = (valores, valor) => valores.length === 0 || valores.includes(valor);
   const recorte = todos.filter(
     (r) =>
-      (!f.modulo || r.modulo === f.modulo) &&
-      (!f.ano || r.ano === f.ano) &&
-      (!f.tipoAv || r.tipoAv === f.tipoAv) &&
-      (!f.segmento || r.segmento === f.segmento) &&
-      (!f.disciplina || r.frente === f.disciplina)
+      aceita(f.modulo, r.modulo) &&
+      aceita(f.ano, r.ano) &&
+      aceita(f.tipoAv, r.tipoAv) &&
+      aceita(f.segmento, r.segmento) &&
+      aceita(f.disciplina, r.frente)
   );
   const errosDoRecorte = recorte.filter((r) => r.temErro);
 
@@ -17135,27 +18191,34 @@ function renderizarErrosAvaliacoes() {
   status.hidden = true;
   conteudo.hidden = false;
 
-  // Indicadores: denominador = TODAS as avaliações distintas do recorte filtrado (com e sem erro)
+  // Indicadores: taxa de OCORRÊNCIAS de erro por total de questões (uma ocorrência não é
+  // necessariamente uma questão distinta). Denominador = soma de tt_questao de TODAS as provas do
+  // recorte filtrado (com e sem erro), contando cada id uma única vez (linhas repetidas de erro da
+  // mesma prova não somam de novo; se as linhas divergirem, vale o maior valor válido). Linhas sem
+  // id contam individualmente.
   const corr = filtrosGraficoErros.correlacao;
-  const avaliacoes = new Set(linhasRecorte.map((r) => r.id).filter(Boolean));
   const avaliacoesComErro = new Set(comErro.map((r) => r.id).filter(Boolean));
-  // Avaliação = id distinto; tem erro se QUALQUER linha dela tiver erro. Sem erro = total − com erro.
-  // % qualidade = 100 − % com erro, calculado sem arredondar (só a exibição arredonda).
-  const avaliacoesSemErro = avaliacoes.size - avaliacoesComErro.size;
-  const percentual = avaliacoes.size ? (avaliacoesComErro.size / avaliacoes.size) * 100 : 0;
-  const percentualQualidade = avaliacoes.size ? (avaliacoesSemErro / avaliacoes.size) * 100 : 0;
+  const questoesPorProva = new Map();
+  linhasRecorte.forEach((r, indice) => {
+    if (r.ttQuestao === null) return;
+    const chave = r.id || `__sem_id_${indice}`;
+    questoesPorProva.set(chave, Math.max(questoesPorProva.get(chave) || 0, r.ttQuestao));
+  });
+  const totalQuestoes = Array.from(questoesPorProva.values()).reduce((soma, v) => soma + v, 0);
+  // Sem arredondar no cálculo (só a exibição arredonda); qualidade = 100 − % de erros por questões
+  const percentual = totalQuestoes ? (comErro.length / totalQuestoes) * 100 : 0;
+  const percentualQualidade = totalQuestoes ? 100 - percentual : 0;
+  const fmt2 = (valor) => valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sufixoCorr = corr ? ` (correlação ${corr})` : '';
   document.getElementById('errosCardTotal').textContent = comErro.length;
   document.getElementById('errosCardTotalSub').textContent =
     `${comErro.length === 1 ? 'Registro' : 'Registros'} com erro${sufixoCorr} em ${avaliacoesComErro.size} ${avaliacoesComErro.size === 1 ? 'avaliação' : 'avaliações'}`;
-  document.getElementById('errosCardAvaliacoes').textContent = avaliacoes.size;
-  document.getElementById('errosCardPercentual').textContent = `${formatarPercentualComVirgula(percentual)}%`;
+  document.getElementById('errosCardAvaliacoes').textContent = totalQuestoes.toLocaleString('pt-BR');
+  document.getElementById('errosCardPercentual').textContent = totalQuestoes ? `${fmt2(percentual)}%` : '—';
   document.getElementById('errosCardPercentualSub').textContent =
-    `${avaliacoesComErro.size} de ${avaliacoes.size} avaliações distintas${corr ? ` com erro de ${corr}` : ''}`;
-  document.getElementById('errosCardQualidade').textContent = `${formatarPercentualComVirgula(percentualQualidade)}%`;
-  document.getElementById('errosCardQualidadeSub').textContent = corr
-    ? `${avaliacoesSemErro} de ${avaliacoes.size} sem erro de ${corr} (não é a taxa geral)`
-    : `${avaliacoesSemErro} de ${avaliacoes.size} avaliações sem erro`;
+    `Ocorrências de erro em relação ao total de questões${sufixoCorr}`;
+  document.getElementById('errosCardQualidade').textContent = totalQuestoes ? `${fmt2(percentualQualidade)}%` : '—';
+  document.getElementById('errosCardQualidadeSub').textContent = 'Índice calculado a partir da taxa de erros por questões';
 
   // Gráficos: cada um conta as linhas com erro filtradas pelos OUTROS gráficos (o próprio gráfico
   // continua mostrando todas as categorias, com a selecionada em destaque)
@@ -17407,7 +18470,10 @@ document.getElementById('btnErrosPaginaProxima').addEventListener('click', () =>
 });
 document.getElementById('btnExportarErros').addEventListener('click', exportarTabelaErrosCsv);
 
-Object.values(errosFiltros).forEach((select) => select.addEventListener('change', renderizarErrosAvaliacoes));
+Object.values(errosFiltros).forEach((select) => {
+  FiltroMultiplo.criar(select);
+  select.addEventListener('change', renderizarErrosAvaliacoes);
+});
 
 // ---- Painel "Filtros avançados" de Erros de Avaliações (mesmo componente/comportamento dos
 // popovers de filtro das demais seções: funil no cabeçalho, badge de filtros ativos, fecha ao
@@ -17417,7 +18483,7 @@ const errosFiltersPopover = document.getElementById('errosFiltersPopover');
 
 // Badge do funil = quantidade de filtros avançados ativos (Módulo fica visível no cabeçalho)
 function atualizarIndicadorFiltrosErros() {
-  const ativos = ['ano', 'tipoAv', 'segmento', 'disciplina'].filter((chave) => errosFiltros[chave].value !== '').length;
+  const ativos = ['ano', 'tipoAv', 'segmento', 'disciplina'].filter((chave) => valoresFiltro(errosFiltros[chave]).length > 0).length;
   const badge = document.getElementById('errosFilterBadge');
   badge.hidden = ativos === 0;
   badge.textContent = ativos;
@@ -17447,7 +18513,8 @@ document.getElementById('btnFecharFiltrosErros').addEventListener('click', fecha
 document.getElementById('btnFecharFiltrosErrosRodape').addEventListener('click', fecharPopoverFiltrosErros);
 // Limpa os 4 filtros avançados e também o Módulo do cabeçalho
 document.getElementById('btnLimparFiltrosErros').addEventListener('click', () => {
-  Object.values(errosFiltros).forEach((select) => (select.value = ''));
+  Object.values(errosFiltros).forEach((select) => restaurarSelecaoMultipla(select, []));
+  FiltroMultiplo.sincronizar();
   renderizarErrosAvaliacoes();
 });
 document.addEventListener('click', (event) => {
@@ -17594,6 +18661,7 @@ btnAplicarFiltrosElab.addEventListener('click', () => {
   fecharPopoverFiltrosElaborador();
 });
 elabFilterBusca.addEventListener('input', renderizarVisaoElaborador);
+Object.values(elabSelectFilters).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(elabSelectFilters).forEach((select) =>
   select.addEventListener('change', renderizarVisaoElaborador)
 );
@@ -17614,6 +18682,7 @@ btnAplicarFiltrosInd.addEventListener('click', () => {
   fecharPopoverFiltrosIndicadoresTopo();
 });
 indFilterBusca.addEventListener('input', () => renderizarIndicadoresElaborador(indicadoresDadosBase));
+Object.values(indSelectFilters).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(indSelectFilters).forEach((select) =>
   select.addEventListener('change', () => renderizarIndicadoresElaborador(indicadoresDadosBase))
 );
@@ -17638,7 +18707,6 @@ document.querySelectorAll('#viewElaborador [data-quick-filter]').forEach((card) 
 
 // Navegação interna da aba Elaborador: Acompanhamento <-> Indicadores
 btnIndicadores.addEventListener('click', mostrarIndicadoresElaborador);
-btnVoltarAcompanhamento.addEventListener('click', mostrarAcompanhamentoElaborador);
 
 // Botão "Limpar filtros dos indicadores" (remove só os filtros interativos dos gráficos)
 document.getElementById('btnLimparFiltrosIndicadores').addEventListener('click', limparFiltrosIndicadores);
@@ -17651,6 +18719,7 @@ btnAplicarFiltrosCoord.addEventListener('click', () => {
   fecharPopoverFiltrosCoordenador();
 });
 coordFilterBusca.addEventListener('input', renderizarVisaoCoordenador);
+Object.values(coordSelectFilters).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(coordSelectFilters).forEach((select) =>
   select.addEventListener('change', renderizarVisaoCoordenador)
 );
@@ -17671,6 +18740,7 @@ btnAplicarFiltrosIndCoord.addEventListener('click', () => {
   fecharPopoverFiltrosIndicadoresTopoCoord();
 });
 indFilterBuscaCoord.addEventListener('input', () => renderizarIndicadoresCoordenador(indicadoresCoordenadorDadosBase));
+Object.values(indSelectFiltersCoord).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(indSelectFiltersCoord).forEach((select) =>
   select.addEventListener('change', () => renderizarIndicadoresCoordenador(indicadoresCoordenadorDadosBase))
 );
@@ -17959,6 +19029,7 @@ btnAplicarFiltrosPE.addEventListener('click', () => {
   fecharPopoverFiltrosProcessoEditorial();
 });
 peFilterBusca.addEventListener('input', renderizarProcessoEditorial);
+Object.values(peSelectFilters).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(peSelectFilters).forEach((select) =>
   select.addEventListener('change', renderizarProcessoEditorial)
 );
@@ -17996,6 +19067,7 @@ btnAplicarFiltrosAssCoord.addEventListener('click', () => {
   fecharPopoverFiltrosAssinaturaCoordenador();
 });
 assCoordFilterBusca.addEventListener('input', renderizarVisaoAssinaturaCoordenador);
+Object.values(assCoordSelectFilters).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(assCoordSelectFilters).forEach((select) =>
   select.addEventListener('change', renderizarVisaoAssinaturaCoordenador)
 );
@@ -18016,6 +19088,7 @@ btnAplicarFiltrosAFE.addEventListener('click', () => {
   fecharPopoverFiltrosArteFinalizacaoEnvio();
 });
 afeFilterBusca.addEventListener('input', renderizarArteFinalizacaoEnvio);
+Object.values(afeSelectFilters).forEach((select) => FiltroMultiplo.criar(select));
 Object.values(afeSelectFilters).forEach((select) =>
   select.addEventListener('change', renderizarArteFinalizacaoEnvio)
 );
@@ -18072,7 +19145,6 @@ if (btnFecharFiltroCardAFE) {
 
 // Navegação interna da aba Coordenador: Acompanhamento <-> Indicadores
 btnIndicadoresCoord.addEventListener('click', mostrarIndicadoresCoordenador);
-btnVoltarAcompanhamentoCoord.addEventListener('click', mostrarAcompanhamentoCoordenador);
 
 // Botão "Limpar filtros dos indicadores" (remove os filtros interativos dos gráficos)
 domIndCoord.btnLimparFiltros.addEventListener('click', limparFiltrosIndicadoresCoordenador);

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel de Avaliações SGGE</title>
+<title>SIGPA | Gestão da Produção de Avaliações</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
-<link rel="stylesheet" href="style.css?v=20261019z">
+<link rel="stylesheet" href="style.css?v=20261022a">
 </head>
 <body>
 
@@ -13,8 +13,8 @@
   <div id="splashScreen" class="splash-screen">
     <div class="splash-content">
       <img src="assets/logo/logo-sgge.png" alt="SGGE" class="splash-logo">
-      <h1>Painel de Avaliações SGGE</h1>
-      <p>Sistema de acompanhamento de avaliações</p>
+      <h1>SIGPA</h1>
+      <p>Sistema Integrado de Gestão da Produção de Avaliações</p>
       <div class="splash-loader">
         <span></span>
       </div>
@@ -25,7 +25,8 @@
   <div class="login-screen hidden" id="loginScreen">
     <div class="login-card" id="loginCard">
       <img src="assets/logo/logo-sgge.png" alt="Logo SGGE" class="login-logo" id="loginLogo">
-      <h1 class="login-title">Painel de Avaliações SGGE</h1>
+      <h1 class="login-title">SIGPA</h1>
+      <p class="login-nome-completo">Sistema Integrado de Gestão da Produção de Avaliações</p>
       <p class="login-subtitle">Acesse com seu usuário e senha.</p>
 
       <form class="login-form" id="loginForm">
@@ -287,15 +288,8 @@
       </button>
 
       <div class="app-header-titles" id="appHeaderTitles">
-        <h1>Painel de Avaliações SGGE</h1>
-        <p class="subtitle">Acompanhamento do processo de avaliação</p>
+        <h1 class="app-header-sigpa" title="SIGPA — Sistema Integrado de Gestão da Produção de Avaliações"><span class="app-header-emoji" aria-hidden="true">📊</span><span>SIGPA<span class="app-header-nome-completo"> — Sistema Integrado de Gestão da Produção de Avaliações</span></span></h1>
       </div>
-
-      <!-- Substitui o título acima quando o usuário está na tela Indicadores — Elaborador -->
-      <button type="button" id="btnVoltarAcompanhamento" class="header-back-button" hidden>&larr; Voltar ao acompanhamento</button>
-
-      <!-- Substitui o título acima quando o usuário está na tela Indicadores — Coordenador -->
-      <button type="button" id="btnVoltarAcompanhamentoCoord" class="header-back-button" hidden>&larr; Voltar ao acompanhamento</button>
 
       <!-- Substitui o título acima quando o usuário está na tela Indicadores — Processo Editorial -->
       <button type="button" id="btnVoltarAcompanhamentoPE" class="header-back-button" hidden>&larr; Voltar ao acompanhamento</button>
@@ -813,8 +807,10 @@
           type="button"
           id="btnRelatorioCoordenador"
           class="report-btn"
-          title="Gerar relatório do coordenador"
-          aria-label="Gerar relatório do coordenador"
+          title="Relatórios do coordenador"
+          aria-label="Relatórios do coordenador"
+          aria-haspopup="menu"
+          aria-expanded="false"
           hidden
         >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -822,8 +818,16 @@
             <path d="M14 2v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
             <path d="M8 13h8M8 17h8M8 9h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
           </svg>
-          <span>RELATÓRIO DO COORDENADOR</span>
+          <span>RELATÓRIOS</span>
+          <span aria-hidden="true">▾</span>
         </button>
+        <!-- Menu do botão RELATÓRIOS (Indicadores — Coordenador): opção 1 abre o relatório de
+             desempenho já existente (abrirModalRelatorioCoordenador); opção 2 abre o novo
+             "Relatório de Atividades Pendentes por Coordenador" -->
+        <div class="report-menu" id="menuRelatoriosCoord" role="menu" hidden>
+          <button type="button" class="report-menu-item" role="menuitem" id="btnRelCoordPerformance">Performance do Coordenador</button>
+          <button type="button" class="report-menu-item" role="menuitem" id="btnRelCoordPendencias">Atividades Pendentes</button>
+        </div>
 
         <!-- Filtro rápido de Módulo da seção Indicadores — Coordenador, mesmo padrão visual/
              funcional das demais seções (elab-modulo-rapido-wrapper) — fica antes do botão
@@ -1986,9 +1990,9 @@
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="4.5" width="13" height="16" rx="2"/><path d="M9 3.5h6v3H9z"/><path d="M9 11h6M9 15h4"/></svg>
             </span>
             <div class="erros-kpi-texto">
-              <span class="erros-kpi-titulo">Total de avaliações</span>
+              <span class="erros-kpi-titulo">Total de questões</span>
               <span class="erros-kpi-valor" id="errosCardAvaliacoes">-</span>
-              <span class="erros-kpi-sub">Avaliações distintas no período</span>
+              <span class="erros-kpi-sub">Questões das avaliações no período</span>
             </div>
           </div>
           <div class="erros-kpi erros-kpi--erro">
@@ -1996,7 +2000,7 @@
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
             </span>
             <div class="erros-kpi-texto">
-              <span class="erros-kpi-titulo">% Avaliações com erro</span>
+              <span class="erros-kpi-titulo">% de erros por questões</span>
               <span class="erros-kpi-valor" id="errosCardPercentual">-</span>
               <span class="erros-kpi-sub" id="errosCardPercentualSub">-</span>
             </div>
@@ -2300,7 +2304,17 @@
     </section>
 
     <!-- Aba Banco de Provas: seção temporária em branco, aguardando desenvolvimento futuro -->
-    <section id="banco-provas-section" hidden>
+    <section id="banco-provas-section" class="bp-modo-selecao" hidden>
+      <!-- Tela inicial: seleção de módulo (cards). Com um módulo escolhido, a seção sai do modo
+           "bp-modo-selecao" e mostra a barra de filtros + tabela já existentes, só do módulo -->
+      <div class="bp-modulos-view" id="bpModulosView">
+        <div class="bp-modulos-grid" id="bpModulosGrid"></div>
+      </div>
+      <div class="bp-modulo-topo" id="bpModuloTopo">
+        <h2 class="bp-modulo-titulo" id="bpModuloTitulo">Banco de Provas</h2>
+        <button type="button" class="bp-modulo-voltar" id="btnVoltarModulosBP">&larr; Voltar aos módulos</button>
+      </div>
+      <p class="status-message empty bp-modulo-sem-provas" id="bpModuloSemProvas" hidden></p>
       <!-- 2. Barra única no topo: filtro rápido de Módulo + botão de filtros avançados + busca
            (substitui a antiga busca + pills "FILTRAR:" por ano) -->
       <div class="banco-searchbar-wrapper" id="bpFilterPopoverWrapper">
@@ -2411,12 +2425,9 @@
          carregarDadosMacro2/dadosGPA em script.js. Não é uma seção de indicadores: o campo
          "gpa" é o link do arquivo, não uma nota — mesmo padrão visual/estrutural da seção
          "Banco de Provas" (barra de busca + tabela de acesso a arquivos). -->
-    <section id="gpa-section" hidden>
+    <section id="gpa-section" class="gpa-modo-selecao" hidden>
       <!-- Card branco: logo + barra de busca/filtros, tudo no mesmo card -->
       <section class="pe-matrix-card gpa-header-card">
-        <div class="gpa-header-top">
-          <img src="assets/logo-gpa.png" alt="Logo GPA" class="gpa-header-logo">
-        </div>
 
         <!-- Barra única: filtro rápido de Módulo + botão de filtros avançados (Ano/Tipo de AV)
              + busca — mesmo padrão/classes da seção Banco de Provas -->
@@ -2487,6 +2498,18 @@
           </section>
         </div>
       </section>
+
+      <!-- Seleção de módulo (mesmo padrão/classes dos cards do Banco de Provas). A imagem do GPA
+           acima fica sempre visível; com um módulo escolhido, a seção sai de "gpa-modo-selecao"
+           e mostra a barra de busca/filtros + tabela já existentes, só do módulo -->
+      <div class="bp-modulos-view gpa-modulos-view" id="gpaModulosView">
+        <div class="bp-modulos-grid" id="gpaModulosGrid"></div>
+      </div>
+      <div class="bp-modulo-topo gpa-modulo-topo" id="gpaModuloTopo">
+        <h2 class="bp-modulo-titulo" id="gpaModuloTitulo">GPA</h2>
+        <button type="button" class="bp-modulo-voltar" id="btnVoltarModulosGPA">&larr; Voltar aos módulos</button>
+      </div>
+      <p class="status-message empty" id="gpaModuloSemGuias" hidden></p>
 
       <p class="status-message empty" id="gpaEmptyMessage" hidden>Nenhum Guia Para Avaliação encontrado.</p>
 
@@ -3386,6 +3409,63 @@
       </div>
     </div>
 
+    <!-- Seleção do "Relatório de Atividades Pendentes por Coordenador" (Indicadores — Coordenador →
+         RELATÓRIOS → Atividades Pendentes) -->
+    <div class="geral-evento-modal-backdrop" id="selecaoAtivPendBackdrop" hidden>
+      <div class="report-modal-content report-modal-content--selecao" role="dialog" aria-modal="true" aria-labelledby="selecaoAtivPendTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharSelecaoAtivPend" aria-label="Fechar">&times;</button>
+        <div class="report-header">
+          <h3 class="report-title" id="selecaoAtivPendTitulo">Relatório de Atividades Pendentes</h3>
+          <p class="report-subtitle" id="selecaoAtivPendFiltros">-</p>
+        </div>
+        <div class="elab-individual-selecao">
+          <fieldset class="ativ-pend-etapas">
+            <legend>Etapas incluídas</legend>
+            <label><input type="checkbox" value="validacao" checked> 1ª Validação</label>
+            <label><input type="checkbox" value="assinatura" checked> Assinatura do Coordenador</label>
+          </fieldset>
+          <div class="filter-field">
+            <label for="buscaAtivPend">Selecionar coordenador</label>
+            <input type="search" id="buscaAtivPend" placeholder="Pesquisar por nome..." autocomplete="off">
+          </div>
+          <div class="filter-field">
+            <div class="elab-ind-lista" id="listaAtivPend" role="listbox" aria-label="Coordenadores com atividades pendentes"></div>
+          </div>
+          <p class="status-message empty" id="selecaoAtivPendVazio" hidden>Nenhum coordenador encontrado.</p>
+
+          <!-- Progresso da geração em lote ("Gerar Todos os PDFs") -->
+          <div class="lote-cobranca-progresso" id="loteAtivPendProgresso" hidden aria-live="polite">
+            <p class="lote-cobranca-status" id="loteAtivPendStatus">-</p>
+            <div class="lote-cobranca-barra"><div class="lote-cobranca-barra-fill" id="loteAtivPendBarra"></div></div>
+            <p class="lote-cobranca-resultado" id="loteAtivPendResultado" hidden></p>
+          </div>
+        </div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarSelecaoAtivPend">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGerarRelatorioAtivPend" disabled>Gerar relatório</button>
+          <button type="button" class="btn btn-outline btn-lote-cobranca" id="btnGerarTodosPdfsAtivPend">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h8M8 18h5"/>
+            </svg>
+            Gerar Todos os PDFs
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- "Relatório de Atividades Pendentes por Coordenador": conteúdo montado em
+         gerarRelatorioAtivPend; cada filho direto da área de impressão é um bloco do PDF -->
+    <div class="geral-evento-modal-backdrop" id="relatorioAtivPendBackdrop" hidden>
+      <div class="report-modal-content" role="dialog" aria-modal="true" aria-labelledby="selecaoAtivPendTitulo">
+        <button type="button" class="geral-evento-modal-fechar modal-close" id="btnFecharRelatorioAtivPend" aria-label="Fechar">&times;</button>
+        <div id="ativ-pend-report-print-area" class="relatorio-elaborador-preview ativ-pend-report"></div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelarRelatorioAtivPend">Fechar</button>
+          <button type="button" class="btn btn-primary" id="btnImprimirRelatorioAtivPend">Imprimir / Salvar PDF</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal "Análise de Causa Raiz" (Previsto vs. Realizado): análise individual de uma prova
          fora do previsto ou visão consolidada dos atrasos. Conteúdo montado em
          renderizarAnaliseCausaRaiz/renderizarAnaliseConsolidadaAtrasos (dados em memória); PDF pelo
@@ -4083,6 +4163,6 @@
   <!-- Tooltip reutilizável do gráfico de performance de entrega do elaborador -->
   <div class="perf-tooltip" id="perfTooltip" hidden></div>
 
-  <script src="script.js?v=20261019z"></script>
+  <script src="script.js?v=20261022a"></script>
 </body>
 </html>
